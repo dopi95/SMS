@@ -1,0 +1,10 @@
+{
+  "name": "Bluelight Academy SMS",
+  "short_name": "Bluelight SMS",
+  "description": "School Management System for Bluelight Academy",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": []
+}

@@ -1,0 +1,113 @@
+import axios from 'axios'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+
+const api = axios.create({
+  baseURL: API_URL,
+})
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+export const authService = {
+  login: async (email: string, password: string) => {
+    const response = await api.post('/auth/login', { email, password })
+    return response.data
+  },
+
+  register: async (name: string, email: string, password: string, role: string) => {
+    const response = await api.post('/auth/register', { name, email, password, role })
+    return response.data
+  },
+
+  getCurrentUser: async () => {
+    const response = await api.get('/auth/me')
+    return response.data
+  },
+}
+
+export const studentService = {
+  getAll: async () => {
+    const response = await api.get('/students')
+    return response.data
+  },
+
+  getById: async (id: string) => {
+    const response = await api.get(`/students/${id}`)
+    return response.data
+  },
+
+  create: async (data: any) => {
+    const response = await api.post('/students', data)
+    return response.data
+  },
+
+  update: async (id: string, data: any) => {
+    const response = await api.put(`/students/${id}`, data)
+    return response.data
+  },
+
+  delete: async (id: string) => {
+    const response = await api.delete(`/students/${id}`)
+    return response.data
+  },
+}
+
+export const teacherService = {
+  getAll: async () => {
+    const response = await api.get('/teachers')
+    return response.data
+  },
+
+  getById: async (id: string) => {
+    const response = await api.get(`/teachers/${id}`)
+    return response.data
+  },
+
+  create: async (data: any) => {
+    const response = await api.post('/teachers', data)
+    return response.data
+  },
+
+  update: async (id: string, data: any) => {
+    const response = await api.put(`/teachers/${id}`, data)
+    return response.data
+  },
+
+  delete: async (id: string) => {
+    const response = await api.delete(`/teachers/${id}`)
+    return response.data
+  },
+}
+
+export const classService = {
+  getAll: async () => {
+    const response = await api.get('/classes')
+    return response.data
+  },
+
+  getById: async (id: string) => {
+    const response = await api.get(`/classes/${id}`)
+    return response.data
+  },
+
+  create: async (data: any) => {
+    const response = await api.post('/classes', data)
+    return response.data
+  },
+
+  update: async (id: string, data: any) => {
+    const response = await api.put(`/classes/${id}`, data)
+    return response.data
+  },
+
+  delete: async (id: string) => {
+    const response = await api.delete(`/classes/${id}`)
+    return response.data
+  },
+}
