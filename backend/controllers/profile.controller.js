@@ -8,7 +8,8 @@ const updateProfile = async (req, res) => {
     console.log('Profile update request:', {
       body: req.body,
       file: req.file ? 'File present' : 'No file',
-      userId: req.user._id
+      userId: req.user._id,
+      environment: process.env.NODE_ENV
     });
 
     const { name, email, phone, removePhoto } = req.body;
@@ -26,25 +27,46 @@ const updateProfile = async (req, res) => {
     } else if (req.file) {
       try {
         console.log('Uploading to Cloudinary...');
-        const result = await cloudinary.uploader.upload(req.file.path, {
+        
+        // For production (memory storage), upload buffer directly
+        // For development (disk storage), upload file path
+        const uploadOptions = {
           folder: 'profile_photos',
           width: 300,
           height: 300,
           crop: 'fill',
           resource_type: 'auto'
-        });
+        };
+
+        let result;
+        if (process.env.NODE_ENV === 'production') {
+          // Upload from buffer (memory storage)
+          result = await new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_stream(
+              uploadOptions,
+              (error, result) => {
+                if (error) reject(error);
+                else resolve(result);
+              }
+            ).end(req.file.buffer);
+          });
+        } else {
+          // Upload from file path (disk storage)
+          result = await cloudinary.uploader.upload(req.file.path, uploadOptions);
+          // Clean up temp file
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch (cleanupError) {
+            console.log('Temp file cleanup error (non-critical):', cleanupError.message);
+          }
+        }
+        
         updateData.profilePhoto = result.secure_url;
         console.log('Cloudinary upload successful:', result.secure_url);
         
-        // Clean up temp file
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (cleanupError) {
-          console.log('Temp file cleanup error (non-critical):', cleanupError.message);
-        }
       } catch (uploadError) {
         console.error('Cloudinary upload error:', uploadError);
-        if (req.file && req.file.path) {
+        if (req.file && req.file.path && process.env.NODE_ENV !== 'production') {
           try {
             fs.unlinkSync(req.file.path);
           } catch (cleanupError) {
@@ -77,7 +99,7 @@ const updateProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Profile update error:', error);
-    if (req.file && req.file.path) {
+    if (req.file && req.file.path && process.env.NODE_ENV !== 'production') {
       try {
         fs.unlinkSync(req.file.path);
       } catch (cleanupError) {
