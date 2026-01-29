@@ -14,6 +14,9 @@ interface Student {
   firstName: string;
   middleName: string;
   lastName: string;
+  firstNameAmharic?: string;
+  middleNameAmharic?: string;
+  lastNameAmharic?: string;
   email?: string;
   gender: string;
   class: string;
@@ -92,7 +95,11 @@ export default function InactiveStudentsPage() {
 
   const handleActivate = async (id: string) => {
     const student = students.find(s => s._id === id);
-    const studentName = student ? `${student.firstName} ${student.lastName}` : 'this student';
+    const studentName = student ? 
+      (language === 'am' && student.firstNameAmharic 
+        ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
+        : `${student.firstName} ${student.middleName} ${student.lastName}`
+      ) : 'this student';
     
     setConfirmDialog({
       isOpen: true,
@@ -104,7 +111,11 @@ export default function InactiveStudentsPage() {
 
   const handleDelete = async (id: string) => {
     const student = students.find(s => s._id === id);
-    const studentName = student ? `${student.firstName} ${student.lastName}` : 'this student';
+    const studentName = student ? 
+      (language === 'am' && student.firstNameAmharic 
+        ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
+        : `${student.firstName} ${student.middleName} ${student.lastName}`
+      ) : 'this student';
     
     setConfirmDialog({
       isOpen: true,
@@ -291,7 +302,10 @@ export default function InactiveStudentsPage() {
                             </div>
                             <div className="ml-3 min-w-0 flex-1">
                               <div className={`text-sm font-medium truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                                {`${student.firstName} ${student.middleName} ${student.lastName}`}
+                                {language === 'am' && student.firstNameAmharic 
+                                  ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
+                                  : `${student.firstName} ${student.middleName} ${student.lastName}`
+                                }
                               </div>
                               {student.email && (
                                 <div className="text-xs text-gray-400 truncate">{student.email}</div>
@@ -342,19 +356,19 @@ export default function InactiveStudentsPage() {
                           <div className="flex gap-1">
                             <button
                               onClick={() => router.push(`/students/view/${student._id}`)}
-                              className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200"
+                              className={`text-xs px-2 py-1 rounded transition-colors ${theme === 'dark' ? 'bg-green-800 text-green-200 hover:bg-green-700' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
                             >
                               {getText('View', 'ይመልከቱ')}
                             </button>
                             <button
                               onClick={() => handleActivate(student._id)}
-                              className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+                              className={`text-xs px-2 py-1 rounded transition-colors ${theme === 'dark' ? 'bg-blue-800 text-blue-200 hover:bg-blue-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
                             >
                               {getText('Activate', 'አንቃ')}
                             </button>
                             <button
                               onClick={() => handleDelete(student._id)}
-                              className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200"
+                              className={`text-xs px-2 py-1 rounded transition-colors ${theme === 'dark' ? 'bg-red-800 text-red-200 hover:bg-red-700' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
                             >
                               {getText('Delete', 'ሰርዝ')}
                             </button>
@@ -422,7 +436,10 @@ export default function InactiveStudentsPage() {
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                {`${student.firstName} ${student.middleName} ${student.lastName}`}
+                                {language === 'am' && student.firstNameAmharic 
+                                  ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
+                                  : `${student.firstName} ${student.middleName} ${student.lastName}`
+                                }
                               </h3>
                               <p className="text-sm font-medium text-blue-600 mb-2">{student.studentId}</p>
                             </div>
@@ -476,19 +493,19 @@ export default function InactiveStudentsPage() {
                           <div className="flex flex-wrap gap-2">
                             <button
                               onClick={() => router.push(`/students/view/${student._id}`)}
-                              className="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-md hover:bg-green-200 font-medium"
+                              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-green-800 text-green-200 hover:bg-green-700' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
                             >
                               {getText('View', 'ይመልከቱ')}
                             </button>
                             <button
                               onClick={() => handleActivate(student._id)}
-                              className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-md hover:bg-blue-200 font-medium"
+                              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-blue-800 text-blue-200 hover:bg-blue-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
                             >
                               {getText('Activate', 'አንቃ')}
                             </button>
                             <button
                               onClick={() => handleDelete(student._id)}
-                              className="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-md hover:bg-red-200 font-medium"
+                              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-red-800 text-red-200 hover:bg-red-700' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
                             >
                               {getText('Delete', 'ሰርዝ')}
                             </button>

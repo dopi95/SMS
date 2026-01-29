@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { authService } from '@/lib/auth'
 import NotificationBell from './NotificationBell'
 import Image from 'next/image'
+import { useSettings } from '@/contexts/SettingsContext'
 import {
   HomeIcon,
   AcademicCapIcon,
@@ -36,6 +37,7 @@ export default function DashboardLayout({
   children: React.ReactNode
   pageTitle?: string
 }) {
+  const { language, theme, getText } = useSettings()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -43,16 +45,16 @@ export default function DashboardLayout({
   const pathname = usePathname()
 
   const getNavigationItems = () => [
-    { name: 'Dashboard', icon: HomeIcon, href: '/dashboard' },
-    { name: 'Students', icon: AcademicCapIcon, href: '/students' },
-    { name: 'Employees', icon: UserGroupIcon, href: '/employees' },
-    { name: 'Payments', icon: CreditCardIcon, href: '/payments' },
-    { name: 'Inactive Students', icon: UserMinusIcon, href: '/inactive-students' },
-    { name: 'Inactive Employees', icon: UserMinusIcon, href: '/inactive-employees' },
-    { name: 'Send Notifications', icon: BellIcon, href: '/notifications' },
-    { name: 'Admins', icon: ShieldCheckIcon, href: '/admins' },
-    { name: 'Activity Logs', icon: ClipboardDocumentListIcon, href: '/activity-logs' },
-    { name: 'My Profile', icon: UserCircleIcon, href: '/profile' },
+    { name: getText('Dashboard', 'ዳሽቦርድ'), icon: HomeIcon, href: '/dashboard' },
+    { name: getText('Students', 'ተማሪዎች'), icon: AcademicCapIcon, href: '/students' },
+    { name: getText('Employees', 'ሰራተኞች'), icon: UserGroupIcon, href: '/employees' },
+    { name: getText('Payments', 'ክፍያዎች'), icon: CreditCardIcon, href: '/payments' },
+    { name: getText('Inactive Students', 'የተከለሉ ተማሪዎች'), icon: UserMinusIcon, href: '/inactive-students' },
+    { name: getText('Inactive Employees', 'የተከለሉ ሰራተኞች'), icon: UserMinusIcon, href: '/inactive-employees' },
+    { name: getText('Send Notifications', 'ማሳወቂያ ላክ'), icon: BellIcon, href: '/notifications' },
+    { name: getText('Admins', 'አስተዳዳሪዎች'), icon: ShieldCheckIcon, href: '/admins' },
+    { name: getText('Activity Logs', 'የእንቅስቃሴ ምዝገባ'), icon: ClipboardDocumentListIcon, href: '/activity-logs' },
+    { name: getText('My Profile', 'የእኔ መገለጫ'), icon: UserCircleIcon, href: '/profile' },
   ]
 
   useEffect(() => {
@@ -84,14 +86,14 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className={`min-h-screen flex ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
@@ -100,17 +102,17 @@ export default function DashboardLayout({
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      } ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="flex flex-col h-full">
           {/* Logo and close button */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between h-auto lg:h-16 px-4 border-b border-gray-200">
+          <div className={`flex flex-col lg:flex-row lg:items-center lg:justify-between h-auto lg:h-16 px-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
             <div className="flex flex-col lg:flex-row lg:items-center min-w-0 flex-1">
               <Link
                 href="/settings"
-                className="self-start mb-2 lg:hidden p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 hover:scale-105 active:scale-95"
-                title="Settings"
+                className={`self-start mb-2 lg:hidden p-2 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 ${theme === 'dark' ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+                title={getText('Settings', 'ቅንብሮች')}
               >
                 <Cog6ToothIcon className="h-5 w-5" />
               </Link>
@@ -123,8 +125,8 @@ export default function DashboardLayout({
                     height={32}
                     className="mr-2 flex-shrink-0"
                   />
-                  <span className="text-base sm:text-lg font-semibold text-gray-900 whitespace-nowrap">
-                    Bluelight SMS
+                  <span className={`text-base sm:text-lg font-semibold whitespace-nowrap ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    {getText('Bluelight', 'ብሉላይት')} SMS
                   </span>
                 </div>
                 <button
@@ -138,8 +140,8 @@ export default function DashboardLayout({
             <div className="hidden lg:flex items-center space-x-1 ml-2">
               <Link
                 href="/settings"
-                className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 hover:scale-105 active:scale-95"
-                title="Settings"
+                className={`p-2 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 ${theme === 'dark' ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+                title={getText('Settings', 'ቅንብሮች')}
               >
                 <Cog6ToothIcon className="h-5 w-5" />
               </Link>
@@ -147,7 +149,7 @@ export default function DashboardLayout({
           </div>
 
           {/* User profile section */}
-          <div className="p-4 border-b border-gray-200">
+          <div className={`p-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
             <div className="flex items-center">
               {user?.profilePhoto ? (
                 <img
@@ -163,9 +165,9 @@ export default function DashboardLayout({
                 </div>
               )}
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                <p className="text-xs text-gray-500 capitalize">
-                  {user?.role === 'superadmin' ? 'Super Admin' : user?.role}
+                <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{user?.name}</p>
+                <p className={`text-xs capitalize ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {user?.role === 'superadmin' ? getText('Super Admin', 'ዋና አስተዳዳሪ') : getText(user?.role, user?.role)}
                 </p>
               </div>
             </div>
@@ -179,13 +181,15 @@ export default function DashboardLayout({
                 href={item.href}
                 className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
                   pathname === item.href
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? theme === 'dark' ? 'bg-gray-700 text-blue-400 border-r-2 border-blue-400' : 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
+                    : theme === 'dark' ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
               >
                 <item.icon
                   className={`mr-3 h-5 w-5 flex-shrink-0 ${
-                    pathname === item.href ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
+                    pathname === item.href 
+                      ? theme === 'dark' ? 'text-blue-400' : 'text-blue-500' 
+                      : theme === 'dark' ? 'text-gray-400 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-500'
                   }`}
                 />
                 {item.name}
@@ -194,13 +198,13 @@ export default function DashboardLayout({
           </nav>
 
           {/* Logout button */}
-          <div className="p-4 border-t border-gray-200">
+          <div className={`p-4 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center px-2 py-2 text-sm font-medium text-red-600 rounded-md hover:bg-red-50 transition-colors"
+              className={`w-full flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${theme === 'dark' ? 'text-red-400 hover:bg-gray-700' : 'text-red-600 hover:bg-red-50'}`}
             >
               <ArrowRightOnRectangleIcon className="mr-3 h-5 w-5" />
-              Logout
+              {getText('Logout', 'ውጭ')}
             </button>
           </div>
         </div>
@@ -209,15 +213,15 @@ export default function DashboardLayout({
       {/* Main content */}
       <div className="flex-1 flex flex-col lg:ml-64">
         {/* Top bar */}
-        <div className="fixed top-0 left-0 right-0 bg-white shadow-sm border-b border-gray-200 lg:hidden z-40">
+        <div className={`fixed top-0 left-0 right-0 shadow-sm border-b lg:hidden z-40 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center justify-between h-16 px-4">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+              className={`p-2 rounded-md transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-500 hover:bg-gray-100'}`}
             >
               <Bars3Icon className="h-6 w-6" />
             </button>
-            <h1 className="text-lg font-semibold text-gray-900">{pageTitle || 'Dashboard'}</h1>
+            <h1 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{pageTitle || getText('Dashboard', 'ዳሽቦርድ')}</h1>
             <div className="w-10" />
           </div>
         </div>
