@@ -315,7 +315,7 @@ export default function InactiveStudentsPage() {
                         </td>
                         <td className="px-3 py-3">
                           <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {student.studentId}
+                            {language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId}
                           </span>
                         </td>
                         <td className="px-3 py-3">
@@ -441,7 +441,7 @@ export default function InactiveStudentsPage() {
                                   : `${student.firstName} ${student.middleName} ${student.lastName}`
                                 }
                               </h3>
-                              <p className="text-sm font-medium text-blue-600 mb-2">{student.studentId}</p>
+                              <p className="text-sm font-medium text-blue-600 mb-2">{language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId}</p>
                             </div>
                           </div>
                           

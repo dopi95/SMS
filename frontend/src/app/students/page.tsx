@@ -418,7 +418,7 @@ export default function StudentsPage() {
                         </td>
                         <td className="px-3 py-3">
                           <span className="text-sm font-medium text-blue-600">
-                            {student.studentId}
+                            {language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId}
                           </span>
                         </td>
                         <td className="px-3 py-3">
@@ -528,7 +528,7 @@ export default function StudentsPage() {
                               : `${student.firstName} ${student.middleName} ${student.lastName}`
                             }
                           </h3>
-                          <p className="text-sm font-medium text-blue-600 mb-2">{student.studentId}</p>
+                          <p className="text-sm font-medium text-blue-600 mb-2">{language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId}</p>
                           
                           <div className="grid grid-cols-2 gap-3 mb-3">
                             <div>

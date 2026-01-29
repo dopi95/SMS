@@ -251,7 +251,7 @@ export default function EditStudentPage() {
                     <input
                       type="text"
                       name="studentId"
-                      value={formData.studentId}
+                      value={language === 'am' ? formData.studentId.replace('BLUE', 'ብሉ') : formData.studentId}
                       onChange={handleInputChange}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
                     />

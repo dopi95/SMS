@@ -121,7 +121,7 @@ export default function ViewStudentPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Student ID', 'የተማሪ መለያ')}</label>
-                      <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.studentId}</p>
+                      <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId}</p>
                     </div>
                     <div>
                       <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Payment Code', 'የክፍላ ኮድ')}</label>
