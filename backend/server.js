@@ -18,7 +18,7 @@ connectDB();
 // Middleware
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://sms-frontend.vercel.app', 'https://bluelight-sms.vercel.app', 'https://bluelight-sms.netlify.app']
+    ? ['https://blsms.vercel.app', 'https://sms-frontend.vercel.app', 'https://bluelight-sms.vercel.app']
     : ['http://localhost:4500', 'http://localhost:3000'],
   credentials: true
 };
