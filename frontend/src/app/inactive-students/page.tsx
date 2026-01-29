@@ -17,6 +17,7 @@ interface Student {
   email?: string;
   gender: string;
   class: string;
+  section?: string;
   fatherPhone?: string;
   motherPhone?: string;
   fatherName?: string;
@@ -290,10 +291,7 @@ export default function InactiveStudentsPage() {
                             </div>
                             <div className="ml-3 min-w-0 flex-1">
                               <div className={`text-sm font-medium truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                                {language === 'am' && student.firstNameAmharic 
-                                  ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-                                  : `${student.firstName} ${student.middleName} ${student.lastName}`
-                                }
+                                {`${student.firstName} ${student.middleName} ${student.lastName}`}
                               </div>
                               {student.email && (
                                 <div className="text-xs text-gray-400 truncate">{student.email}</div>
@@ -424,10 +422,7 @@ export default function InactiveStudentsPage() {
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                {language === 'am' && student.firstNameAmharic 
-                                  ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-                                  : `${student.firstName} ${student.middleName} ${student.lastName}`
-                                }
+                                {`${student.firstName} ${student.middleName} ${student.lastName}`}
                               </h3>
                               <p className="text-sm font-medium text-blue-600 mb-2">{student.studentId}</p>
                             </div>

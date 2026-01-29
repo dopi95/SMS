@@ -40,7 +40,7 @@ export default function EditStudentPage() {
   });
 
   const [sections] = useState<string[]>(['A', 'B', 'C', 'D']);
-  const [classes] = useState<string[]>(['Nursery', 'LKG', 'UKG']);
+  const [classes] = useState<string[]>(['Nursery', 'LKG', 'UKG', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8']);
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [photoPreview, setPhotoPreview] = useState<string>('');
@@ -51,18 +51,6 @@ export default function EditStudentPage() {
   useEffect(() => {
     fetchStudent();
   }, []);
-
-  const fetchClasses = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/classes`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setClasses(response.data);
-    } catch (error) {
-      toast.error(getText('❌ Failed to load classes. Please refresh the page.', '❌ ክፍሎችን መጫን አልተሳካም። እባክዎ ገጹን ያድሱ።'));
-    }
-  };
 
   const fetchStudent = async () => {
     try {
