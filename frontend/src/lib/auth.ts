@@ -4,6 +4,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 30000, // 30 seconds timeout
 })
 
 api.interceptors.request.use((config) => {
@@ -11,8 +12,28 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  
+  // Don't set Content-Type for FormData, let browser set it with boundary
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type']
+  }
+  
   return config
 })
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    })
+    return Promise.reject(error)
+  }
+)
 
 export const authService = {
   login: async (email: string, password: string) => {
@@ -119,11 +140,7 @@ export const profileService = {
   },
 
   updateProfile: async (formData: FormData) => {
-    const response = await api.put('/profile/update', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
+    const response = await api.put('/profile/update', formData)
     return response.data
   },
 
