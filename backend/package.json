@@ -4,7 +4,7 @@
   "description": "School Management System Backend for Bluelight Academy",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "NODE_ENV=production node server.js",
     "dev": "nodemon server.js",
     "seed:admin": "node seeders/admin.seeder.js"
   },
