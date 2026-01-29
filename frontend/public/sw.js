@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bluelight-sms-v4'
+const CACHE_NAME = 'bluelight-sms-v5'
 const ESSENTIAL_RESOURCES = [
   '/',
   '/login',
@@ -37,29 +37,51 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return
+  const { request } = event
+  const url = new URL(request.url)
 
+  // Skip non-GET requests
+  if (request.method !== 'GET') {
+    return
+  }
+
+  // Always fetch API requests from network (no caching for data)
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(request).catch(() => {
+        return new Response(JSON.stringify({ 
+          error: 'Network Error', 
+          message: 'Please check your internet connection'
+        }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      })
+    )
+    return
+  }
+
+  // For pages and static assets: network first, cache fallback
   event.respondWith(
-    caches.match(event.request)
+    fetch(request)
       .then((response) => {
-        if (response) {
-          return response
+        if (response.ok) {
+          const responseToCache = response.clone()
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseToCache)
+          })
         }
-        return fetch(event.request)
-          .then((response) => {
-            if (response.ok) {
-              const responseToCache = response.clone()
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, responseToCache)
-              })
-            }
-            return response
-          })
-          .catch(() => {
-            if (event.request.destination === 'document') {
-              return caches.match('/')
-            }
-          })
+        return response
+      })
+      .catch(() => {
+        return caches.match(request).then(cachedResponse => {
+          if (cachedResponse) {
+            return cachedResponse
+          }
+          if (request.destination === 'document') {
+            return caches.match('/')
+          }
+        })
       })
   )
 })
