@@ -42,11 +42,49 @@ export default function RootLayout({
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js')
                     .then(function(registration) {
-                      // Silent success
+                      // Update service worker when new version is available
+                      registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        if (newWorker) {
+                          newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                              // New version available, reload page
+                              window.location.reload();
+                            }
+                          });
+                        }
+                      });
                     })
                     .catch(function(registrationError) {
                       // Silent error handling
                     });
+                });
+              }
+              
+              // Cache essential resources on page load
+              if ('caches' in window) {
+                caches.open('bluelight-sms-v3').then(cache => {
+                  const essentialResources = [
+                    '/',
+                    '/dashboard',
+                    '/profile',
+                    '/settings',
+                    '/login',
+                    '/manifest.json',
+                    '/log.png'
+                  ];
+                  
+                  // Pre-cache essential resources
+                  essentialResources.forEach(url => {
+                    fetch(url).then(response => {
+                      if (response.ok) {
+                        cache.put(url, response.clone());
+                      }
+                    }).catch(() => {});
+                  });
+                  
+                  // Cache current page
+                  cache.add(window.location.pathname).catch(() => {});
                 });
               }
             `,
