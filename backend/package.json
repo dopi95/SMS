@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "NODE_ENV=production node server.js",
+    "build": "echo 'No build step required for Node.js backend'",
     "dev": "nodemon server.js",
     "seed:admin": "node seeders/admin.seeder.js"
   },
