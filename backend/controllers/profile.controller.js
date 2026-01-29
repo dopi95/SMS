@@ -5,34 +5,64 @@ const fs = require('fs');
 
 const updateProfile = async (req, res) => {
   try {
+    console.log('Profile update request:', {
+      body: req.body,
+      file: req.file ? 'File present' : 'No file',
+      userId: req.user._id
+    });
+
     const { name, email, phone, removePhoto } = req.body;
     const userId = req.user._id;
 
-    const updateData = { name, email, phone };
+    // Validate required fields
+    if (!name || !email) {
+      return res.status(400).json({ message: 'Name and email are required' });
+    }
+
+    const updateData = { name, email, phone: phone || '' };
 
     if (removePhoto === 'true') {
       updateData.profilePhoto = '';
     } else if (req.file) {
       try {
+        console.log('Uploading to Cloudinary...');
         const result = await cloudinary.uploader.upload(req.file.path, {
           folder: 'profile_photos',
           width: 300,
           height: 300,
-          crop: 'fill'
+          crop: 'fill',
+          resource_type: 'auto'
         });
         updateData.profilePhoto = result.secure_url;
+        console.log('Cloudinary upload successful:', result.secure_url);
         
-        fs.unlinkSync(req.file.path);
+        // Clean up temp file
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (cleanupError) {
+          console.log('Temp file cleanup error (non-critical):', cleanupError.message);
+        }
       } catch (uploadError) {
         console.error('Cloudinary upload error:', uploadError);
         if (req.file && req.file.path) {
-          fs.unlinkSync(req.file.path);
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch (cleanupError) {
+            console.log('Temp file cleanup error:', cleanupError.message);
+          }
         }
-        return res.status(500).json({ message: 'Failed to upload image' });
+        return res.status(500).json({ message: 'Failed to upload image. Please try again.' });
       }
     }
 
+    console.log('Updating user with data:', updateData);
     const user = await User.findByIdAndUpdate(userId, updateData, { new: true }).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    console.log('Profile updated successfully for user:', user._id);
     
     res.json({
       message: 'Profile updated successfully',
@@ -46,6 +76,7 @@ const updateProfile = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Profile update error:', error);
     if (req.file && req.file.path) {
       try {
         fs.unlinkSync(req.file.path);
@@ -53,7 +84,7 @@ const updateProfile = async (req, res) => {
         console.error('File cleanup error:', cleanupError);
       }
     }
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Server error. Please try again.' });
   }
 };
 
