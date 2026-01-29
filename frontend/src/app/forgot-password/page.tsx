@@ -28,7 +28,9 @@ export default function ForgotPassword() {
   const [otp, setOtp] = useState('')
   const router = useRouter()
   
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<EmailFormData | OTPFormData | PasswordFormData>()
+  const emailForm = useForm<EmailFormData>()
+  const otpForm = useForm<OTPFormData>()
+  const passwordForm = useForm<PasswordFormData>()
 
   const sendOTP: SubmitHandler<EmailFormData> = async (data) => {
     setLoading(true)
@@ -104,13 +106,13 @@ export default function ForgotPassword() {
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
           {/* Step 1: Email */}
           {step === 1 && (
-            <form onSubmit={handleSubmit(sendOTP)} className="space-y-6">
+            <form onSubmit={emailForm.handleSubmit(sendOTP)} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Email Address
                 </label>
                 <input
-                  {...register('email', { 
+                  {...emailForm.register('email', { 
                     required: 'Email is required',
                     pattern: {
                       value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
@@ -122,8 +124,8 @@ export default function ForgotPassword() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white"
                   placeholder="Enter your email"
                 />
-                {errors.email && (
-                  <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
+                {emailForm.formState.errors.email && (
+                  <p className="text-red-500 text-sm mt-1">{emailForm.formState.errors.email.message}</p>
                 )}
               </div>
               <button
@@ -138,13 +140,13 @@ export default function ForgotPassword() {
 
           {/* Step 2: OTP */}
           {step === 2 && (
-            <form onSubmit={handleSubmit(verifyOTP)} className="space-y-6">
+            <form onSubmit={otpForm.handleSubmit(verifyOTP)} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Enter OTP
                 </label>
                 <input
-                  {...register('otp', { 
+                  {...otpForm.register('otp', { 
                     required: 'OTP is required',
                     pattern: {
                       value: /^[0-9]{6}$/,
@@ -157,8 +159,8 @@ export default function ForgotPassword() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white text-center text-2xl tracking-widest"
                   placeholder="000000"
                 />
-                {errors.otp && (
-                  <p className="text-red-500 text-sm mt-1">{errors.otp.message}</p>
+                {otpForm.formState.errors.otp && (
+                  <p className="text-red-500 text-sm mt-1">{otpForm.formState.errors.otp.message}</p>
                 )}
                 <p className="text-sm text-gray-500 mt-2">
                   OTP sent to {email}
@@ -176,13 +178,13 @@ export default function ForgotPassword() {
 
           {/* Step 3: New Password */}
           {step === 3 && (
-            <form onSubmit={handleSubmit(resetPassword)} className="space-y-6">
+            <form onSubmit={passwordForm.handleSubmit(resetPassword)} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   New Password
                 </label>
                 <input
-                  {...register('password', { 
+                  {...passwordForm.register('password', { 
                     required: 'Password is required',
                     minLength: {
                       value: 6,
@@ -194,8 +196,8 @@ export default function ForgotPassword() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white"
                   placeholder="Enter new password"
                 />
-                {errors.password && (
-                  <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>
+                {passwordForm.formState.errors.password && (
+                  <p className="text-red-500 text-sm mt-1">{passwordForm.formState.errors.password.message}</p>
                 )}
               </div>
               <div>
@@ -203,14 +205,14 @@ export default function ForgotPassword() {
                   Confirm Password
                 </label>
                 <input
-                  {...register('confirmPassword', { required: 'Please confirm your password' })}
+                  {...passwordForm.register('confirmPassword', { required: 'Please confirm your password' })}
                   type="password"
                   autoComplete="new-password"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white"
                   placeholder="Confirm new password"
                 />
-                {errors.confirmPassword && (
-                  <p className="text-red-500 text-sm mt-1">{errors.confirmPassword.message}</p>
+                {passwordForm.formState.errors.confirmPassword && (
+                  <p className="text-red-500 text-sm mt-1">{passwordForm.formState.errors.confirmPassword.message}</p>
                 )}
               </div>
               <button
