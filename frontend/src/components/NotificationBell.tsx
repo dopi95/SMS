@@ -48,27 +48,45 @@ export default function NotificationBell() {
       const audio = new Audio('/notification.mp3')
       audio.volume = 0.5
       audio.play().catch(() => {
-        // Fallback to Web Audio API beep
+        // Fallback to Web Audio API beep only after user interaction
         try {
           const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-          const oscillator = audioContext.createOscillator()
-          const gainNode = audioContext.createGain()
           
-          oscillator.connect(gainNode)
-          gainNode.connect(audioContext.destination)
-          
-          oscillator.frequency.setValueAtTime(800, audioContext.currentTime)
-          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
-          
-          oscillator.start(audioContext.currentTime)
-          oscillator.stop(audioContext.currentTime + 0.5)
+          // Check if AudioContext is suspended and resume it
+          if (audioContext.state === 'suspended') {
+            audioContext.resume().then(() => {
+              createBeepSound(audioContext)
+            }).catch(() => {
+              // Silently fail if can't resume
+            })
+          } else {
+            createBeepSound(audioContext)
+          }
         } catch (error) {
-          console.log('Audio not supported')
+          // Silently fail if audio not supported
         }
       })
     } catch (error) {
-      console.log('Audio not available')
+      // Silently fail if audio not available
+    }
+  }
+
+  const createBeepSound = (audioContext: AudioContext) => {
+    try {
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime)
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
+      
+      oscillator.start(audioContext.currentTime)
+      oscillator.stop(audioContext.currentTime + 0.5)
+    } catch (error) {
+      // Silently fail
     }
   }
 

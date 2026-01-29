@@ -65,10 +65,13 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.ok) {
+        // Only cache successful responses that are not partial (status 200)
+        if (response.ok && response.status === 200) {
           const responseToCache = response.clone()
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseToCache)
+            cache.put(request, responseToCache).catch(() => {
+              // Silently fail if caching fails
+            })
           })
         }
         return response
