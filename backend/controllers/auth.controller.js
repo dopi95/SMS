@@ -20,7 +20,14 @@ const register = async (req, res) => {
     
     res.status(201).json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+      user: { 
+        id: user._id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role,
+        profilePhoto: user.profilePhoto,
+        phone: user.phone
+      }
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -40,7 +47,14 @@ const login = async (req, res) => {
     
     res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+      user: { 
+        id: user._id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role,
+        profilePhoto: user.profilePhoto,
+        phone: user.phone
+      }
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -53,7 +67,9 @@ const getMe = (req, res) => {
       id: req.user._id,
       name: req.user.name,
       email: req.user.email,
-      role: req.user.role
+      role: req.user.role,
+      profilePhoto: req.user.profilePhoto,
+      phone: req.user.phone
     }
   });
 };
@@ -67,18 +83,15 @@ const forgotPassword = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
-    // Save OTP to database
     const otpRecord = new OTP({
       email,
       otp,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000)
     });
     await otpRecord.save();
 
-    // Send OTP email
     await sendOTPEmail(email, otp, user.name);
     
     res.json({ message: 'OTP sent to your email' });
@@ -103,7 +116,6 @@ const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
-    // Mark OTP as used
     otpRecord.used = true;
     await otpRecord.save();
 
@@ -133,11 +145,9 @@ const resetPassword = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Update password
     user.password = newPassword;
     await user.save();
 
-    // Delete used OTP
     await OTP.deleteOne({ _id: otpRecord._id });
 
     res.json({ message: 'Password reset successfully' });

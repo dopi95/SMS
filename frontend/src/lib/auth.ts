@@ -111,3 +111,27 @@ export const classService = {
     return response.data
   },
 }
+
+export const profileService = {
+  getProfile: async () => {
+    const response = await api.get('/profile')
+    return response.data
+  },
+
+  updateProfile: async (formData: FormData) => {
+    const response = await api.put('/profile/update', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    const response = await api.put('/profile/change-password', {
+      currentPassword,
+      newPassword,
+    })
+    return response.data
+  },
+}

@@ -11,7 +11,7 @@ export const metadata = {
   description: 'Complete school management system for Bluelight Academy',
   manifest: '/manifest.json',
   icons: {
-    icon: '/logo.png',
+    icon: '/log.png',
   },
 }
 

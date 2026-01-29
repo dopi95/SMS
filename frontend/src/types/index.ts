@@ -2,7 +2,9 @@ export interface User {
   id: string
   name: string
   email: string
-  role: 'admin' | 'teacher' | 'student'
+  role: 'superadmin' | 'teacher' | 'student'
+  profilePhoto?: string
+  phone?: string
   isActive: boolean
   createdAt: string
   updatedAt: string

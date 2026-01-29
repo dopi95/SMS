@@ -11,7 +11,10 @@ const seedAdmin = async () => {
     const existingAdmin = await User.findOne({ email: 'elyasat594@gmail.com' });
     
     if (existingAdmin) {
-      console.log('Admin user already exists');
+      // Update existing admin to superadmin role
+      existingAdmin.role = 'superadmin';
+      await existingAdmin.save();
+      console.log('✅ Admin user updated to superadmin role');
       return;
     }
 
@@ -20,7 +23,7 @@ const seedAdmin = async () => {
       name: 'Super Admin',
       email: 'elyasat594@gmail.com',
       password: 'admin123',
-      role: 'admin'
+      role: 'superadmin'
     });
 
     await adminUser.save();
