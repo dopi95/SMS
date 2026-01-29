@@ -2,7 +2,20 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, SubmitHandler } from 'react-hook-form'
+
+interface EmailFormData {
+  email: string
+}
+
+interface OTPFormData {
+  otp: string
+}
+
+interface PasswordFormData {
+  password: string
+  confirmPassword: string
+}
 import toast from 'react-hot-toast'
 import axios from 'axios'
 
@@ -15,9 +28,9 @@ export default function ForgotPassword() {
   const [otp, setOtp] = useState('')
   const router = useRouter()
   
-  const { register, handleSubmit, formState: { errors }, reset } = useForm()
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<EmailFormData | OTPFormData | PasswordFormData>()
 
-  const sendOTP = async (data: { email: string }) => {
+  const sendOTP: SubmitHandler<EmailFormData> = async (data) => {
     setLoading(true)
     try {
       await axios.post(`${API_URL}/auth/forgot-password`, { email: data.email })
@@ -31,7 +44,7 @@ export default function ForgotPassword() {
     }
   }
 
-  const verifyOTP = async (data: { otp: string }) => {
+  const verifyOTP: SubmitHandler<OTPFormData> = async (data) => {
     setLoading(true)
     try {
       await axios.post(`${API_URL}/auth/verify-otp`, { email, otp: data.otp })
@@ -45,7 +58,7 @@ export default function ForgotPassword() {
     }
   }
 
-  const resetPassword = async (data: { password: string, confirmPassword: string }) => {
+  const resetPassword: SubmitHandler<PasswordFormData> = async (data) => {
     if (data.password !== data.confirmPassword) {
       toast.error('Passwords do not match')
       return
