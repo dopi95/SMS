@@ -78,10 +78,16 @@ const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: 'User not found with this email address' });
     }
+
+    await OTP.deleteMany({ email });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
@@ -94,10 +100,12 @@ const forgotPassword = async (req, res) => {
 
     await sendOTPEmail(email, otp, user.name);
     
-    res.json({ message: 'OTP sent to your email' });
+    res.json({ 
+      message: 'OTP sent successfully to your email address',
+      email: email
+    });
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error. Please try again later.' });
   }
 };
 
