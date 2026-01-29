@@ -2,6 +2,7 @@ import './globals.css'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
 import ErrorSuppressor from '@/components/ErrorSuppressor'
+import { SettingsProvider } from '@/contexts/SettingsContext'
 import Script from 'next/script'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -24,13 +25,33 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#2563eb" />
         <Script src="/suppress-errors.js" strategy="beforeInteractive" />
       </head>
       <body className={inter.className} suppressHydrationWarning>
-        <ErrorSuppressor>
-          {children}
-          <Toaster position="top-right" />
-        </ErrorSuppressor>
+        <SettingsProvider>
+          <ErrorSuppressor>
+            {children}
+            <Toaster position="top-right" />
+          </ErrorSuppressor>
+        </SettingsProvider>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                      // Silent success
+                    })
+                    .catch(function(registrationError) {
+                      // Silent error handling
+                    });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   )
