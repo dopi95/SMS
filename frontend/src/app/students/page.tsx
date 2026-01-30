@@ -7,6 +7,10 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useSettings } from '@/contexts/SettingsContext';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 interface Student {
   _id: string;
@@ -49,6 +53,8 @@ export default function StudentsPage() {
     studentId: string;
     studentName: string;
   }>({ isOpen: false, type: 'inactive', studentId: '', studentName: '' });
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [fileName, setFileName] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -58,6 +64,20 @@ export default function StudentsPage() {
   useEffect(() => {
     filterStudents();
   }, [students, searchTerm, classFilter, sectionFilter, batchFilter, typeFilter]);
+
+  useEffect(() => {
+    generateFileName();
+  }, [filteredStudents, classFilter, sectionFilter, batchFilter, typeFilter, language]);
+
+  const generateFileName = () => {
+    const parts = [];
+    if (classFilter) parts.push(getText(classFilter, classFilter === 'Nursery' ? 'ጀማሪ' : classFilter === 'LKG' ? 'ደረጃ1' : classFilter === 'UKG' ? 'ደረጃ2' : classFilter));
+    if (sectionFilter) parts.push(`${getText('Section', 'ክፍል')}${language === 'am' ? (sectionFilter === 'A' ? 'አ' : sectionFilter === 'B' ? 'ለ' : sectionFilter === 'C' ? 'ሐ' : sectionFilter === 'D' ? 'መ' : sectionFilter) : sectionFilter}`);
+    if (batchFilter) parts.push(`${batchFilter}EC`);
+    
+    const baseName = parts.length > 0 ? parts.join('_') : getText('All_Students', 'ሁሉም_ተማሪዎች');
+    setFileName(`${baseName}_${new Date().toISOString().split('T')[0]}`);
+  };
 
   const filterStudents = () => {
     let filtered = students;
@@ -194,6 +214,153 @@ export default function StudentsPage() {
     setConfirmDialog({ isOpen: false, type: 'inactive', studentId: '', studentName: '' });
   };
 
+  const exportToPDF = () => {
+    const doc = new jsPDF('l', 'mm', 'a4');
+    
+    // Title
+    doc.setFontSize(18);
+    doc.text(getText('Students Report', 'የተማሪዎች ሪፖርት'), 14, 20);
+    
+    // Subtitle with filters
+    doc.setFontSize(12);
+    let subtitle = '';
+    if (classFilter) subtitle += `${getText('Class', 'ክፍል')}: ${getText(classFilter, classFilter === 'Nursery' ? 'ጀማሪ' : classFilter === 'LKG' ? 'ደረጃ 1' : classFilter === 'UKG' ? 'ደረጃ 2' : classFilter)} `;
+    if (sectionFilter) subtitle += `${getText('Section', 'ክፍል')}: ${language === 'am' ? (sectionFilter === 'A' ? 'አ' : sectionFilter === 'B' ? 'ለ' : sectionFilter === 'C' ? 'ሐ' : sectionFilter === 'D' ? 'መ' : sectionFilter) : sectionFilter} `;
+    if (batchFilter) subtitle += `${getText('Batch', 'ቡድን')}: ${batchFilter} E.C `;
+    if (typeFilter) subtitle += `${getText('Type', 'አይነት')}: ${getText(typeFilter, typeFilter === 'regular' ? 'መደበኛ' : 'ልዩ')} `;
+    
+    if (subtitle) {
+      doc.text(subtitle.trim(), 14, 28);
+    }
+    
+    doc.text(`${getText('Generated on', 'የተፈጠረበት ቀን')}: ${new Date().toLocaleDateString()}`, 14, subtitle ? 36 : 28);
+    doc.text(`${getText('Total Students', 'ጠቅላላ ተማሪዎች')}: ${filteredStudents.length}`, 14, subtitle ? 44 : 36);
+    
+    // Table data
+    const tableData = filteredStudents.map((student, index) => [
+      index + 1,
+      language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId,
+      language === 'am' && student.firstNameAmharic 
+        ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
+        : `${student.firstName} ${student.middleName} ${student.lastName}`,
+      getText(student.class, student.class === 'Nursery' ? 'ጀማሪ' : student.class === 'LKG' ? 'ደረጃ 1' : student.class === 'UKG' ? 'ደረጃ 2' : student.class),
+      language === 'am' && student.section ? 
+        (student.section === 'A' ? 'አ' : student.section === 'B' ? 'ለ' : student.section === 'C' ? 'ሐ' : student.section === 'D' ? 'መ' : student.section) 
+        : (student.section || '-'),
+      getText(student.gender, student.gender === 'Male' ? 'ወንድ' : student.gender === 'Female' ? 'ሴት' : student.gender),
+      student.joinedYear,
+      student.fatherName || '-',
+      student.fatherPhone || '-',
+      student.motherName || '-',
+      student.motherPhone || '-',
+      student.email || '-'
+    ]);
+    
+    autoTable(doc, {
+      head: [[
+        '#',
+        getText('Student ID', 'የተማሪ መለያ'),
+        getText('Full Name', 'ሙሉ ስም'),
+        getText('Class', 'ክፍል'),
+        getText('Section', 'ክፍል'),
+        getText('Gender', 'ጾታ'),
+        getText('Batch', 'ቡድን'),
+        getText('Father Name', 'የአባት ስም'),
+        getText('Father Phone', 'የአባት ስልክ'),
+        getText('Mother Name', 'የእናት ስም'),
+        getText('Mother Phone', 'የእናት ስልክ'),
+        getText('Email', 'ኢሜይል')
+      ]],
+      body: tableData,
+      startY: subtitle ? 52 : 44,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: 14, right: 14 }
+    });
+    
+    doc.save(`${fileName}.pdf`);
+    setShowExportMenu(false);
+    toast.success(getText('PDF exported successfully!', 'PDF በተሳካ ሁኔታ ወጣ!'));
+  };
+  
+  const exportToExcel = () => {
+    const worksheetData = [
+      // Header row
+      [
+        '#',
+        getText('Student ID', 'የተማሪ መለያ'),
+        getText('Full Name', 'ሙሉ ስም'),
+        getText('Class', 'ክፍል'),
+        getText('Section', 'ክፍል'),
+        getText('Gender', 'ጾታ'),
+        getText('Batch', 'ቡድን'),
+        getText('Date of Birth', 'የትውልድ ቀን'),
+        getText('Father Name', 'የአባት ስም'),
+        getText('Father Phone', 'የአባት ስልክ'),
+        getText('Mother Name', 'የእናት ስም'),
+        getText('Mother Phone', 'የእናት ስልክ'),
+        getText('Email', 'ኢሜይል'),
+        getText('Address', 'አድራሻ'),
+        getText('Payment Code', 'የክፍያ ኮድ')
+      ],
+      // Data rows
+      ...filteredStudents.map((student, index) => [
+        index + 1,
+        language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId,
+        language === 'am' && student.firstNameAmharic 
+          ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
+          : `${student.firstName} ${student.middleName} ${student.lastName}`,
+        getText(student.class, student.class === 'Nursery' ? 'ጀማሪ' : student.class === 'LKG' ? 'ደረጃ 1' : student.class === 'UKG' ? 'ደረጃ 2' : student.class),
+        language === 'am' && student.section ? 
+          (student.section === 'A' ? 'አ' : student.section === 'B' ? 'ለ' : student.section === 'C' ? 'ሐ' : student.section === 'D' ? 'መ' : student.section) 
+          : (student.section || ''),
+        getText(student.gender, student.gender === 'Male' ? 'ወንድ' : student.gender === 'Female' ? 'ሴት' : student.gender),
+        student.joinedYear,
+        student.dateOfBirth || '',
+        student.fatherName || '',
+        student.fatherPhone || '',
+        student.motherName || '',
+        student.motherPhone || '',
+        student.email || '',
+        student.address || '',
+        student.paymentCode || ''
+      ])
+    ];
+    
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 5 },   // #
+      { wch: 15 },  // Student ID
+      { wch: 25 },  // Full Name
+      { wch: 10 },  // Class
+      { wch: 10 },  // Section
+      { wch: 10 },  // Gender
+      { wch: 10 },  // Batch
+      { wch: 15 },  // DOB
+      { wch: 20 },  // Father Name
+      { wch: 15 },  // Father Phone
+      { wch: 20 },  // Mother Name
+      { wch: 15 },  // Mother Phone
+      { wch: 25 },  // Email
+      { wch: 30 },  // Address
+      { wch: 15 }   // Payment Code
+    ];
+    worksheet['!cols'] = colWidths;
+    
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, getText('Students', 'ተማሪዎች'));
+    
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    
+    saveAs(data, `${fileName}.xlsx`);
+    setShowExportMenu(false);
+    toast.success(getText('Excel exported successfully!', 'Excel በተሳካ ሁኔታ ወጣ!'));
+  };
+
   if (loading) {
     return (
       <DashboardLayout pageTitle={getText('Students', 'ተማሪዎች')}>
@@ -252,15 +419,91 @@ export default function StudentsPage() {
                   <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Students', 'ተማሪዎች')}</h1>
                   <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Manage and view all student information', 'የተማሪዎች ማለባ መረጃ አስተዳድር እና መመልከት')}</p>
                 </div>
-                <button
-                  onClick={() => router.push('/students/add')}
-                  className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  {getText('Add New Student', 'አዲስ ተማሪ ከምር')}
-                </button>
+                <div className="flex gap-3">
+                  {/* Export Button */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowExportMenu(!showExportMenu)}
+                      className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      {getText('Export', 'ወደ ውጭ አውጣ')}
+                    </button>
+                    
+                    {showExportMenu && (
+                      <div className={`absolute right-0 mt-2 w-80 rounded-lg shadow-lg border z-50 ${theme === 'dark' ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
+                        <div className="p-4">
+                          <h3 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Export Students', 'ተማሪዎችን ወደ ውጭ አውጣ')}</h3>
+                          
+                          {/* File Name Input */}
+                          <div className="mb-4">
+                            <label className={`block text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                              {getText('File Name', 'የፋይል ስም')}
+                            </label>
+                            <input
+                              type="text"
+                              value={fileName}
+                              onChange={(e) => setFileName(e.target.value)}
+                              className={`w-full px-3 py-2 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                              placeholder={getText('Enter file name', 'የፋይል ስም ያስገቡ')}
+                            />
+                          </div>
+                          
+                          {/* Export Info */}
+                          <div className={`text-xs mb-4 p-2 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-50 text-gray-600'}`}>
+                            <p>{getText('Exporting', 'እያወጣ')}: {filteredStudents.length} {getText('students', 'ተማሪዎች')}</p>
+                            {(classFilter || sectionFilter || batchFilter || typeFilter) && (
+                              <p className="mt-1">{getText('Filters applied', 'ፈልተሮች ተተግብረዋል')}</p>
+                            )}
+                          </div>
+                          
+                          {/* Export Buttons */}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={exportToPDF}
+                              disabled={filteredStudents.length === 0}
+                              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                              PDF
+                            </button>
+                            <button
+                              onClick={exportToExcel}
+                              disabled={filteredStudents.length === 0}
+                              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Excel
+                            </button>
+                          </div>
+                          
+                          <button
+                            onClick={() => setShowExportMenu(false)}
+                            className={`w-full mt-2 px-4 py-2 text-sm rounded-md transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                          >
+                            {getText('Cancel', 'ሰርዝ')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={() => router.push('/students/add')}
+                    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    {getText('Add New Student', 'አዲስ ተማሪ ከምር')}
+                  </button>
+                </div>
               </div>
             </div>
 
