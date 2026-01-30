@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.0.18",
+    "@types/file-saver": "^2.0.7",
     "axios": "^1.6.2",
     "file-saver": "^2.0.5",
     "jspdf": "^4.0.0",
