@@ -248,7 +248,7 @@ export default function StudentsPage() {
         (student.section === 'A' ? 'አ' : student.section === 'B' ? 'ለ' : student.section === 'C' ? 'ሐ' : student.section === 'D' ? 'መ' : student.section) 
         : (student.section || '-'),
       getText(student.gender, student.gender === 'Male' ? 'ወንድ' : student.gender === 'Female' ? 'ሴት' : student.gender),
-      student.joinedYear,
+      student.dateOfBirth || '-',
       student.paymentCode || '-',
       student.fatherPhone || '-',
       student.motherName || '-',
@@ -264,7 +264,7 @@ export default function StudentsPage() {
         getText('Class', 'ክፍል'),
         getText('Section', 'ክፍል'),
         getText('Gender', 'ጾታ'),
-        getText('Batch', 'ቡድን'),
+        getText('Date of Birth', 'የትውልድ ቀን'),
         getText('Payment Code', 'የክፍያ ኮድ'),
         getText('Father Phone', 'የአባት ስልክ'),
         getText('Mother Name', 'የእናት ስም'),
