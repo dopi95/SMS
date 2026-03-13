@@ -7,6 +7,8 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useSettings } from '@/contexts/SettingsContext';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface Student {
   _id: string;
@@ -26,6 +28,8 @@ interface Student {
   fatherName?: string;
   motherName?: string;
   photo?: string;
+  dateOfBirth?: string;
+  paymentCode?: string;
 }
 
 export default function InactiveStudentsPage() {
@@ -170,6 +174,55 @@ export default function InactiveStudentsPage() {
     setConfirmDialog({ isOpen: false, type: 'activate', studentId: '', studentName: '' });
   };
 
+  const exportToPDF = () => {
+    const doc = new jsPDF('l', 'mm', 'a4');
+    
+    doc.setFontSize(18);
+    doc.text('Inactive Students Report', 14, 22);
+    
+    doc.setFontSize(11);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 30);
+    doc.text(`Total Inactive Students: ${filteredStudents.length}`, 14, 36);
+    
+    const tableData = filteredStudents.map(student => [
+      student.studentId,
+      `${student.firstName} ${student.middleName} ${student.lastName}`,
+      student.class,
+      student.section || '-',
+      student.gender,
+      student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : '-',
+      student.paymentCode || '-',
+      student.fatherPhone || '-',
+      student.motherName || '-',
+      student.motherPhone || '-',
+      student.email || '-'
+    ]);
+    
+    autoTable(doc, {
+      head: [['Student ID', 'Full Name', 'Class', 'Section', 'Gender', 'Date of Birth', 'Payment Code', 'Father Phone', 'Mother Name', 'Mother Phone', 'Email']],
+      body: tableData,
+      startY: 42,
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: [220, 38, 38] },
+      columnStyles: {
+        0: { cellWidth: 22 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 18 },
+        3: { cellWidth: 15 },
+        4: { cellWidth: 15 },
+        5: { cellWidth: 22 },
+        6: { cellWidth: 22 },
+        7: { cellWidth: 22 },
+        8: { cellWidth: 25 },
+        9: { cellWidth: 22 },
+        10: { cellWidth: 30 }
+      }
+    });
+    
+    doc.save(`inactive-students-${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success(getText('✅ PDF exported successfully!', '✅ ፒዲኤፍ በተሳካ ሁኔታ ወጣል!'));
+  };
+
   if (loading) {
     return (
       <DashboardLayout pageTitle="Inactive Students">
@@ -187,25 +240,17 @@ export default function InactiveStudentsPage() {
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-6">
             <div className={`rounded-lg shadow-sm border p-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
-                    </svg>
-                  </div>
-                  <div className="ml-4">
-                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Inactive Students', 'የተከለሉ ተማሪዎች')}</p>
-                    <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{students.length}</p>
-                    <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Total inactive students', 'ጠቅላላ የተከለሉ ተማሪዎች')}</p>
-                  </div>
+              <div className="flex items-center">
+                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
+                  </svg>
                 </div>
-                <button
-                  onClick={() => router.push('/students')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
-                >
-                  {getText('Show Active Students', 'ንቁ ተማሪዎችን አሳይ')}
-                </button>
+                <div className="ml-4">
+                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Inactive Students', 'የተከለሉ ተማሪዎች')}</p>
+                  <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{students.length}</p>
+                  <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Total inactive students', 'ጠቅላላ የተከለሉ ተማሪዎች')}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -216,12 +261,23 @@ export default function InactiveStudentsPage() {
                   <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Inactive Students', 'የተከለሉ ተማሪዎች')}</h1>
                   <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Manage inactive student records', 'የተከለሉ ተማሪዎች መዝገብ አስተዳድር')}</p>
                 </div>
-                <button
-                  onClick={() => router.push('/students')}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                >
-                  {getText('Back to Active Students', 'ወደ ንቁ ተማሪዎች ተመለስ')}
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={exportToPDF}
+                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {getText('Export PDF', 'ፒዲኤፍ አውጣ')}
+                  </button>
+                  <button
+                    onClick={() => router.push('/students')}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                  >
+                    {getText('Back to Active Students', 'ወደ ንቁ ተማሪዎች ተመለስ')}
+                  </button>
+                </div>
               </div>
             </div>
 
