@@ -49,8 +49,6 @@ export default function DashboardLayout({
     { name: getText('Students', 'ተማሪዎች'), icon: AcademicCapIcon, href: '/students' },
     { name: getText('Employees', 'ሰራተኞች'), icon: UserGroupIcon, href: '/employees' },
     { name: getText('Payments', 'ክፍያዎች'), icon: CreditCardIcon, href: '/payments' },
-    { name: getText('Inactive Students', 'የተከለሉ ተማሪዎች'), icon: UserMinusIcon, href: '/inactive-students' },
-    { name: getText('Inactive Employees', 'የተከለሉ ሰራተኞች'), icon: UserMinusIcon, href: '/inactive-employees' },
     { name: getText('Send Notifications', 'ማሳወቂያ ላክ'), icon: BellIcon, href: '/notifications' },
     { name: getText('Admins', 'አስተዳዳሪዎች'), icon: ShieldCheckIcon, href: '/admins' },
     { name: getText('Activity Logs', 'የእንቅስቃሴ ምዝገባ'), icon: ClipboardDocumentListIcon, href: '/activity-logs' },

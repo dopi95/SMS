@@ -41,6 +41,10 @@ export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [inactiveStudents, setInactiveStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [showBulkActions, setShowBulkActions] = useState(false);
+  const [bulkClass, setBulkClass] = useState('');
+  const [bulkSection, setBulkSection] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [classFilter, setClassFilter] = useState('');
@@ -214,6 +218,103 @@ export default function StudentsPage() {
     setConfirmDialog({ isOpen: false, type: 'inactive', studentId: '', studentName: '' });
   };
 
+  const toggleSelectAll = () => {
+    if (selectedStudents.length === filteredStudents.length) {
+      setSelectedStudents([]);
+    } else {
+      setSelectedStudents(filteredStudents.map(s => s._id));
+    }
+  };
+
+  const toggleSelectStudent = (id: string) => {
+    setSelectedStudents(prev => 
+      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkUpdateClass = async () => {
+    if (!bulkClass) {
+      toast.error(getText('Please select a class', 'እባክዎ ክፍል ይምረጡ'));
+      return;
+    }
+    
+    const loadingToast = toast.loading(getText('Updating students...', 'ተማሪዎችን እያዘመነ ነው...'));
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/bulk/update-class`, {
+        studentIds: selectedStudents,
+        classValue: bulkClass,
+        section: bulkSection
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      toast.dismiss(loadingToast);
+      toast.success(getText(`${selectedStudents.length} students updated successfully!`, `${selectedStudents.length} ተማሪዎች በተሳካ ሁኔታ ተዘምነዋል!`));
+      setSelectedStudents([]);
+      setShowBulkActions(false);
+      setBulkClass('');
+      setBulkSection('');
+      fetchStudents();
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error(getText('Failed to update students', 'ተማሪዎችን ማዘመን አልተሳካም'));
+    }
+  };
+
+  const handleBulkInactive = async () => {
+    if (selectedStudents.length === 0) return;
+    
+    const loadingToast = toast.loading(getText('Marking students as inactive...', 'ተማሪዎችን እንደ አይሰራ እያደረገ ነው...'));
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/bulk/inactive`, {
+        studentIds: selectedStudents
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      toast.dismiss(loadingToast);
+      toast.success(getText(`${selectedStudents.length} students marked as inactive!`, `${selectedStudents.length} ተማሪዎች እንደ አይሰራ ተደርገዋል!`));
+      setSelectedStudents([]);
+      setShowBulkActions(false);
+      fetchStudents();
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error(getText('Failed to mark students as inactive', 'ተማሪዎችን እንደ አይሰራ ማድርግ አልተሳካም'));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedStudents.length === 0) return;
+    
+    if (!confirm(getText(`Are you sure you want to delete ${selectedStudents.length} students?`, `${selectedStudents.length} ተማሪዎችን መሰርዝ እርግጠኛ ነዎት?`))) {
+      return;
+    }
+    
+    const loadingToast = toast.loading(getText('Deleting students...', 'ተማሪዎችን እያሰረዘ ነው...'));
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/bulk/delete`, {
+        studentIds: selectedStudents
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      toast.dismiss(loadingToast);
+      toast.success(getText(`${selectedStudents.length} students deleted successfully!`, `${selectedStudents.length} ተማሪዎች በተሳካ ሁኔታ ተሰርዘዋል!`));
+      setSelectedStudents([]);
+      setShowBulkActions(false);
+      fetchStudents();
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error(getText('Failed to delete students', 'ተማሪዎችን መሰርዝ አልተሳካም'));
+    }
+  };
+
   const exportToPDF = () => {
     const doc = new jsPDF('l', 'mm', 'a4');
     
@@ -376,37 +477,61 @@ export default function StudentsPage() {
       <div className={`min-h-screen p-4 sm:p-6 lg:p-8 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="max-w-7xl mx-auto">
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className={`rounded-lg shadow-sm border p-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+              <div className="flex items-center">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Total Students', 'ጠቅላላ ተማሪዎች')}</p>
+                  <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{students.length}</p>
+                  <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Active students', 'ንቁ ተማሪዎች')}</p>
+                </div>
+              </div>
+            </div>
+
             <div className={`rounded-lg shadow-sm border p-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center">
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                   <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                   </svg>
                 </div>
                 <div className="ml-4">
                   <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Filtered Students', 'የተፈጡ ተማሪዎች')}</p>
                   <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{filteredStudents.length}</p>
-                  <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('of', 'ከ')} {students.length} {getText('total active', 'ጠቅላላ ንቁ')}</p>
+                  <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Based on filters', 'በፈልተሮች ላይ የተመሰረተ')}</p>
                 </div>
               </div>
             </div>
             
             <div 
-              className={`rounded-lg shadow-sm border p-6 cursor-pointer hover:shadow-md transition-shadow ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
-              onClick={() => router.push('/students/inactive')}
+              className={`rounded-lg shadow-sm border p-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
             >
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Inactive Students', 'የተከለሉ ተማሪዎች')}</p>
+                    <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{inactiveStudents.length}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => router.push('/inactive-students')}
+                  className="text-red-600 hover:text-red-700 text-sm font-medium transition-colors flex items-center gap-1"
+                >
+                  {getText('Show Inactives', 'የተከለሉ አሳይ')}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
-                </div>
-                <div className="ml-4">
-                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Inactive Students', 'የተከለሉ ተማሪዎች')}</p>
-                  <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{inactiveStudents.length}</p>
-                  <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Click to view', 'ለመመልከት ይጫኑ')}</p>
-                </div>
+                </button>
               </div>
             </div>
           </div>
@@ -420,6 +545,19 @@ export default function StudentsPage() {
                   <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Manage and view all student information', 'የተማሪዎች ማለባ መረጃ አስተዳድር እና መመልከት')}</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
+                  {/* Bulk Actions Button */}
+                  {selectedStudents.length > 0 && (
+                    <button
+                      onClick={() => setShowBulkActions(!showBulkActions)}
+                      className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 sm:px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      {getText('Bulk Actions', 'የጅምላ ተግባሮች')} ({selectedStudents.length})
+                    </button>
+                  )}
+                  
                   {/* Export Button */}
                   <div className="relative">
                     <button
@@ -509,6 +647,92 @@ export default function StudentsPage() {
 
             {/* Search and Filters */}
             <div className={`px-6 py-4 border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
+              {/* Bulk Actions Panel */}
+              {showBulkActions && selectedStudents.length > 0 && (
+                <div className={`mb-4 p-4 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
+                  <h3 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    {getText('Bulk Actions', 'የጅምላ ተግባሮች')} - {selectedStudents.length} {getText('selected', 'ተመርጠዋል')}
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Update Class Section */}
+                    <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <h4 className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {getText('Update Class & Section', 'ክፍል እና ክፍል ያዘምኑ')}
+                      </h4>
+                      <div className="flex gap-2 mb-2">
+                        <select
+                          value={bulkClass}
+                          onChange={(e) => setBulkClass(e.target.value)}
+                          className={`flex-1 px-3 py-2 text-sm border rounded-md ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                        >
+                          <option value="">{getText('Select Class', 'ክፍል ይምረጡ')}</option>
+                          <option value="Nursery">{getText('Nursery', 'ጀማሪ')}</option>
+                          <option value="LKG">{getText('LKG', 'ደረጃ 1')}</option>
+                          <option value="UKG">{getText('UKG', 'ደረጃ 2')}</option>
+                        </select>
+                        <select
+                          value={bulkSection}
+                          onChange={(e) => setBulkSection(e.target.value)}
+                          className={`flex-1 px-3 py-2 text-sm border rounded-md ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                        >
+                          <option value="">{getText('Select Section', 'ክፍል ይምረጡ')}</option>
+                          <option value="A">{getText('Section A', 'ክፍል አ')}</option>
+                          <option value="B">{getText('Section B', 'ክፍል ለ')}</option>
+                          <option value="C">{getText('Section C', 'ክፍል ሐ')}</option>
+                          <option value="D">{getText('Section D', 'ክፍል መ')}</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={handleBulkUpdateClass}
+                        disabled={!bulkClass}
+                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                      >
+                        {getText('Update Class', 'ክፍል ያዘምኑ')}
+                      </button>
+                    </div>
+                    
+                    {/* Other Actions */}
+                    <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <h4 className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {getText('Other Actions', 'ሌሎች ተግባሮች')}
+                      </h4>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={handleBulkInactive}
+                          className="w-full bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636" />
+                          </svg>
+                          {getText('Mark as Inactive', 'እንደ አይሰራ አድርግ')}
+                        </button>
+                        <button
+                          onClick={handleBulkDelete}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          {getText('Delete Selected', 'ተመርጠውን ሰርዝ')}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedStudents([]);
+                            setShowBulkActions(false);
+                            setBulkClass('');
+                            setBulkSection('');
+                          }}
+                          className={`w-full px-3 py-2 rounded-md text-sm font-medium transition-colors ${theme === 'dark' ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                        >
+                          {getText('Cancel', 'ሰርዝ')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div className="flex flex-col gap-4">
                 {/* Search Bar */}
                 <div className="relative max-w-md">
@@ -602,6 +826,21 @@ export default function StudentsPage() {
               <table className="w-full">
                 <thead>
                   <tr className={`border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+                    <th className={`px-4 py-3 text-left ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                          onChange={toggleSelectAll}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-xs font-medium">
+                          {selectedStudents.length === filteredStudents.length && filteredStudents.length > 0
+                            ? getText('Deselect All', 'ሁሉንም አትምረጥ')
+                            : getText('Select All', 'ሁሉንም ምረጥ')}
+                        </span>
+                      </div>
+                    </th>
                     <th className={`px-4 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Student', 'ተማሪ')}</th>
                     <th className={`px-3 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('ID', 'መለያ')}</th>
                     <th className={`px-3 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Class', 'ክፍል')}</th>
@@ -614,7 +853,7 @@ export default function StudentsPage() {
                 <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-600' : 'divide-gray-100'}`}>
                   {filteredStudents.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
+                      <td colSpan={8} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center">
                           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-3">
                             <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -635,6 +874,14 @@ export default function StudentsPage() {
                   ) : (
                     filteredStudents.map((student) => (
                       <tr key={student._id} className={`${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedStudents.includes(student._id)}
+                            onChange={() => toggleSelectStudent(student._id)}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center">
                             <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
@@ -752,9 +999,31 @@ export default function StudentsPage() {
                 </div>
               ) : (
                 <div className="space-y-3 p-4">
+                  {/* Select All Checkbox for Mobile */}
+                  <div className={`flex items-center p-3 rounded-lg border ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                    />
+                    <label className={`ml-3 text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {selectedStudents.length === filteredStudents.length && filteredStudents.length > 0
+                        ? getText('Deselect All', 'ሁሉንም አትምረጥ')
+                        : getText('Select All', 'ሁሉንም ምረጥ')}
+                      {selectedStudents.length > 0 && ` (${selectedStudents.length})`}
+                    </label>
+                  </div>
+
                   {filteredStudents.map((student) => (
                     <div key={student._id} className={`rounded-lg border p-4 shadow-sm ${theme === 'dark' ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
                       <div className="flex items-start space-x-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedStudents.includes(student._id)}
+                          onChange={() => toggleSelectStudent(student._id)}
+                          className="w-5 h-5 mt-1 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        />
                         <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
                           {student.photo ? (
                             <img src={student.photo} alt="" className="h-12 w-12 rounded-full object-cover" />

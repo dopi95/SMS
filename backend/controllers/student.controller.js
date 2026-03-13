@@ -124,4 +124,62 @@ const activateStudent = async (req, res) => {
   }
 };
 
-module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent };
+const bulkUpdateClass = async (req, res) => {
+  try {
+    const { studentIds, classValue, section } = req.body;
+    
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ message: 'Student IDs are required' });
+    }
+    
+    const updateData = {};
+    if (classValue) updateData.class = classValue;
+    if (section) updateData.section = section;
+    
+    await Student.updateMany(
+      { _id: { $in: studentIds } },
+      { $set: updateData }
+    );
+    
+    res.json({ message: `${studentIds.length} students updated successfully` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const bulkInactive = async (req, res) => {
+  try {
+    const { studentIds } = req.body;
+    
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ message: 'Student IDs are required' });
+    }
+    
+    await Student.updateMany(
+      { _id: { $in: studentIds } },
+      { $set: { status: 'inactive' } }
+    );
+    
+    res.json({ message: `${studentIds.length} students marked as inactive successfully` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const bulkDelete = async (req, res) => {
+  try {
+    const { studentIds } = req.body;
+    
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ message: 'Student IDs are required' });
+    }
+    
+    await Student.deleteMany({ _id: { $in: studentIds } });
+    
+    res.json({ message: `${studentIds.length} students deleted successfully` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete };
