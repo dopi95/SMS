@@ -17,7 +17,7 @@ connectDB();
 
 // Middleware
 const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? ['https://blsms.vercel.app', 'https://sms-frontend.vercel.app', 'https://bluelight-sms.vercel.app']
+  ? ['https://blasms.vercel.app', 'https://blsms.vercel.app', 'https://sms-frontend.vercel.app', 'https://bluelight-sms.vercel.app']
   : ['http://localhost:4500', 'http://localhost:3000'];
 
 const corsOptions = {
