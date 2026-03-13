@@ -129,11 +129,17 @@ export default function StudentsPage() {
   const fetchStudents = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/students`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setStudents(response.data);
-      setFilteredStudents(response.data);
+      const [activeResponse, inactiveResponse] = await Promise.all([
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/students`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/students/inactive`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(() => ({ data: [] }))
+      ]);
+      setStudents(activeResponse.data);
+      setInactiveStudents(inactiveResponse.data);
+      setFilteredStudents(activeResponse.data);
     } catch (error: any) {
       toast.error(getText('Failed to load students', 'ተማሪዎችን መጫን አልተሳካም'));
     } finally {
