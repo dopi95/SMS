@@ -10,6 +10,18 @@ export const metadata = {
   manifest: '/manifest.json',
   icons: {
     icon: '/log.png',
+    apple: '/log.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Bluelight Academy',
+  },
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5,
+    userScalable: true,
   },
 }
 
@@ -22,7 +34,13 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#2563eb" />
+        <meta name="theme-color" content="#7c3aed" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Bluelight" />
+        <link rel="apple-touch-icon" href="/log.png" />
+        <link rel="icon" type="image/png" href="/log.png" />
       </head>
       <body className="antialiased" suppressHydrationWarning>
         <SettingsProvider>
