@@ -163,19 +163,27 @@ export default function PaymentsPage() {
 
   const handleDeletePayment = async (studentId: string) => {
     const payment = payments.find(
-      p => p.studentId === studentId && p.month === selectedMonth && p.year === selectedYear
+      p => {
+        const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+        return paymentStudentId === studentId && p.month === selectedMonth && p.year === selectedYear
+      }
     )
     if (!payment) return
+
+    // Confirmation dialog
+    if (!confirm(getText('Are you sure you want to delete this payment?', 'እርግጠኛ ነዎት ይህን ክፍያ መሰረዝ ይፈልጋሉ?'))) {
+      return
+    }
 
     try {
       const token = localStorage.getItem('token')
       await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/payments/${payment._id}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      toast.success(getText('Payment removed', 'ክፍያ ተወግዷል'))
+      toast.success(getText('Payment deleted successfully', 'ክፍያ በተሳካ ሁኔታ ተሰርዟል'))
       fetchPayments()
     } catch (error) {
-      toast.error(getText('Failed to remove payment', 'ክፍያ ማስወገድ አልተሳካም'))
+      toast.error(getText('Failed to delete payment', 'ክፍያ መሰረዝ አልተሳካም'))
     }
   }
 
@@ -787,6 +795,21 @@ export default function PaymentsPage() {
                                       {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
                                     </span>
                                   </div>
+                                  {isPaid && (
+                                    <button
+                                      onClick={() => handleDeletePayment(student._id)}
+                                      className={`p-2 rounded-lg transition-all hover:scale-110 ${
+                                        theme === 'dark' 
+                                          ? 'hover:bg-red-900/30 text-red-400 hover:text-red-300' 
+                                          : 'hover:bg-red-50 text-red-500 hover:text-red-600'
+                                      }`}
+                                      title={getText('Remove Payment', 'ክፍያ አስወግድ')}
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  )}
                                   <button
                                     onClick={() => handleShowHistory(student)}
                                     className={`p-2 rounded-lg transition-all hover:scale-110 ${
@@ -880,25 +903,42 @@ export default function PaymentsPage() {
                               <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                                 {getText('Payment Status', 'የክፍያ ሁኔታ')}
                               </span>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={isPaid}
-                                  onChange={(e) => handleCheckboxClick(student, e.target.checked)}
-                                  className={`w-5 h-5 rounded focus:ring-2 focus:ring-offset-0 cursor-pointer transition-all ${
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={isPaid}
+                                    onChange={(e) => handleCheckboxClick(student, e.target.checked)}
+                                    className={`w-5 h-5 rounded focus:ring-2 focus:ring-offset-0 cursor-pointer transition-all ${
+                                      isPaid 
+                                        ? 'bg-green-500 border-green-500 text-white accent-green-500' 
+                                        : 'border-gray-300 accent-gray-400'
+                                    }`}
+                                  />
+                                  <span className={`text-sm font-semibold ${
                                     isPaid 
-                                      ? 'bg-green-500 border-green-500 text-white accent-green-500' 
-                                      : 'border-gray-300 accent-gray-400'
-                                  }`}
-                                />
-                                <span className={`text-sm font-semibold ${
-                                  isPaid 
-                                    ? 'text-green-600' 
-                                    : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                                }`}>
-                                  {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
-                                </span>
-                              </label>
+                                      ? 'text-green-600' 
+                                      : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                  }`}>
+                                    {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
+                                  </span>
+                                </label>
+                                {isPaid && (
+                                  <button
+                                    onClick={() => handleDeletePayment(student._id)}
+                                    className={`p-2 rounded-lg transition-all ${
+                                      theme === 'dark' 
+                                        ? 'hover:bg-red-900/30 text-red-400 hover:text-red-300' 
+                                        : 'hover:bg-red-50 text-red-500 hover:text-red-600'
+                                    }`}
+                                    title={getText('Remove Payment', 'ክፍያ አስወግድ')}
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         )
