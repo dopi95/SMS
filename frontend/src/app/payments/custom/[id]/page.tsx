@@ -23,7 +23,14 @@ interface PaymentEntry {
   class: string
   amount: number
   paymentDate: string
+  paymentMethod: 'cash' | 'bank'
 }
+
+const CLASS_OPTIONS = [
+  'Nursery A', 'Nursery B', 'Nursery C', 'Nursery D',
+  'LKG A', 'LKG B', 'LKG C', 'LKG D',
+  'UKG A', 'UKG B', 'UKG C', 'UKG D'
+]
 
 export default function PaymentFilePage() {
   const { theme, getText } = useSettings()
@@ -41,6 +48,7 @@ export default function PaymentFilePage() {
   const [studentClass, setStudentClass] = useState('')
   const [amount, setAmount] = useState('')
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank'>('cash')
 
   useEffect(() => {
     fetchFileData()
@@ -69,14 +77,14 @@ export default function PaymentFilePage() {
       if (editingEntry) {
         await axios.put(
           `${process.env.NEXT_PUBLIC_API_URL}/custom-payments/entries/${editingEntry._id}`,
-          { studentName, class: studentClass, amount: Number(amount), paymentDate },
+          { studentName, class: studentClass, amount: Number(amount), paymentDate, paymentMethod },
           { headers: { Authorization: `Bearer ${token}` } }
         )
         toast.success(getText('Entry updated successfully', 'ግቤት በተሳካ ሁኔታ ተዘምኗል'))
       } else {
         await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL}/custom-payments/entries`,
-          { fileId, studentName, class: studentClass, amount: Number(amount), paymentDate },
+          { fileId, studentName, class: studentClass, amount: Number(amount), paymentDate, paymentMethod },
           { headers: { Authorization: `Bearer ${token}` } }
         )
         toast.success(getText('Entry added successfully', 'ግቤት በተሳካ ሁኔታ ታክሏል'))
@@ -95,6 +103,7 @@ export default function PaymentFilePage() {
     setStudentClass(entry.class)
     setAmount(entry.amount.toString())
     setPaymentDate(new Date(entry.paymentDate).toISOString().split('T')[0])
+    setPaymentMethod(entry.paymentMethod)
     setShowModal(true)
   }
 
@@ -122,9 +131,34 @@ export default function PaymentFilePage() {
     setStudentClass('')
     setAmount('')
     setPaymentDate(new Date().toISOString().split('T')[0])
+    setPaymentMethod('cash')
   }
 
   const totalAmount = entries.reduce((sum, entry) => sum + entry.amount, 0)
+
+  const handleExport = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/custom-payments/files/${fileId}/export`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: 'blob'
+        }
+      )
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `${file?.title}-${file?.year}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      toast.success(getText('File exported successfully', 'ፋይል በተሳካ ሁኔታ ወጥቷል'))
+    } catch (error) {
+      toast.error(getText('Failed to export file', 'ፋይል መላክ አልተሳካም'))
+    }
+  }
 
   return (
     <DashboardLayout pageTitle={file?.title || getText('Payment File', 'የክፍያ ፋይል')}>
@@ -148,24 +182,33 @@ export default function PaymentFilePage() {
                         {getText('Year', 'ዓመት')}: {file?.year} E.C | {getText('Total Entries', 'ጠቅላላ ግቤቶች')}: {entries.length}
                       </p>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-2 md:gap-3">
                       <button
                         onClick={() => router.push('/payments/custom')}
-                        className={`px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                        className={`flex-1 sm:flex-initial px-3 sm:px-4 md:px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                         </svg>
-                        <span>{getText('Back', 'ተመለስ')}</span>
+                        <span className="text-sm md:text-base">{getText('Back', 'ተመለስ')}</span>
+                      </button>
+                      <button
+                        onClick={handleExport}
+                        className={`flex-1 sm:flex-initial px-3 sm:px-4 md:px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md ${theme === 'dark' ? 'bg-green-700 hover:bg-green-600 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                      >
+                        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-sm md:text-base">{getText('Export', 'ላክ')}</span>
                       </button>
                       <button
                         onClick={() => setShowModal(true)}
-                        className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95"
+                        className="flex-1 sm:flex-initial bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-3 sm:px-4 md:px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
-                        <span>{getText('Add Entry', 'ግቤት ጨምር')}</span>
+                        <span className="text-sm md:text-base">{getText('Add Entry', 'ግቤት ጨምር')}</span>
                       </button>
                     </div>
                   </div>
@@ -196,8 +239,10 @@ export default function PaymentFilePage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
+                  <>
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full">
                       <thead>
                         <tr className={`border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
                           <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -211,6 +256,9 @@ export default function PaymentFilePage() {
                           </th>
                           <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                             {getText('Payment Date', 'የክፍያ ቀን')}
+                          </th>
+                          <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {getText('Payment Method', 'የክፍያ ዘዴ')}
                           </th>
                           <th className={`px-6 py-3 text-center text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                             {getText('Actions', 'ድርጊቶች')}
@@ -231,6 +279,11 @@ export default function PaymentFilePage() {
                             </td>
                             <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                               {new Date(entry.paymentDate).toLocaleDateString()}
+                            </td>
+                            <td className={`px-6 py-4`}>
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${entry.paymentMethod === 'bank' ? (theme === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-700') : (theme === 'dark' ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700')}`}>
+                                {entry.paymentMethod === 'bank' ? getText('Bank', 'ባንክ') : getText('Cash', 'ጥሬ ገንዘብ')}
+                              </span>
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-center gap-2">
@@ -257,6 +310,69 @@ export default function PaymentFilePage() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Mobile Card View */}
+                  <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                    {entries.map((entry) => (
+                      <div key={entry._id} className={`p-4 ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <h3 className={`font-semibold text-lg ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                              {entry.studentName}
+                            </h3>
+                            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {getText('Class', 'ክፍል')}: {entry.class}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEdit(entry)}
+                              className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-blue-900/30 text-blue-400' : 'hover:bg-blue-50 text-blue-500'}`}
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleDelete(entry._id)}
+                              className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-500'}`}
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {getText('Amount', 'መጠን')}:
+                            </span>
+                            <span className={`font-semibold text-lg ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                              {entry.amount.toLocaleString()} ETB
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {getText('Date', 'ቀን')}:
+                            </span>
+                            <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                              {new Date(entry.paymentDate).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {getText('Method', 'ዘዴ')}:
+                            </span>
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${entry.paymentMethod === 'bank' ? (theme === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-700') : (theme === 'dark' ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700')}`}>
+                              {entry.paymentMethod === 'bank' ? getText('Bank', 'ባንክ') : getText('Cash', 'ጥሬ ገንዘብ')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
                 )}
               </div>
             </>
@@ -289,13 +405,17 @@ export default function PaymentFilePage() {
                   <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
                     {getText('Class', 'ክፍል')} *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={studentClass}
                     onChange={(e) => setStudentClass(e.target.value)}
                     required
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  />
+                  >
+                    <option value="">{getText('Select Class', 'ክፍል ይምረጡ')}</option>
+                    {CLASS_OPTIONS.map(cls => (
+                      <option key={cls} value={cls}>{cls}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -322,6 +442,20 @@ export default function PaymentFilePage() {
                     required
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
                   />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {getText('Payment Method', 'የክፍያ ዘዴ')} *
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as 'cash' | 'bank')}
+                    required
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="cash">{getText('Cash', 'ጥሬ ገንዘብ')}</option>
+                    <option value="bank">{getText('Bank', 'ባንክ')}</option>
+                  </select>
                 </div>
               </div>
               <div className="flex gap-3 mt-6">

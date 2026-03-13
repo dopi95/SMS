@@ -488,7 +488,7 @@ export default function PaymentsPage() {
       <div className={`min-h-screen p-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="max-w-7xl mx-auto">
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
             {/* Total Students Card */}
             <div className={`rounded-xl shadow-lg border p-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
               <div className="flex items-center justify-between">
@@ -545,6 +545,33 @@ export default function PaymentsPage() {
                 </div>
               </div>
             </div>
+
+            {/* Total Amount Collected Card */}
+            <div className={`rounded-xl shadow-lg border p-6 ${theme === 'dark' ? 'bg-gradient-to-r from-green-900 to-green-800 border-green-700' : 'bg-gradient-to-r from-green-50 to-green-100 border-green-200'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-green-200' : 'text-green-700'}`}>
+                    {getText('Total Collected', 'ጠቅላላ የተሰበሰበ')}
+                  </p>
+                  <p className={`text-3xl font-bold mt-2 ${theme === 'dark' ? 'text-green-100' : 'text-green-800'}`}>
+                    {filteredStudents
+                      .filter(s => isStudentPaid(s._id))
+                      .reduce((total, student) => {
+                        const payment = payments.find(p => {
+                          const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+                          return paymentStudentId === student._id && p.month === selectedMonth && p.year === selectedYear
+                        })
+                        return total + (payment?.amount || 0)
+                      }, 0).toLocaleString()} ETB
+                  </p>
+                </div>
+                <div className={`p-3 rounded-full ${theme === 'dark' ? 'bg-green-800' : 'bg-green-200'}`}>
+                  <svg className={`w-8 h-8 ${theme === 'dark' ? 'text-green-200' : 'text-green-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className={`rounded-xl shadow-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
@@ -558,7 +585,7 @@ export default function PaymentsPage() {
                     {getText('Manage student monthly payments', 'የተማሪዎች ወርሃዊ ክፍያዎችን ያስተዳድሩ')}
                   </p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
                   {selectedStudents.length > 0 && (
                     <button
                       onClick={() => setShowBulkPaymentModal(true)}
@@ -581,56 +608,58 @@ export default function PaymentsPage() {
                       <span>{getText(`Mark ${selectedPaidStudents.length} as Unpaid`, `${selectedPaidStudents.length} እንደ ያልተከፈለ ምልክት አድርግ`)}</span>
                     </button>
                   )}
-                  <div className="relative">
-                  <button
-                    onClick={() => setShowExportMenu(!showExportMenu)}
-                    className="w-full md:w-auto bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span>{getText('Export PDF', 'ፒዲኤፍ አውጣ')}</span>
-                  </button>
-                  {showExportMenu && (
-                    <div className={`absolute right-0 mt-2 w-56 rounded-lg shadow-xl z-10 ${theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
-                      <div className="py-2">
-                        <button
-                          onClick={() => exportToPDF('paid')}
-                          className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-green-50 text-gray-700'}`}
-                        >
-                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                          <span className="font-medium">{getText('Export Paid Students', 'የተከፈለ ተማሪዎች አውጣ')}</span>
-                        </button>
-                        <button
-                          onClick={() => exportToPDF('unpaid')}
-                          className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-red-50 text-gray-700'}`}
-                        >
-                          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                          <span className="font-medium">{getText('Export Unpaid Students', 'ያልተከፈለ ተማሪዎች አውጣ')}</span>
-                        </button>
-                        <button
-                          onClick={() => exportToPDF('all')}
-                          className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-blue-50 text-gray-700'}`}
-                        >
-                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                          <span className="font-medium">{getText('Export All Students', 'ሁሉንም ተማሪዎች አውጣ')}</span>
-                        </button>
-                      </div>
+                  <div className="grid grid-cols-2 gap-3 w-full md:w-auto">
+                    <div className="relative w-full">
+                      <button
+                        onClick={() => setShowExportMenu(!showExportMenu)}
+                        className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-sm md:text-base">{getText('Export PDF', 'ፒዲኤፍ አውጣ')}</span>
+                      </button>
+                      {showExportMenu && (
+                        <div className={`absolute right-0 mt-2 w-56 rounded-lg shadow-xl z-10 ${theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+                          <div className="py-2">
+                            <button
+                              onClick={() => exportToPDF('paid')}
+                              className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-green-50 text-gray-700'}`}
+                            >
+                              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                              <span className="font-medium">{getText('Export Paid Students', 'የተከፈለ ተማሪዎች አውጣ')}</span>
+                            </button>
+                            <button
+                              onClick={() => exportToPDF('unpaid')}
+                              className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-red-50 text-gray-700'}`}
+                            >
+                              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                              <span className="font-medium">{getText('Export Unpaid Students', 'ያልተከፈለ ተማሪዎች አውጣ')}</span>
+                            </button>
+                            <button
+                              onClick={() => exportToPDF('all')}
+                              className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-blue-50 text-gray-700'}`}
+                            >
+                              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                              <span className="font-medium">{getText('Export All Students', 'ሁሉንም ተማሪዎች አውጣ')}</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
+                    <a
+                      href="/payments/custom"
+                      className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="text-sm md:text-base">{getText('Custom Payment', 'ልዩ ክፍያ')}</span>
+                    </a>
+                  </div>
                 </div>
-                <a
-                  href="/payments/custom"
-                  className="w-full md:w-auto bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span>{getText('Custom Payment', 'ልዩ ክፍያ')}</span>
-                </a>
               </div>
             </div>
-          </div>
 
             <div className={`px-6 py-4 border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
               <div className="flex flex-col gap-4">

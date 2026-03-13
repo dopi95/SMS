@@ -24,6 +24,12 @@ const customPaymentEntrySchema = new mongoose.Schema({
   paymentDate: {
     type: Date,
     required: true
+  },
+  paymentMethod: {
+    type: String,
+    enum: ['cash', 'bank'],
+    required: true,
+    default: 'cash'
   }
 }, {
   timestamps: true

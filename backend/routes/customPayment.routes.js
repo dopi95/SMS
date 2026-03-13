@@ -9,7 +9,8 @@ const {
   updateFile,
   addEntry,
   updateEntry,
-  deleteEntry
+  deleteEntry,
+  exportFile
 } = require('../controllers/customPayment.controller');
 
 router.use(auth);
@@ -20,6 +21,7 @@ router.get('/files', getFiles);
 router.get('/files/:id', getFile);
 router.put('/files/:id', updateFile);
 router.delete('/files/:id', deleteFile);
+router.get('/files/:id/export', exportFile);
 
 // Entry routes
 router.post('/entries', addEntry);
