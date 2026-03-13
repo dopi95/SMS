@@ -239,8 +239,8 @@ export default function StudentsPage() {
   };
 
   const handleBulkUpdateClass = async () => {
-    if (!bulkClass) {
-      toast.error(getText('Please select a class', 'እባክዎ ክፍል ይምረጡ'));
+    if (!bulkClass && !bulkSection) {
+      toast.error(getText('Please select class or section to update', 'እባክዎ ለማዘመን ክፍል ወይም ክፍል ይምረጡ'));
       return;
     }
     
@@ -248,11 +248,14 @@ export default function StudentsPage() {
     
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/bulk/update-class`, {
-        studentIds: selectedStudents,
-        classValue: bulkClass,
-        section: bulkSection
-      }, {
+      const updateData: any = {
+        studentIds: selectedStudents
+      };
+      
+      if (bulkClass) updateData.classValue = bulkClass;
+      if (bulkSection) updateData.section = bulkSection;
+      
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/bulk/update-class`, updateData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -691,10 +694,10 @@ export default function StudentsPage() {
                       </div>
                       <button
                         onClick={handleBulkUpdateClass}
-                        disabled={!bulkClass}
+                        disabled={!bulkClass && !bulkSection}
                         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
                       >
-                        {getText('Update Class', 'ክፍል ያዘምኑ')}
+                        {getText('Update', 'ያዘምኑ')}
                       </button>
                     </div>
                     
