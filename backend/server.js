@@ -48,6 +48,7 @@ app.use('/api/profile', require('./routes/profile.routes'));
 app.use('/api/students', require('./routes/student.routes'));
 app.use('/api/teachers', require('./routes/teacher.routes'));
 app.use('/api/classes', require('./routes/class.routes'));
+app.use('/api/custom-payments', require('./routes/customPayment.routes'));
 app.use('/api/payments', require('./routes/payment.routes'));
 app.use('/api/payments', require('./routes/payment.routes'));
 app.use('/api/payments', require('./routes/payment.routes'));

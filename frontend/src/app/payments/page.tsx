@@ -68,6 +68,7 @@ export default function PaymentsPage() {
   const [showDateFilter, setShowDateFilter] = useState(false)
   const [studentTypeFilter, setStudentTypeFilter] = useState<'all' | 'regular' | 'special'>('all')
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
+  const [selectedPaidStudents, setSelectedPaidStudents] = useState<string[]>([])
   const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false)
   const [bulkAmount, setBulkAmount] = useState('')
   const [bulkDescription, setBulkDescription] = useState('')
@@ -196,20 +197,31 @@ export default function PaymentsPage() {
     )
   }
 
-  const handleSelectStudent = (studentId: string, isChecked: boolean) => {
-    if (isChecked) {
-      setSelectedStudents(prev => [...prev, studentId])
+  const handleSelectStudent = (studentId: string, isChecked: boolean, isPaid: boolean) => {
+    if (isPaid) {
+      if (isChecked) {
+        setSelectedPaidStudents(prev => [...prev, studentId])
+      } else {
+        setSelectedPaidStudents(prev => prev.filter(id => id !== studentId))
+      }
     } else {
-      setSelectedStudents(prev => prev.filter(id => id !== studentId))
+      if (isChecked) {
+        setSelectedStudents(prev => [...prev, studentId])
+      } else {
+        setSelectedStudents(prev => prev.filter(id => id !== studentId))
+      }
     }
   }
 
   const handleSelectAll = (isChecked: boolean) => {
     if (isChecked) {
       const unpaidStudents = filteredStudents.filter(s => !isStudentPaid(s._id))
+      const paidStudents = filteredStudents.filter(s => isStudentPaid(s._id))
       setSelectedStudents(unpaidStudents.map(s => s._id))
+      setSelectedPaidStudents(paidStudents.map(s => s._id))
     } else {
       setSelectedStudents([])
+      setSelectedPaidStudents([])
     }
   }
 
@@ -243,6 +255,36 @@ export default function PaymentsPage() {
       fetchPayments()
     } catch (error: any) {
       toast.error(error.response?.data?.message || getText('Failed to add payments', 'ክፍያዎችን መጨመር አልተሳካም'))
+    }
+  }
+
+  const handleBulkUnpaid = async () => {
+    if (selectedPaidStudents.length === 0) return
+
+    if (!confirm(getText(`Are you sure you want to mark ${selectedPaidStudents.length} students as unpaid?`, `እርግጠኛ ነዎት ${selectedPaidStudents.length} ተማሪዎችን እንደ ያልተከፈለ ምልክት ማድረግ ይፈልጋሉ?`))) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const promises = selectedPaidStudents.map(studentId => {
+        const payment = payments.find(p => {
+          const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+          return paymentStudentId === studentId && p.month === selectedMonth && p.year === selectedYear
+        })
+        if (payment) {
+          return axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/payments/${payment._id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        }
+        return Promise.resolve()
+      })
+      await Promise.all(promises)
+      toast.success(getText(`${selectedPaidStudents.length} payments removed successfully`, `${selectedPaidStudents.length} ክፍያዎች በተሳካ ሁኔታ ተወግደዋል`))
+      setSelectedPaidStudents([])
+      fetchPayments()
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || getText('Failed to remove payments', 'ክፍያዎችን ማስወገድ አልተሳካም'))
     }
   }
 
@@ -528,6 +570,17 @@ export default function PaymentsPage() {
                       <span>{getText(`Mark ${selectedStudents.length} as Paid`, `${selectedStudents.length} እንደ ተከፍሏል ምልክት አድርግ`)}</span>
                     </button>
                   )}
+                  {selectedPaidStudents.length > 0 && (
+                    <button
+                      onClick={handleBulkUnpaid}
+                      className="w-full md:w-auto bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      <span>{getText(`Mark ${selectedPaidStudents.length} as Unpaid`, `${selectedPaidStudents.length} እንደ ያልተከፈለ ምልክት አድርግ`)}</span>
+                    </button>
+                  )}
                   <div className="relative">
                   <button
                     onClick={() => setShowExportMenu(!showExportMenu)}
@@ -566,6 +619,15 @@ export default function PaymentsPage() {
                     </div>
                   )}
                 </div>
+                <a
+                  href="/payments/custom"
+                  className="w-full md:w-auto bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>{getText('Custom Payment', 'ልዩ ክፍያ')}</span>
+                </a>
               </div>
             </div>
           </div>
@@ -713,7 +775,7 @@ export default function PaymentsPage() {
                         <th className={`px-6 py-3 text-center text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                           <input
                             type="checkbox"
-                            checked={selectedStudents.length > 0 && selectedStudents.length === filteredStudents.filter(s => !isStudentPaid(s._id)).length && filteredStudents.filter(s => !isStudentPaid(s._id)).length > 0}
+                            checked={(selectedStudents.length > 0 && selectedStudents.length === filteredStudents.filter(s => !isStudentPaid(s._id)).length && filteredStudents.filter(s => !isStudentPaid(s._id)).length > 0) || (selectedPaidStudents.length > 0 && selectedPaidStudents.length === filteredStudents.filter(s => isStudentPaid(s._id)).length && filteredStudents.filter(s => isStudentPaid(s._id)).length > 0)}
                             onChange={(e) => handleSelectAll(e.target.checked)}
                             className="w-5 h-5 rounded cursor-pointer accent-blue-600"
                           />
@@ -747,18 +809,16 @@ export default function PaymentsPage() {
                       ) : (
                         filteredStudents.map((student) => {
                           const isPaid = isStudentPaid(student._id)
-                          const isSelected = selectedStudents.includes(student._id)
+                          const isSelected = isPaid ? selectedPaidStudents.includes(student._id) : selectedStudents.includes(student._id)
                           return (
                             <tr key={student._id} className={`${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} ${isSelected ? theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50' : ''}`}>
                               <td className="px-6 py-4 text-center">
-                                {!isPaid && (
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => handleSelectStudent(student._id, e.target.checked)}
-                                    className="w-5 h-5 rounded cursor-pointer accent-blue-600"
-                                  />
-                                )}
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => handleSelectStudent(student._id, e.target.checked, isPaid)}
+                                  className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                                />
                               </td>
                               <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                                 <div className="font-medium">{student.studentId}</div>
@@ -845,7 +905,7 @@ export default function PaymentsPage() {
                     <div className="p-4 space-y-4">
                       {filteredStudents.map((student) => {
                         const isPaid = isStudentPaid(student._id)
-                        const isSelected = selectedStudents.includes(student._id)
+                        const isSelected = isPaid ? selectedPaidStudents.includes(student._id) : selectedStudents.includes(student._id)
                         return (
                           <div
                             key={student._id}
@@ -854,14 +914,12 @@ export default function PaymentsPage() {
                             {/* Student Info */}
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex items-start gap-3 flex-1">
-                                {!isPaid && (
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => handleSelectStudent(student._id, e.target.checked)}
-                                    className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600"
-                                  />
-                                )}
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => handleSelectStudent(student._id, e.target.checked, isPaid)}
+                                  className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600"
+                                />
                                 <div className="flex-1">
                                   <h3 className={`font-semibold text-base ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                                     {`${student.firstName} ${student.middleName} ${student.lastName}`}
