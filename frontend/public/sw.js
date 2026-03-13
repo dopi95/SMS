@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bluelight-sms-v5'
+const CACHE_NAME = 'bluelight-sms-v6'
 const ESSENTIAL_RESOURCES = [
   '/',
   '/login',
@@ -81,9 +81,12 @@ self.addEventListener('fetch', (event) => {
           if (cachedResponse) {
             return cachedResponse
           }
-          if (request.destination === 'document') {
-            return caches.match('/')
-          }
+          // Return a basic response if nothing is cached
+          return new Response('Offline - Resource not available', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain' }
+          })
         })
       })
   )

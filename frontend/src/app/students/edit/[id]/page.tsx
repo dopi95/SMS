@@ -153,8 +153,9 @@ export default function EditStudentPage() {
       Object.entries(formData).forEach(([key, value]) => {
         if (key === 'photo' && value) {
           submitData.append(key, value);
-        } else if (key !== 'photo' && value) {
-          submitData.append(key, value.toString());
+        } else if (key !== 'photo') {
+          // Always append the value, even if it's empty (to allow clearing fields)
+          submitData.append(key, value ? value.toString() : '');
         }
       });
 

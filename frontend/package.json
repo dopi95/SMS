@@ -13,7 +13,7 @@
     "@types/file-saver": "^2.0.7",
     "axios": "^1.6.2",
     "file-saver": "^2.0.5",
-    "jspdf": "^4.0.0",
+    "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "next": "14.0.4",
     "react": "^18",

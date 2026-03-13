@@ -32,16 +32,41 @@ interface Student {
   motherPhone?: string;
 }
 
+interface Payment {
+  _id: string;
+  studentId: string;
+  month: string;
+  year: number;
+  amount: number;
+  description: string;
+  paymentDate: string;
+  status: string;
+}
+
 export default function ViewStudentPage() {
   const { language, theme, getText } = useSettings();
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [selectedYear, setSelectedYear] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedYear = localStorage.getItem('studentDetailYear')
+      return savedYear ? Number(savedYear) : 2019
+    }
+    return 2019
+  })
   const router = useRouter();
   const params = useParams();
 
   useEffect(() => {
     fetchStudent();
   }, []);
+
+  useEffect(() => {
+    fetchPayments();
+    // Save to localStorage when changed
+    localStorage.setItem('studentDetailYear', selectedYear.toString())
+  }, [selectedYear]);
 
   const fetchStudent = async () => {
     try {
@@ -57,6 +82,25 @@ export default function ViewStudentPage() {
       setLoading(false);
     }
   };
+
+  const fetchPayments = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/payments/student/${params.id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      setPayments(response.data)
+    } catch (error) {
+      console.error('Failed to fetch payments:', error)
+    }
+  }
+
+  const months = ['September', 'October', 'November', 'December', 'January', 'February', 'March', 'April', 'May', 'June']
+
+  const isMonthPaid = (month: string) => {
+    return payments.some(p => p.month === month && p.year === selectedYear)
+  }
 
   if (loading) {
     return (
@@ -237,6 +281,73 @@ export default function ViewStudentPage() {
                   <p className={`p-3 rounded-lg ${theme === 'dark' ? 'text-gray-200 bg-gray-700' : 'text-gray-900 bg-gray-50'}`}>{student.address}</p>
                 </div>
               )}
+
+              {/* Payment Status */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Payment Status', 'የክፍያ ሁኔታ')}</h3>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value={2018}>2018 E.C</option>
+                    <option value={2019}>2019 E.C</option>
+                    <option value={2020}>2020 E.C</option>
+                    <option value={2021}>2021 E.C</option>
+                    <option value={2022}>2022 E.C</option>
+                    <option value={2023}>2023 E.C</option>
+                    <option value={2024}>2024 E.C</option>
+                    <option value={2025}>2025 E.C</option>
+                    <option value={2026}>2026 E.C</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {months.map((month) => {
+                    const isPaid = isMonthPaid(month)
+                    return (
+                      <div
+                        key={month}
+                        className={`p-3 rounded-lg border-2 transition-all ${
+                          isPaid
+                            ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                            : theme === 'dark'
+                            ? 'border-gray-600 bg-gray-700'
+                            : 'border-gray-300 bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`text-sm font-medium ${
+                            isPaid
+                              ? 'text-green-700 dark:text-green-400'
+                              : theme === 'dark'
+                              ? 'text-gray-300'
+                              : 'text-gray-700'
+                          }`}>
+                            {month.substring(0, 3)}
+                          </span>
+                          {isPaid ? (
+                            <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5 text-red-500 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                        <p className={`text-xs mt-1 ${
+                          isPaid
+                            ? 'text-green-600 dark:text-green-500'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
 
               {/* Action Buttons */}
               <div className={`flex justify-end gap-4 pt-6 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
