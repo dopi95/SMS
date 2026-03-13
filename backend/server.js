@@ -16,13 +16,22 @@ const app = express();
 connectDB();
 
 // Middleware
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? ['https://blsms.vercel.app', 'https://sms-frontend.vercel.app', 'https://bluelight-sms.vercel.app']
+  : ['http://localhost:4500', 'http://localhost:3000'];
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://blsms.vercel.app', 'https://sms-frontend.vercel.app', 'https://bluelight-sms.vercel.app']
-    : ['http://localhost:4500', 'http://localhost:3000'],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
