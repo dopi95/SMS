@@ -1,0 +1,29 @@
+{
+  "name": "bluelight-academy-backend",
+  "version": "1.0.0",
+  "description": "School Management System Backend for Bluelight Academy",
+  "main": "server.js",
+  "scripts": {
+    "start": "NODE_ENV=production node server.js",
+    "build": "echo 'No build step required for Node.js backend'",
+    "dev": "nodemon server.js",
+    "seed:admin": "node seeders/admin.seeder.js"
+  },
+  "dependencies": {
+    "@emailjs/nodejs": "^5.0.2",
+    "axios": "^1.6.2",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.9.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.3",
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.13",
+    "pdfkit": "^0.17.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "name": "Bluelight Academy SMS",
+  "short_name": "Bluelight",
+  "description": "Complete school management system for Bluelight Academy",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#7c3aed",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/log.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/log.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/log.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/log.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "lang": "en",
+  "dir": "ltr",
+  "scope": "/",
+  "prefer_related_applications": false,
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Open Dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/log.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Payments",
+      "short_name": "Payments",
+      "description": "Manage Payments",
+      "url": "/payments",
+      "icons": [{ "src": "/log.png", "sizes": "192x192" }]
+    }
+  ]
+}
