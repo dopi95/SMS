@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import React from 'react'
 import Image from 'next/image'
+import axios from 'axios'
 
 const CLASSES = [
   'Nursery (ጀማሪ)',
@@ -15,6 +16,41 @@ export default function RegistrationFormPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [studentType, setStudentType] = useState<'new' | 'existing'>('new')
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [address, setAddress] = useState('')
+
+  async function handleSubmit() {
+    setSubmitting(true)
+    try {
+      const formData = new FormData()
+      formData.append('studentType', studentType)
+      formData.append('firstName', enNames.first)
+      formData.append('middleName', enNames.middle)
+      formData.append('lastName', enNames.last)
+      formData.append('firstNameAmharic', amNames.first)
+      formData.append('middleNameAmharic', amNames.middle)
+      formData.append('lastNameAmharic', amNames.last)
+      formData.append('gender', gender)
+      formData.append('email', email)
+      formData.append('dateOfBirth', dob)
+      formData.append('joinedYear', joinedYear)
+      formData.append('class', classVal)
+      formData.append('address', address)
+      formData.append('fatherName', fatherName)
+      formData.append('fatherPhone', fatherPhone)
+      formData.append('motherName', motherName)
+      formData.append('motherPhone', motherPhone)
+      if (photoInputRef.current?.files?.[0]) {
+        formData.append('photo', photoInputRef.current.files[0])
+      }
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/pending-students`, formData)
+      setSubmitted(true)
+    } catch {
+      alert('Submission failed. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
   const photoInputRef = React.useRef<HTMLInputElement>(null)
   const [enNames, setEnNames] = useState({ first: '', middle: '', last: '' })
   const [enErrors, setEnErrors] = useState({ first: '', middle: '', last: '' })
@@ -150,7 +186,7 @@ export default function RegistrationFormPage() {
             <p className="text-blue-200 text-sm mt-0.5">የተማሪ ምዝገባ ቅጽ</p>
           </div>
 
-          <form onSubmit={(e) => {
+          <form onSubmit={async (e) => {
             e.preventDefault()
             const firstErr = !enNames.first.trim() ? 'This field is required' : ''
             const middleErr = !enNames.middle.trim() ? 'This field is required' : ''
@@ -177,7 +213,7 @@ export default function RegistrationFormPage() {
             const mPhoneErr = !motherPhone ? 'This field is required' : motherPhone.length < 10 ? 'Phone number must be 10 digits' : !(motherPhone.startsWith('09') || motherPhone.startsWith('07')) ? 'Phone must start with 09 or 07' : ''
             setMotherPhoneError(mPhoneErr)
             if (firstErr || middleErr || lastErr || amFirstErr || amMiddleErr || amLastErr || gErr || emailError || dobErr || yearErr || clsErr || fatherErr || motherErr || fPhoneErr || mPhoneErr) return
-            setSubmitted(true)
+            await handleSubmit()
           }}>
 
             {/* ══ STUDENT INFORMATION ══ */}
@@ -378,7 +414,7 @@ export default function RegistrationFormPage() {
                   Address (አድራሻ){' '}
                   <span className="text-xs font-normal text-gray-400">(Optional)</span>
                 </label>
-                <input type="text" placeholder="City / Subcity / Woreda" className={inp + " py-4"} />
+                <input type="text" placeholder="City / Subcity / Woreda" value={address} onChange={e => setAddress(e.target.value)} className={inp + " py-4"} />
               </div>
 
             </div>
@@ -409,12 +445,16 @@ export default function RegistrationFormPage() {
             <div className="px-6 sm:px-8 pb-8 pt-2">
               <button
                 type="submit"
-                className="w-full py-3.5 bg-blue-700 hover:bg-blue-800 text-white font-bold text-sm rounded-xl transition-colors flex items-center justify-center gap-2"
+                disabled={submitting}
+                className="w-full py-3.5 bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold text-sm rounded-xl transition-colors flex items-center justify-center gap-2"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Submit Registration · ምዝገባ ያስገቡ
+                {submitting ? (
+                  <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Submitting...</>
+                ) : (
+                  <><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>Submit Registration · ምዝገባ ያስገቡ</>
+                )}
               </button>
               <p className="text-center text-xs text-gray-400 mt-3">
                 Fields marked <span className="text-red-500">*</span> are required · ኮከብ ያላቸው ግዴታ ናቸው
