@@ -33,9 +33,11 @@ interface NavItem {
 export default function DashboardLayout({
   children,
   pageTitle,
+  hideBell,
 }: {
   children: React.ReactNode
   pageTitle?: string
+  hideBell?: boolean
 }) {
   const { language, theme, getText } = useSettings()
   const [user, setUser] = useState<any>(null)
@@ -226,7 +228,7 @@ export default function DashboardLayout({
 
         {/* Page content */}
         <main className="flex-1 pt-16 lg:pt-0">
-          <NotificationBell />
+          {!hideBell && <NotificationBell />}
           {children}
         </main>
       </div>

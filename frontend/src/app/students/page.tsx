@@ -324,6 +324,19 @@ export default function StudentsPage() {
     }
   };
 
+  const formatDOB = (dob?: string) => {
+    if (!dob) return '-';
+    // Already in dd/mm/yyyy format
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dob.trim())) return dob.trim();
+    // ISO date string — convert to dd/mm/yyyy
+    const d = new Date(dob);
+    if (isNaN(d.getTime())) return dob;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  };
+
   const exportToPDF = () => {
     const doc = new jsPDF('l', 'mm', 'a4');
     
@@ -358,7 +371,7 @@ export default function StudentsPage() {
         (student.section === 'A' ? 'አ' : student.section === 'B' ? 'ለ' : student.section === 'C' ? 'ሐ' : student.section === 'D' ? 'መ' : student.section) 
         : (student.section || '-'),
       getText(student.gender, student.gender === 'Male' ? 'ወንድ' : student.gender === 'Female' ? 'ሴት' : student.gender),
-      student.dateOfBirth || '-',
+      formatDOB(student.dateOfBirth),
       student.paymentCode || '-',
       student.fatherPhone || '-',
       student.motherName || '-',
@@ -427,7 +440,7 @@ export default function StudentsPage() {
           : (student.section || ''),
         getText(student.gender, student.gender === 'Male' ? 'ወንድ' : student.gender === 'Female' ? 'ሴት' : student.gender),
         student.joinedYear,
-        student.dateOfBirth || '',
+        formatDOB(student.dateOfBirth),
         student.fatherName || '',
         student.fatherPhone || '',
         student.motherName || '',

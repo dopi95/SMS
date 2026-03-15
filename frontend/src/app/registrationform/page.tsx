@@ -14,8 +14,19 @@ const EC_YEARS = [2017, 2018, 2019, 2020]
 
 export default function RegistrationFormPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [fatherPhotoPreview, setFatherPhotoPreview] = useState<string | null>(null)
+  const [motherPhotoPreview, setMotherPhotoPreview] = useState<string | null>(null)
   const [studentType, setStudentType] = useState<'new' | 'existing'>('new')
   const [submitted, setSubmitted] = useState(false)
+  const handleStudentTypeChange = (type: 'new' | 'existing') => {
+    setStudentType(type)
+    if (type === 'new') {
+      setJoinedYear('2019')
+      setJoinedYearError('')
+    } else {
+      setJoinedYear('')
+    }
+  }
   const [submitting, setSubmitting] = useState(false)
   const [address, setAddress] = useState('')
 
@@ -43,6 +54,12 @@ export default function RegistrationFormPage() {
       if (photoInputRef.current?.files?.[0]) {
         formData.append('photo', photoInputRef.current.files[0])
       }
+      if (fatherPhotoInputRef.current?.files?.[0]) {
+        formData.append('fatherPhoto', fatherPhotoInputRef.current.files[0])
+      }
+      if (motherPhotoInputRef.current?.files?.[0]) {
+        formData.append('motherPhoto', motherPhotoInputRef.current.files[0])
+      }
       await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/pending-students`, formData)
       setSubmitted(true)
     } catch {
@@ -52,13 +69,15 @@ export default function RegistrationFormPage() {
     }
   }
   const photoInputRef = React.useRef<HTMLInputElement>(null)
+  const fatherPhotoInputRef = React.useRef<HTMLInputElement>(null)
+  const motherPhotoInputRef = React.useRef<HTMLInputElement>(null)
   const [enNames, setEnNames] = useState({ first: '', middle: '', last: '' })
   const [enErrors, setEnErrors] = useState({ first: '', middle: '', last: '' })
   const [amNames, setAmNames] = useState({ first: '', middle: '', last: '' })
   const [amErrors, setAmErrors] = useState({ first: '', middle: '', last: '' })
   const [gender, setGender] = useState('')
   const [genderError, setGenderError] = useState('')
-  const [joinedYear, setJoinedYear] = useState('')
+  const [joinedYear, setJoinedYear] = useState('2019')
   const [joinedYearError, setJoinedYearError] = useState('')
   const [classVal, setClassVal] = useState('')
   const [classError, setClassError] = useState('')
@@ -144,6 +163,16 @@ export default function RegistrationFormPage() {
   function removePhoto() {
     setPhotoPreview(null)
     if (photoInputRef.current) photoInputRef.current.value = ''
+  }
+
+  function handleParentPhoto(e: React.ChangeEvent<HTMLInputElement>, set: (v: string | null) => void) {
+    const file = e.target.files?.[0]
+    if (file) set(URL.createObjectURL(file))
+  }
+
+  function removeParentPhoto(set: (v: string | null) => void, ref: React.RefObject<HTMLInputElement>) {
+    set(null)
+    if (ref.current) ref.current.value = ''
   }
 
   if (submitted) {
@@ -267,7 +296,7 @@ export default function RegistrationFormPage() {
                         studentType === type ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                       }`}>
                         <input type="radio" name="studentType" value={type}
-                          checked={studentType === type} onChange={() => setStudentType(type)} className="hidden" />
+                          checked={studentType === type} onChange={() => handleStudentTypeChange(type)} className="hidden" />
                         <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                           studentType === type ? 'border-blue-600' : 'border-gray-300'
                         }`}>
@@ -368,19 +397,25 @@ export default function RegistrationFormPage() {
                     </span>
                     <span className="text-xs text-gray-400 leading-tight mt-0.5">ትምሕርት የጀመሩበት ዓመት</span>
                   </div>
-                  <div className="relative">
-                    <select
-                      value={joinedYear}
-                      onChange={e => { setJoinedYear(e.target.value); setJoinedYearError('') }}
-                      className={`w-full px-3.5 py-2.5 border rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 transition-all appearance-none cursor-pointer text-gray-700 ${
-                        joinedYearError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-500 focus:border-transparent'
-                      }`}
-                    >
-                      <option value="">Select Year</option>
-                      {EC_YEARS.map(y => <option key={y} value={y}>{y} E.C</option>)}
-                    </select>
-                    <ChevronIcon />
-                  </div>
+                  {studentType === 'new' ? (
+                    <div className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-100 text-gray-500 cursor-not-allowed select-none">
+                      2019 E.C
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <select
+                        value={joinedYear}
+                        onChange={e => { setJoinedYear(e.target.value); setJoinedYearError('') }}
+                        className={`w-full px-3.5 py-2.5 border rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 transition-all appearance-none cursor-pointer text-gray-700 ${
+                          joinedYearError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-500 focus:border-transparent'
+                        }`}
+                      >
+                        <option value="">Select Year</option>
+                        {EC_YEARS.map(y => <option key={y} value={y}>{y} E.C</option>)}
+                      </select>
+                      <ChevronIcon />
+                    </div>
+                  )}
                   {joinedYearError && <p className="text-red-500 text-xs mt-1">{joinedYearError}</p>}
                 </div>
 
@@ -438,6 +473,24 @@ export default function RegistrationFormPage() {
                   onChange={v => handlePhone(v, setFatherPhone, setFatherPhoneError)} />
                 <PhoneField label="Mother Phone" value={motherPhone} error={motherPhoneError}
                   onChange={v => handlePhone(v, setMotherPhone, setMotherPhoneError)} />
+              </div>
+
+              {/* Parent Photos */}
+              <div className="grid grid-cols-2 gap-4">
+                <ParentPhotoField
+                  label="Father Photo"
+                  preview={fatherPhotoPreview}
+                  inputRef={fatherPhotoInputRef}
+                  onChange={e => handleParentPhoto(e, setFatherPhotoPreview)}
+                  onRemove={() => removeParentPhoto(setFatherPhotoPreview, fatherPhotoInputRef)}
+                />
+                <ParentPhotoField
+                  label="Mother Photo"
+                  preview={motherPhotoPreview}
+                  inputRef={motherPhotoInputRef}
+                  onChange={e => handleParentPhoto(e, setMotherPhotoPreview)}
+                  onRemove={() => removeParentPhoto(setMotherPhotoPreview, motherPhotoInputRef)}
+                />
               </div>
             </div>
 
@@ -608,6 +661,46 @@ function Field({ label, required, placeholder, type = 'text' }: {
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <input type={type} placeholder={placeholder} required={required} className={inp} />
+    </div>
+  )
+}
+
+/* ── Parent photo upload field ── */
+function ParentPhotoField({ label, preview, inputRef, onChange, onRemove }: {
+  label: string
+  preview: string | null
+  inputRef: React.RefObject<HTMLInputElement>
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onRemove: () => void
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden">
+        {preview
+          ? <>
+              <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+              <button type="button" onClick={onRemove}
+                className="absolute top-1 right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow transition-colors">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </>
+          : <svg className="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+        }
+      </div>
+      <label className="cursor-pointer">
+        <span className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          {label}
+        </span>
+        <span className="block text-center text-xs text-gray-400 mt-1">Optional · ፎቶ</span>
+        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
+      </label>
     </div>
   )
 }

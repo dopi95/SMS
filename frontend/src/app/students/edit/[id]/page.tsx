@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -36,7 +36,9 @@ export default function EditStudentPage() {
     fatherPhone: '',
     motherName: '',
     motherPhone: '',
-    photo: null as File | null
+    photo: null as File | null,
+    fatherPhoto: null as File | null,
+    motherPhoto: null as File | null,
   });
 
   const [sections] = useState<string[]>(['A', 'B', 'C', 'D']);
@@ -45,6 +47,13 @@ export default function EditStudentPage() {
   const [fetchLoading, setFetchLoading] = useState(true);
   const [photoPreview, setPhotoPreview] = useState<string>('');
   const [currentPhoto, setCurrentPhoto] = useState<string>('');
+  const [fatherPhotoPreview, setFatherPhotoPreview] = useState<string>('');
+  const [currentFatherPhoto, setCurrentFatherPhoto] = useState<string>('');
+  const [motherPhotoPreview, setMotherPhotoPreview] = useState<string>('');
+  const [currentMotherPhoto, setCurrentMotherPhoto] = useState<string>('');
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const fatherPhotoInputRef = useRef<HTMLInputElement>(null);
+  const motherPhotoInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const params = useParams();
 
@@ -80,12 +89,14 @@ export default function EditStudentPage() {
         fatherPhone: student.fatherPhone || '',
         motherName: student.motherName || '',
         motherPhone: student.motherPhone || '',
-        photo: null
+        photo: null,
+        fatherPhoto: null,
+        motherPhoto: null,
       });
       
-      if (student.photo) {
-        setCurrentPhoto(student.photo);
-      }
+      if (student.photo) setCurrentPhoto(student.photo);
+      if (student.fatherPhoto) { setCurrentFatherPhoto(student.fatherPhoto); setFatherPhotoPreview(student.fatherPhoto); }
+      if (student.motherPhoto) { setCurrentMotherPhoto(student.motherPhoto); setMotherPhotoPreview(student.motherPhoto); }
     } catch (error) {
       toast.error(getText('❌ Failed to load student data. Redirecting back...', '❌ የተማሪ መረጃ መጫን አልተሳካም። ወደ ኋላ እየተመለሰ ነው...'));
       setTimeout(() => {
@@ -128,11 +139,42 @@ export default function EditStudentPage() {
     if (file) {
       setFormData(prev => ({ ...prev, photo: file }));
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-      };
+      reader.onloadend = () => setPhotoPreview(reader.result as string);
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleRemovePhoto = () => {
+    setFormData(prev => ({ ...prev, photo: null }));
+    setPhotoPreview('');
+    setCurrentPhoto('');
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
+  const handleParentPhotoChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: 'fatherPhoto' | 'motherPhoto',
+    setPreview: (v: string) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormData(prev => ({ ...prev, [field]: file }));
+      const reader = new FileReader();
+      reader.onloadend = () => setPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveParentPhoto = (
+    field: 'fatherPhoto' | 'motherPhoto',
+    setPreview: (v: string) => void,
+    setCurrent: (v: string) => void,
+    ref: React.RefObject<HTMLInputElement>
+  ) => {
+    setFormData(prev => ({ ...prev, [field]: null }));
+    setPreview('');
+    setCurrent('');
+    if (ref.current) ref.current.value = '';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -150,14 +192,18 @@ export default function EditStudentPage() {
       const token = localStorage.getItem('token');
       const submitData = new FormData();
       
+      const photoFields = ['photo', 'fatherPhoto', 'motherPhoto'];
       Object.entries(formData).forEach(([key, value]) => {
-        if (key === 'photo' && value) {
-          submitData.append(key, value);
-        } else if (key !== 'photo') {
-          // Always append the value, even if it's empty (to allow clearing fields)
+        if (photoFields.includes(key)) {
+          if (value) submitData.append(key, value as File);
+        } else {
           submitData.append(key, value ? value.toString() : '');
         }
       });
+      // Signal removal if photo was cleared
+      if (!formData.photo && !currentPhoto) submitData.append('removePhoto', '1');
+      if (!formData.fatherPhoto && !currentFatherPhoto) submitData.append('removeFatherPhoto', '1');
+      if (!formData.motherPhoto && !currentMotherPhoto) submitData.append('removeMotherPhoto', '1');
 
       const response = await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/students/${params.id}`, submitData, {
         headers: { 
@@ -217,26 +263,26 @@ export default function EditStudentPage() {
               {/* Photo Upload */}
               <div className="flex flex-col items-center">
                 <div className="relative">
-                  <div className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50 overflow-hidden">
+                  <div className={`w-32 h-32 rounded-lg border-2 border-dashed flex items-center justify-center overflow-hidden ${theme === 'dark' ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-gray-50'}`}>
                     {photoPreview ? (
                       <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
-                    ) : currentPhoto ? (
-                      <img src={currentPhoto} alt="Current" className="w-full h-full object-cover" />
                     ) : (
                       <div className="text-center">
                         <svg className="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
-                        <p className="text-sm text-gray-500">4x4 Photo</p>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>4x4 Photo</p>
                       </div>
                     )}
                   </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
+                  <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoChange}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  {photoPreview && (
+                    <button type="button" onClick={handleRemovePhoto}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md z-10">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  )}
                 </div>
                 <p className={`text-sm mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Click to change photo', 'ፎቶ ለማስተካከል ይጫኑ')}</p>
               </div>
@@ -523,6 +569,64 @@ export default function EditStudentPage() {
                       onChange={handleInputChange}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
                     />
+                  </div>
+
+                  {/* Father Photo */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {getText('Father Photo', 'የአባት ፎቶ')} <span className="text-xs font-normal text-gray-400">(Optional)</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <div className={`relative w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center overflow-hidden flex-shrink-0 ${theme === 'dark' ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-gray-50'}`}>
+                        {fatherPhotoPreview
+                          ? <img src={fatherPhotoPreview} alt="Father" className="w-full h-full object-cover" />
+                          : <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        }
+                        {fatherPhotoPreview && (
+                          <button type="button" onClick={() => handleRemoveParentPhoto('fatherPhoto', setFatherPhotoPreview, setCurrentFatherPhoto, fatherPhotoInputRef)}
+                            className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center">
+                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        )}
+                      </div>
+                      <label className="cursor-pointer">
+                        <span className={`inline-flex items-center gap-1 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors ${theme === 'dark' ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                          {fatherPhotoPreview ? getText('Change', 'ቀይር') : getText('Upload', 'ስቀል')}
+                        </span>
+                        <input ref={fatherPhotoInputRef} type="file" accept="image/*" className="hidden"
+                          onChange={e => handleParentPhotoChange(e, 'fatherPhoto', setFatherPhotoPreview)} />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Mother Photo */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {getText('Mother Photo', 'የእናት ፎቶ')} <span className="text-xs font-normal text-gray-400">(Optional)</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <div className={`relative w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center overflow-hidden flex-shrink-0 ${theme === 'dark' ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-gray-50'}`}>
+                        {motherPhotoPreview
+                          ? <img src={motherPhotoPreview} alt="Mother" className="w-full h-full object-cover" />
+                          : <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        }
+                        {motherPhotoPreview && (
+                          <button type="button" onClick={() => handleRemoveParentPhoto('motherPhoto', setMotherPhotoPreview, setCurrentMotherPhoto, motherPhotoInputRef)}
+                            className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center">
+                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        )}
+                      </div>
+                      <label className="cursor-pointer">
+                        <span className={`inline-flex items-center gap-1 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors ${theme === 'dark' ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                          {motherPhotoPreview ? getText('Change', 'ቀይር') : getText('Upload', 'ስቀል')}
+                        </span>
+                        <input ref={motherPhotoInputRef} type="file" accept="image/*" className="hidden"
+                          onChange={e => handleParentPhotoChange(e, 'motherPhoto', setMotherPhotoPreview)} />
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>

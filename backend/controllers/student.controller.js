@@ -33,23 +33,19 @@ const getStudent = async (req, res) => {
 
 const createStudent = async (req, res) => {
   try {
-    let photoUrl = '';
-    
-    // Handle photo upload
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'students',
+    const uploadPhoto = async (fileArr, folder) => {
+      if (!fileArr?.[0]) return '';
+      const result = await cloudinary.uploader.upload(fileArr[0].path, {
+        folder,
         transformation: [{ width: 400, height: 400, crop: 'fill' }]
       });
-      photoUrl = result.secure_url;
-    }
-
-    const studentData = {
-      ...req.body,
-      photo: photoUrl
+      return result.secure_url;
     };
-
-    const student = new Student(studentData);
+    const files = req.files || {};
+    const photoUrl = await uploadPhoto(files.photo, 'students');
+    const fatherPhotoUrl = await uploadPhoto(files.fatherPhoto, 'students/parents');
+    const motherPhotoUrl = await uploadPhoto(files.motherPhoto, 'students/parents');
+    const student = new Student({ ...req.body, photo: photoUrl, fatherPhoto: fatherPhotoUrl, motherPhoto: motherPhotoUrl });
     await student.save();
     res.status(201).json(student);
   } catch (error) {
@@ -59,21 +55,36 @@ const createStudent = async (req, res) => {
 
 const updateStudent = async (req, res) => {
   try {
-    let updateData = { ...req.body };
-    
-    // Handle photo upload
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'students',
+    const uploadPhoto = async (fileArr, folder) => {
+      if (!fileArr?.[0]) return null;
+      const result = await cloudinary.uploader.upload(fileArr[0].path, {
+        folder,
         transformation: [{ width: 400, height: 400, crop: 'fill' }]
       });
-      updateData.photo = result.secure_url;
-    }
+      return result.secure_url;
+    };
+    const files = req.files || {};
+    const updateData = { ...req.body };
+    // Remove signal fields from updateData
+    delete updateData.removePhoto;
+    delete updateData.removeFatherPhoto;
+    delete updateData.removeMotherPhoto;
+
+    const photoUrl = await uploadPhoto(files.photo, 'students');
+    const fatherPhotoUrl = await uploadPhoto(files.fatherPhoto, 'students/parents');
+    const motherPhotoUrl = await uploadPhoto(files.motherPhoto, 'students/parents');
+
+    if (photoUrl) updateData.photo = photoUrl;
+    else if (req.body.removePhoto) updateData.photo = '';
+
+    if (fatherPhotoUrl) updateData.fatherPhoto = fatherPhotoUrl;
+    else if (req.body.removeFatherPhoto) updateData.fatherPhoto = '';
+
+    if (motherPhotoUrl) updateData.motherPhoto = motherPhotoUrl;
+    else if (req.body.removeMotherPhoto) updateData.motherPhoto = '';
 
     const student = await Student.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
+    if (!student) return res.status(404).json({ message: 'Student not found' });
     res.json(student);
   } catch (error) {
     res.status(500).json({ message: error.message });

@@ -8,8 +8,10 @@ const router = express.Router();
 router.get('/', auth, getStudents);
 router.get('/inactive', auth, getInactiveStudents);
 router.get('/:id', auth, getStudent);
-router.post('/', auth, upload.single('photo'), createStudent);
-router.put('/:id', auth, upload.single('photo'), updateStudent);
+const photoFields = upload.fields([{ name: 'photo', maxCount: 1 }, { name: 'fatherPhoto', maxCount: 1 }, { name: 'motherPhoto', maxCount: 1 }]);
+
+router.post('/', auth, photoFields, createStudent);
+router.put('/:id', auth, photoFields, updateStudent);
 router.patch('/:id/inactive', auth, inactiveStudent);
 router.patch('/:id/activate', auth, activateStudent);
 router.delete('/:id', auth, deleteStudent);

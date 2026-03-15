@@ -28,8 +28,10 @@ interface Student {
   photo?: string;
   fatherName?: string;
   fatherPhone?: string;
+  fatherPhoto?: string;
   motherName?: string;
   motherPhone?: string;
+  motherPhoto?: string;
 }
 
 interface Payment {
@@ -246,28 +248,44 @@ export default function ViewStudentPage() {
                 <h3 className={`text-lg font-semibold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Parent Information', 'የወላፃ መረጃ')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h4 className={`font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{getText('Father', 'አባት')}</h4>
-                    <div className="space-y-2">
-                      <div>
-                        <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Name', 'ስም')}</label>
-                        <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.fatherName || '-'}</p>
+                    <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{getText('Father', 'አባት')}</h4>
+                    <div className="flex items-start gap-4">
+                      <div className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center border ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-200'}`}>
+                        {student.fatherPhoto
+                          ? <img src={student.fatherPhoto} alt="Father" className="w-full h-full object-cover" />
+                          : <svg className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        }
                       </div>
-                      <div>
-                        <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Phone', 'ስልክ')}</label>
-                        <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.fatherPhone || '-'}</p>
+                      <div className="space-y-2">
+                        <div>
+                          <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Name', 'ስም')}</label>
+                          <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.fatherName || '-'}</p>
+                        </div>
+                        <div>
+                          <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Phone', 'ስልክ')}</label>
+                          <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.fatherPhone || '-'}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
                   <div>
-                    <h4 className={`font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{getText('Mother', 'እናት')}</h4>
-                    <div className="space-y-2">
-                      <div>
-                        <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Name', 'ስም')}</label>
-                        <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.motherName || '-'}</p>
+                    <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{getText('Mother', 'እናት')}</h4>
+                    <div className="flex items-start gap-4">
+                      <div className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center border ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-200'}`}>
+                        {student.motherPhoto
+                          ? <img src={student.motherPhoto} alt="Mother" className="w-full h-full object-cover" />
+                          : <svg className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        }
                       </div>
-                      <div>
-                        <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Phone', 'ስልክ')}</label>
-                        <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.motherPhone || '-'}</p>
+                      <div className="space-y-2">
+                        <div>
+                          <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Name', 'ስም')}</label>
+                          <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.motherName || '-'}</p>
+                        </div>
+                        <div>
+                          <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Phone', 'ስልክ')}</label>
+                          <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.motherPhone || '-'}</p>
+                        </div>
                       </div>
                     </div>
                   </div>

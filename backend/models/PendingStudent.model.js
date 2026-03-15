@@ -17,8 +17,10 @@ const pendingStudentSchema = new mongoose.Schema({
   photo: { type: String },
   fatherName: { type: String },
   fatherPhone: { type: String },
+  fatherPhoto: { type: String },
   motherName: { type: String },
   motherPhone: { type: String },
+  motherPhoto: { type: String },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
 }, { timestamps: true });
 

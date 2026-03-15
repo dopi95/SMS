@@ -19,8 +19,10 @@ const studentSchema = new mongoose.Schema({
   photo: { type: String },
   fatherName: { type: String },
   fatherPhone: { type: String },
+  fatherPhoto: { type: String },
   motherName: { type: String },
   motherPhone: { type: String },
+  motherPhoto: { type: String },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   enrollmentDate: { type: Date, default: Date.now }
 }, { timestamps: true });
@@ -28,33 +30,32 @@ const studentSchema = new mongoose.Schema({
 // Auto-generate or update studentId
 studentSchema.pre('save', async function(next) {
   const year = this.joinedYear ? this.joinedYear.toString() : '';
-  
+
   if (!this.studentId) {
-    // New student - generate new ID
-    const lastStudent = await mongoose.model('Student').findOne(
-      { studentId: { $regex: `^BLUE\\d{3}/${year}$` } },
-      {},
-      { sort: { studentId: -1 } }
+    // Find the highest numeric part across ALL students regardless of year
+    const allStudents = await mongoose.model('Student').find(
+      { studentId: { $regex: /^BLUE\d+\/\d{4}$/ } },
+      { studentId: 1 }
     );
-    
-    let nextNumber = 1;
-    if (lastStudent && lastStudent.studentId) {
-      const match = lastStudent.studentId.match(/BLUE(\d{3})\/(\d{4})/);
+
+    let maxNumber = 0;
+    for (const s of allStudents) {
+      const match = s.studentId && s.studentId.match(/^BLUE(\d+)\//);
       if (match) {
-        nextNumber = parseInt(match[1]) + 1;
+        const num = parseInt(match[1]);
+        if (num > maxNumber) maxNumber = num;
       }
     }
-    
-    this.studentId = `BLUE${String(nextNumber).padStart(3, '0')}/${year}`;
+
+    this.studentId = `BLUE${String(maxNumber + 1).padStart(3, '0')}/${year}`;
   } else if (this.isModified('joinedYear') && year.length === 4) {
-    // Existing student - update year only
-    const match = this.studentId.match(/BLUE(\d{3})\/(\d{4})/);
+    // Existing student — update year part only
+    const match = this.studentId.match(/^BLUE(\d+)\//);
     if (match) {
-      const number = match[1];
-      this.studentId = `BLUE${number}/${year}`;
+      this.studentId = `BLUE${match[1]}/${year}`;
     }
   }
-  
+
   next();
 });
 
