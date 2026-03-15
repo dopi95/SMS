@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/DashboardLayout'
 import axios from 'axios'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { usePermissions } from '@/contexts/PermissionsContext'
 
 interface PendingStudent {
   _id: string
@@ -53,6 +54,7 @@ export default function PendingStudentsPage() {
   const [actionId, setActionId] = useState<string | null>(null)
   const [detail, setDetail] = useState<PendingStudent | null>(null)
   const [alert, setAlert] = useState<AlertState | null>(null)
+  const { canDo } = usePermissions()
 
   // filters
   const [search, setSearch] = useState('')
@@ -411,7 +413,7 @@ export default function PendingStudentsPage() {
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                               </button>
                               {/* Approve */}
-                              {s.status !== 'approved' && (
+                              {s.status !== 'approved' && canDo('pending-students','approve') && (
                                 <button onClick={() => approve(s._id)} disabled={actionId === s._id} title="Approve"
                                   className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white transition-colors flex-shrink-0">
                                   {actionId === s._id
@@ -420,17 +422,19 @@ export default function PendingStudentsPage() {
                                 </button>
                               )}
                               {/* Reject */}
-                              {s.status !== 'rejected' && (
+                              {s.status !== 'rejected' && canDo('pending-students','reject') && (
                                 <button onClick={() => confirmReject(s._id)} disabled={actionId === s._id} title="Reject"
                                   className="w-7 h-7 flex items-center justify-center rounded-lg bg-orange-50 hover:bg-orange-100 disabled:opacity-50 text-orange-600 border border-orange-200 transition-colors flex-shrink-0">
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                               )}
                               {/* Delete */}
+                              {canDo('pending-students','delete') && (
                               <button onClick={() => confirmDelete(s._id)} disabled={actionId === s._id} title="Delete"
                                 className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white transition-colors flex-shrink-0">
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
+                              )}
                             </div>
                           </td>
                         </tr>

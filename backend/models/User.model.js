@@ -1,11 +1,18 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+const permissionSchema = new mongoose.Schema({
+  page: { type: String, required: true },       // e.g. 'students'
+  actions: [{ type: String }]                   // e.g. ['view','add','edit','delete']
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['superadmin', 'teacher', 'student'], required: true },
+  plainPassword: { type: String, default: '' }, // stored for display only
+  role: { type: String, enum: ['superadmin', 'admin', 'executive', 'teacher', 'student'], required: true },
+  permissions: [permissionSchema],
   profilePhoto: { type: String, default: '' },
   phone: { type: String, default: '' },
   isActive: { type: Boolean, default: true }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { useSettings } from '@/contexts/SettingsContext'
+import { usePermissions } from '@/contexts/PermissionsContext'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import jsPDF from 'jspdf'
@@ -36,6 +37,7 @@ interface Payment {
 
 export default function PaymentsPage() {
   const { theme, getText, language } = useSettings()
+  const { canDo } = usePermissions()
   const [students, setStudents] = useState<Student[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
@@ -646,6 +648,7 @@ export default function PaymentsPage() {
                         </div>
                       )}
                     </div>
+                    {canDo('custom-payment', 'view') && (
                     <a
                       href="/payments/custom"
                       className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
@@ -655,6 +658,7 @@ export default function PaymentsPage() {
                       </svg>
                       <span className="text-sm md:text-base">{getText('Custom Payment', 'ልዩ ክፍያ')}</span>
                     </a>
+                    )}
                   </div>
                 </div>
               </div>

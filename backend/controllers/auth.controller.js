@@ -25,6 +25,7 @@ const register = async (req, res) => {
         name: user.name, 
         email: user.email, 
         role: user.role,
+        permissions: user.permissions || [],
         profilePhoto: user.profilePhoto,
         phone: user.phone
       }
@@ -52,6 +53,7 @@ const login = async (req, res) => {
         name: user.name, 
         email: user.email, 
         role: user.role,
+        permissions: user.permissions || [],
         profilePhoto: user.profilePhoto,
         phone: user.phone
       }
@@ -68,6 +70,7 @@ const getMe = (req, res) => {
       name: req.user.name,
       email: req.user.email,
       role: req.user.role,
+      permissions: req.user.permissions || [],
       profilePhoto: req.user.profilePhoto,
       phone: req.user.phone
     }

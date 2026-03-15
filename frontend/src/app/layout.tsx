@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast'
 import ErrorSuppressor from '@/components/ErrorSuppressor'
 import LoadingScreen from '@/components/LoadingScreen'
 import { SettingsProvider } from '@/contexts/SettingsContext'
+import { PermissionsProvider } from '@/contexts/PermissionsContext'
 
 export const metadata = {
   title: 'Bluelight Academy - School Management System',
@@ -44,6 +45,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased" suppressHydrationWarning>
         <SettingsProvider>
+          <PermissionsProvider>
           <ErrorSuppressor>
             <LoadingScreen />
             {children}
@@ -97,6 +99,7 @@ export default function RootLayout({
               }}
             />
           </ErrorSuppressor>
+          </PermissionsProvider>
         </SettingsProvider>
         <script
           dangerouslySetInnerHTML={{

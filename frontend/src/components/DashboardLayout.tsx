@@ -7,6 +7,7 @@ import { authService } from '@/lib/auth'
 import NotificationBell from './NotificationBell'
 import Image from 'next/image'
 import { useSettings } from '@/contexts/SettingsContext'
+import { usePermissions } from '@/contexts/PermissionsContext'
 import {
   HomeIcon,
   AcademicCapIcon,
@@ -40,6 +41,7 @@ export default function DashboardLayout({
   hideBell?: boolean
 }) {
   const { language, theme, getText } = useSettings()
+  const { canAccess, role } = usePermissions()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -47,15 +49,15 @@ export default function DashboardLayout({
   const pathname = usePathname()
 
   const getNavigationItems = () => [
-    { name: getText('Dashboard', 'ዳሽቦርድ'), icon: HomeIcon, href: '/dashboard' },
-    { name: getText('Students', 'ተማሪዎች'), icon: AcademicCapIcon, href: '/students' },
-    { name: getText('Employees', 'ሰራተኞች'), icon: UserGroupIcon, href: '/employees' },
-    { name: getText('Payments', 'ክፍያዎች'), icon: CreditCardIcon, href: '/payments' },
-    { name: getText('Send Notifications', 'ማሳወቂያ ላክ'), icon: BellIcon, href: '/notifications' },
-    { name: getText('Admins', 'አስተዳዳሪዎች'), icon: ShieldCheckIcon, href: '/admins' },
-    { name: getText('Activity Logs', 'የእንቅስቃሴ ምዝገባ'), icon: ClipboardDocumentListIcon, href: '/activity-logs' },
-    { name: getText('My Profile', 'የእኔ መገለጫ'), icon: UserCircleIcon, href: '/profile' },
-  ]
+    { name: getText('Dashboard', 'ዳሽቦርድ'), icon: HomeIcon, href: '/dashboard', page: 'dashboard' },
+    { name: getText('Students', 'ተማሪዎች'), icon: AcademicCapIcon, href: '/students', page: 'students' },
+    { name: getText('Employees', 'ሰራተኞች'), icon: UserGroupIcon, href: '/employees', page: 'employees' },
+    { name: getText('Payments', 'ክፍያዎች'), icon: CreditCardIcon, href: '/payments', page: 'payments' },
+    { name: getText('Send Notifications', 'ማሳወቂያ ላክ'), icon: BellIcon, href: '/notifications', page: 'notifications' },
+    { name: getText('Admins', 'አስተዳዳሪዎች'), icon: ShieldCheckIcon, href: '/admins', page: 'admins' },
+    { name: getText('Activity Logs', 'የእንቅስቃሴ ምዝገባ'), icon: ClipboardDocumentListIcon, href: '/activity-logs', page: 'activity-logs' },
+    { name: getText('My Profile', 'የእኔ መገለጫ'), icon: UserCircleIcon, href: '/profile', page: 'profile' },
+  ].filter(item => canAccess(item.page))
 
   useEffect(() => {
     const token = localStorage.getItem('token')

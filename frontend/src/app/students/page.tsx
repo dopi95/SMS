@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useSettings } from '@/contexts/SettingsContext';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -38,6 +39,7 @@ interface Student {
 
 export default function StudentsPage() {
   const { language, theme, getText } = useSettings();
+  const { canDo } = usePermissions();
   const [students, setStudents] = useState<Student[]>([]);
   const [inactiveStudents, setInactiveStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
@@ -654,6 +656,7 @@ export default function StudentsPage() {
                     )}
                   </div>
                   
+                  {canDo('students', 'add') && (
                   <button
                     onClick={() => router.push('/students/add')}
                     className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 sm:px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
@@ -663,6 +666,7 @@ export default function StudentsPage() {
                     </svg>
                     {getText('Add New Student', 'አዲስ ተማሪ ከምር')}
                   </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -972,24 +976,30 @@ export default function StudentsPage() {
                             >
                               {getText('View', 'ይመልከቱ')}
                             </button>
+                            {canDo('students', 'edit') && (
                             <button
                               onClick={() => router.push(`/students/edit/${student._id}`)}
                               className={`text-xs px-2 py-1 rounded transition-colors ${theme === 'dark' ? 'bg-blue-800 text-blue-200 hover:bg-blue-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
                             >
                               {getText('Edit', 'ያርቱ')}
                             </button>
+                            )}
+                            {canDo('students', 'inactive') && (
                             <button
                               onClick={() => handleInactive(student._id)}
                               className={`text-xs px-2 py-1 rounded transition-colors ${theme === 'dark' ? 'bg-orange-800 text-orange-200 hover:bg-orange-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}
                             >
                               {getText('Inactive', 'አይሰራ')}
                             </button>
+                            )}
+                            {canDo('students', 'delete') && (
                             <button
                               onClick={() => handleDelete(student._id)}
                               className={`text-xs px-2 py-1 rounded transition-colors ${theme === 'dark' ? 'bg-red-800 text-red-200 hover:bg-red-700' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
                             >
                               {getText('Delete', 'ሰርዝ')}
                             </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1093,30 +1103,10 @@ export default function StudentsPage() {
                           )}
                           
                           <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => router.push(`/students/view/${student._id}`)}
-                              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-green-800 text-green-200 hover:bg-green-700' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
-                            >
-                              {getText('View', 'ይመልከቱ')}
-                            </button>
-                            <button
-                              onClick={() => router.push(`/students/edit/${student._id}`)}
-                              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-blue-800 text-blue-200 hover:bg-blue-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
-                            >
-                              {getText('Edit', 'ያርቱ')}
-                            </button>
-                            <button
-                              onClick={() => handleInactive(student._id)}
-                              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-orange-800 text-orange-200 hover:bg-orange-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}
-                            >
-                              {getText('Inactive', 'አይሰራ')}
-                            </button>
-                            <button
-                              onClick={() => handleDelete(student._id)}
-                              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-red-800 text-red-200 hover:bg-red-700' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
-                            >
-                              {getText('Delete', 'ሰርዝ')}
-                            </button>
+                            <button onClick={() => router.push(`/students/view/${student._id}`)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-green-800 text-green-200 hover:bg-green-700' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>{getText('View', 'ይመልከቱ')}</button>
+                            {canDo('students','edit') && <button onClick={() => router.push(`/students/edit/${student._id}`)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-blue-800 text-blue-200 hover:bg-blue-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}>{getText('Edit', 'ያርቱ')}</button>}
+                            {canDo('students','inactive') && <button onClick={() => handleInactive(student._id)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-orange-800 text-orange-200 hover:bg-orange-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}>{getText('Inactive', 'አይሰራ')}</button>}
+                            {canDo('students','delete') && <button onClick={() => handleDelete(student._id)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-red-800 text-red-200 hover:bg-red-700' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>{getText('Delete', 'ሰርዝ')}</button>}
                           </div>
                         </div>
                       </div>
