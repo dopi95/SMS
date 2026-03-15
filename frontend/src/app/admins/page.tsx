@@ -34,6 +34,7 @@ interface Admin {
   permissions: { page: string; actions: string[] }[]
   isActive: boolean
   createdAt: string
+  profilePhoto?: string
 }
 
 type PermMap = Record<string, string[]>
@@ -63,7 +64,7 @@ export default function AdminsPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'admin' | 'executive'>('admin')
+  const [role, setRole] = useState<'superadmin' | 'admin' | 'executive'>('admin')
   const [permMap, setPermMap] = useState<PermMap>({
     dashboard: ['view'],
     profile: ['view', 'edit'],
@@ -84,6 +85,12 @@ export default function AdminsPage() {
 
   useEffect(() => { fetch() }, [])
 
+  useEffect(() => {
+    const onFocus = () => fetch()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
+
   const openCreate = () => {
     setEditing(null)
     setName(''); setEmail(''); setPassword(''); setRole('admin')
@@ -93,13 +100,13 @@ export default function AdminsPage() {
 
   const openEdit = (a: Admin) => {
     setEditing(a)
-    setName(a.name); setEmail(a.email); setPassword(''); setRole(a.role as any)
+    setName(a.name); setEmail(a.email); setPassword(''); setRole(a.role as 'superadmin' | 'admin' | 'executive')
     setPermMap(buildPermMap(a.permissions || []))
     setShowModal(true)
   }
 
   // When role changes auto-set defaults
-  const handleRoleChange = (r: 'admin' | 'executive') => {
+  const handleRoleChange = (r: 'superadmin' | 'admin' | 'executive') => {
     setRole(r)
     setPermMap({ dashboard: ['view'], profile: ['view', 'edit'] })
   }
@@ -180,11 +187,18 @@ export default function AdminsPage() {
               <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Admins</h1>
               <p className={`text-sm mt-0.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{admins.length} admin{admins.length !== 1 ? 's' : ''}</p>
             </div>
-            <button onClick={openCreate}
+            <div className="flex items-center gap-2">
+              <button onClick={fetch}
+                className={`p-2 rounded-xl border transition-colors ${theme === 'dark' ? 'border-gray-600 text-gray-400 hover:bg-gray-700' : 'border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+                title="Refresh">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              </button>
+              <button onClick={openCreate}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
               Add Admin
             </button>
+            </div>
           </div>
 
           {/* Cards */}
@@ -196,13 +210,22 @@ export default function AdminsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {admins.map(a => (
+              {[...admins].sort((a, b) => {
+                const order: Record<string, number> = { superadmin: 0, admin: 1, executive: 2 }
+                return (order[a.role] ?? 3) - (order[b.role] ?? 3)
+              }).map(a => (
                 <div key={a._id} className={`${card} p-5 flex flex-col gap-4`}>
                   {/* Top */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                        <span className="text-white font-bold text-base">{a.name.charAt(0).toUpperCase()}</span>
+                      <div className="w-11 h-11 rounded-full flex-shrink-0 overflow-hidden">
+                        {a.profilePhoto ? (
+                          <img src={a.profilePhoto} alt={a.name} className="w-11 h-11 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                            <span className="text-white font-bold text-base">{a.name.charAt(0).toUpperCase()}</span>
+                          </div>
+                        )}
                       </div>
                       <div className="min-w-0">
                         <p className={`font-semibold text-sm truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{a.name}</p>
@@ -257,18 +280,16 @@ export default function AdminsPage() {
                   )}
 
                   {/* Actions */}
-                  {a.role !== 'superadmin' && (
-                    <div className="flex gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
-                      <button onClick={() => openEdit(a)}
-                        className="flex-1 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200 transition-colors">
-                        Edit
-                      </button>
-                      <button onClick={() => setDeleting(a)}
-                        className="flex-1 py-1.5 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-200 transition-colors">
-                        Delete
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+                    <button onClick={() => openEdit(a)}
+                      className="flex-1 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200 transition-colors">
+                      Edit
+                    </button>
+                    <button onClick={() => setDeleting(a)}
+                      className="flex-1 py-1.5 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-200 transition-colors">
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -310,13 +331,15 @@ export default function AdminsPage() {
                 <div>
                   <label className={lbl}>Role *</label>
                   <select className={inp} value={role} onChange={e => handleRoleChange(e.target.value as any)}>
+                    <option value="superadmin">Super Admin</option>
                     <option value="admin">Admin</option>
                     <option value="executive">Executive</option>
                   </select>
                 </div>
               </div>
 
-              {/* Permissions builder */}
+              {/* Permissions builder — hidden for superadmin */}
+              {role !== 'superadmin' && (
               <div>
                 <p className={`text-sm font-bold mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Page Permissions</p>
                 <div className="space-y-2">
@@ -358,6 +381,7 @@ export default function AdminsPage() {
                   })}
                 </div>
               </div>
+              )}
             </div>
 
             {/* Footer */}

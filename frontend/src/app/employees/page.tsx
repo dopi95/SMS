@@ -195,7 +195,7 @@ export default function EmployeesPage() {
                 </div>
               </div>
             </div>
-            <div className={`rounded-lg shadow-sm border p-6 cursor-pointer hover:shadow-md transition-shadow ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`} onClick={() => router.push('/employees/inactive')}>
+            <div className={`rounded-lg shadow-sm border p-6 ${canDo('employees', 'inactive') ? 'cursor-pointer hover:shadow-md transition-shadow' : ''} ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`} onClick={() => canDo('employees', 'inactive') && router.push('/employees/inactive')}>
               <div className="flex items-center">
                 <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
                   <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -206,12 +206,14 @@ export default function EmployeesPage() {
                   <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Inactive Employees', 'ንቁ ያልሆኑ ሰራተኞች')}</p>
                   <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{inactiveCount}</p>
                 </div>
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-xs font-medium text-red-600">{getText('Show', 'አሳይ')}</span>
-                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
+                {canDo('employees', 'inactive') && (
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-xs font-medium text-red-600">{getText('Show', 'አሳይ')}</span>
+                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                )}
               </div>
             </div>
           </div>

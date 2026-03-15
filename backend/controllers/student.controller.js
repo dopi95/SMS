@@ -1,5 +1,6 @@
 const Student = require('../models/Student.model');
 const cloudinary = require('../config/cloudinary.config');
+const logActivity = require('../utils/logActivity');
 
 const getStudents = async (req, res) => {
   try {
@@ -47,6 +48,7 @@ const createStudent = async (req, res) => {
     const motherPhotoUrl = await uploadPhoto(files.motherPhoto, 'students/parents');
     const student = new Student({ ...req.body, photo: photoUrl, fatherPhoto: fatherPhotoUrl, motherPhoto: motherPhotoUrl });
     await student.save();
+    await logActivity(req.user, 'Added', 'Student', `Added student ${student.firstName} ${student.lastName} (ID: ${student.studentId})`);
     res.status(201).json(student);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -85,6 +87,7 @@ const updateStudent = async (req, res) => {
 
     const student = await Student.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
     if (!student) return res.status(404).json({ message: 'Student not found' });
+    await logActivity(req.user, 'Edited', 'Student', `Edited student ${student.firstName} ${student.lastName} (ID: ${student.studentId})`);
     res.json(student);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -97,6 +100,7 @@ const deleteStudent = async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
+    await logActivity(req.user, 'Deleted', 'Student', `Deleted student ${student.firstName} ${student.lastName} (ID: ${student.studentId})`);
     res.json({ message: 'Student deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -113,6 +117,7 @@ const inactiveStudent = async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
+    await logActivity(req.user, 'Deactivated', 'Student', `Marked student ${student.firstName} ${student.lastName} as inactive`);
     res.json({ message: 'Student marked as inactive successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -129,6 +134,7 @@ const activateStudent = async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
+    await logActivity(req.user, 'Activated', 'Student', `Reactivated student ${student.firstName} ${student.lastName}`);
     res.json({ message: 'Student activated successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -186,7 +192,7 @@ const bulkDelete = async (req, res) => {
     }
     
     await Student.deleteMany({ _id: { $in: studentIds } });
-    
+    await logActivity(req.user, 'Bulk Deleted', 'Student', `Bulk deleted ${studentIds.length} students`);
     res.json({ message: `${studentIds.length} students deleted successfully` });
   } catch (error) {
     res.status(500).json({ message: error.message });

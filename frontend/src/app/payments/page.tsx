@@ -37,7 +37,8 @@ interface Payment {
 
 export default function PaymentsPage() {
   const { theme, getText, language } = useSettings()
-  const { canDo } = usePermissions()
+  const { role, canDo } = usePermissions()
+  const canManagePayments = canDo('payments', 'add') || canDo('payments', 'delete')
   const [students, setStudents] = useState<Student[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
@@ -548,6 +549,7 @@ export default function PaymentsPage() {
             </div>
 
             {/* Total Amount Collected Card */}
+            {role !== 'executive' && (
             <div className={`rounded-xl shadow-lg border p-6 ${theme === 'dark' ? 'bg-gradient-to-r from-green-900 to-green-800 border-green-700' : 'bg-gradient-to-r from-green-50 to-green-100 border-green-200'}`}>
               <div className="flex items-center justify-between">
                 <div>
@@ -573,6 +575,7 @@ export default function PaymentsPage() {
                 </div>
               </div>
             </div>
+            )}
           </div>
 
           <div className={`rounded-xl shadow-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
@@ -587,7 +590,7 @@ export default function PaymentsPage() {
                   </p>
                 </div>
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                  {selectedStudents.length > 0 && (
+                  {canManagePayments && selectedStudents.length > 0 && (
                     <button
                       onClick={() => setShowBulkPaymentModal(true)}
                       className="w-full md:w-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
@@ -598,7 +601,7 @@ export default function PaymentsPage() {
                       <span>{getText(`Mark ${selectedStudents.length} as Paid`, `${selectedStudents.length} እንደ ተከፍሏል ምልክት አድርግ`)}</span>
                     </button>
                   )}
-                  {selectedPaidStudents.length > 0 && (
+                  {canManagePayments && selectedPaidStudents.length > 0 && (
                     <button
                       onClick={handleBulkUnpaid}
                       className="w-full md:w-auto bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
@@ -805,12 +808,14 @@ export default function PaymentsPage() {
                     <thead>
                       <tr className={`border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
                         <th className={`px-6 py-3 text-center text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                          <input
-                            type="checkbox"
-                            checked={(selectedStudents.length > 0 && selectedStudents.length === filteredStudents.filter(s => !isStudentPaid(s._id)).length && filteredStudents.filter(s => !isStudentPaid(s._id)).length > 0) || (selectedPaidStudents.length > 0 && selectedPaidStudents.length === filteredStudents.filter(s => isStudentPaid(s._id)).length && filteredStudents.filter(s => isStudentPaid(s._id)).length > 0)}
-                            onChange={(e) => handleSelectAll(e.target.checked)}
-                            className="w-5 h-5 rounded cursor-pointer accent-blue-600"
-                          />
+                          {canManagePayments && (
+                            <input
+                              type="checkbox"
+                              checked={(selectedStudents.length > 0 && selectedStudents.length === filteredStudents.filter(s => !isStudentPaid(s._id)).length && filteredStudents.filter(s => !isStudentPaid(s._id)).length > 0) || (selectedPaidStudents.length > 0 && selectedPaidStudents.length === filteredStudents.filter(s => isStudentPaid(s._id)).length && filteredStudents.filter(s => isStudentPaid(s._id)).length > 0)}
+                              onChange={(e) => handleSelectAll(e.target.checked)}
+                              className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                            />
+                          )}
                         </th>
                         <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                           {getText('Student ID', 'የተማሪ መታወቂያ')}
@@ -845,12 +850,14 @@ export default function PaymentsPage() {
                           return (
                             <tr key={student._id} className={`${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} ${isSelected ? theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50' : ''}`}>
                               <td className="px-6 py-4 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => handleSelectStudent(student._id, e.target.checked, isPaid)}
-                                  className="w-5 h-5 rounded cursor-pointer accent-blue-600"
-                                />
+                                {canManagePayments && (
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => handleSelectStudent(student._id, e.target.checked, isPaid)}
+                                    className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                                  />
+                                )}
                               </td>
                               <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                                 <div className="font-medium">{student.studentId}</div>
@@ -872,8 +879,9 @@ export default function PaymentsPage() {
                                     <input
                                       type="checkbox"
                                       checked={isPaid}
-                                      onChange={(e) => handleCheckboxClick(student, e.target.checked)}
-                                      className={`w-5 h-5 rounded focus:ring-2 focus:ring-offset-0 cursor-pointer transition-all ${
+                                      onChange={canManagePayments ? (e) => handleCheckboxClick(student, e.target.checked) : undefined}
+                                      readOnly={!canManagePayments}
+                                      className={`w-5 h-5 rounded focus:ring-2 focus:ring-offset-0 transition-all ${canManagePayments ? 'cursor-pointer' : 'cursor-default'} ${
                                         isPaid 
                                           ? 'bg-green-500 border-green-500 text-white accent-green-500' 
                                           : 'border-gray-300 accent-gray-400'
@@ -887,7 +895,7 @@ export default function PaymentsPage() {
                                       {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
                                     </span>
                                   </div>
-                                  {isPaid && (
+                                  {isPaid && canManagePayments && (
                                     <button
                                       onClick={() => handleDeletePayment(student._id)}
                                       className={`p-2 rounded-lg transition-all hover:scale-110 ${
@@ -946,12 +954,14 @@ export default function PaymentsPage() {
                             {/* Student Info */}
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex items-start gap-3 flex-1">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => handleSelectStudent(student._id, e.target.checked, isPaid)}
-                                  className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600"
-                                />
+                                {canManagePayments && (
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => handleSelectStudent(student._id, e.target.checked, isPaid)}
+                                    className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600"
+                                  />
+                                )}
                                 <div className="flex-1">
                                   <h3 className={`font-semibold text-base ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                                     {`${student.firstName} ${student.middleName} ${student.lastName}`}
@@ -994,12 +1004,13 @@ export default function PaymentsPage() {
                                 {getText('Payment Status', 'የክፍያ ሁኔታ')}
                               </span>
                               <div className="flex items-center gap-2">
-                                <label className="flex items-center gap-2 cursor-pointer">
+                                <label className={`flex items-center gap-2 ${canManagePayments ? 'cursor-pointer' : 'cursor-default'}`}>
                                   <input
                                     type="checkbox"
                                     checked={isPaid}
-                                    onChange={(e) => handleCheckboxClick(student, e.target.checked)}
-                                    className={`w-5 h-5 rounded focus:ring-2 focus:ring-offset-0 cursor-pointer transition-all ${
+                                    onChange={canManagePayments ? (e) => handleCheckboxClick(student, e.target.checked) : undefined}
+                                    readOnly={!canManagePayments}
+                                    className={`w-5 h-5 rounded focus:ring-2 focus:ring-offset-0 transition-all ${canManagePayments ? 'cursor-pointer' : 'cursor-default'} ${
                                       isPaid 
                                         ? 'bg-green-500 border-green-500 text-white accent-green-500' 
                                         : 'border-gray-300 accent-gray-400'
@@ -1013,7 +1024,7 @@ export default function PaymentsPage() {
                                     {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
                                   </span>
                                 </label>
-                                {isPaid && (
+                                {isPaid && canManagePayments && (
                                   <button
                                     onClick={() => handleDeletePayment(student._id)}
                                     className={`p-2 rounded-lg transition-all ${

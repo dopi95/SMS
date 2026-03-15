@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { useSettings } from '@/contexts/SettingsContext'
+import { usePermissions } from '@/contexts/PermissionsContext'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { useRouter, useParams } from 'next/navigation'
@@ -34,6 +35,7 @@ const CLASS_OPTIONS = [
 
 export default function PaymentFilePage() {
   const { theme, getText } = useSettings()
+  const { role, canDo } = usePermissions()
   const router = useRouter()
   const params = useParams()
   const fileId = params.id as string
@@ -201,6 +203,7 @@ export default function PaymentFilePage() {
                         </svg>
                         <span className="text-sm md:text-base">{getText('Export', 'ላክ')}</span>
                       </button>
+                      {canDo('custom-payment', 'add') && (
                       <button
                         onClick={() => setShowModal(true)}
                         className="flex-1 sm:flex-initial bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-3 sm:px-4 md:px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
@@ -210,11 +213,13 @@ export default function PaymentFilePage() {
                         </svg>
                         <span className="text-sm md:text-base">{getText('Add Entry', 'ግቤት ጨምር')}</span>
                       </button>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Summary */}
+                {role !== 'executive' && (
                 <div className={`px-6 py-4 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <div className="flex items-center justify-between">
                     <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -225,6 +230,7 @@ export default function PaymentFilePage() {
                     </span>
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Entries Table */}
@@ -287,6 +293,7 @@ export default function PaymentFilePage() {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-center gap-2">
+                                {canDo('custom-payment', 'edit') && (
                                 <button
                                   onClick={() => handleEdit(entry)}
                                   className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-blue-900/30 text-blue-400' : 'hover:bg-blue-50 text-blue-500'}`}
@@ -295,6 +302,8 @@ export default function PaymentFilePage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
                                 </button>
+                                )}
+                                {canDo('custom-payment', 'delete') && (
                                 <button
                                   onClick={() => handleDelete(entry._id)}
                                   className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-500'}`}
@@ -303,6 +312,7 @@ export default function PaymentFilePage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
                                 </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -325,6 +335,7 @@ export default function PaymentFilePage() {
                             </p>
                           </div>
                           <div className="flex gap-2">
+                            {canDo('custom-payment', 'edit') && (
                             <button
                               onClick={() => handleEdit(entry)}
                               className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-blue-900/30 text-blue-400' : 'hover:bg-blue-50 text-blue-500'}`}
@@ -333,6 +344,8 @@ export default function PaymentFilePage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
                             </button>
+                            )}
+                            {canDo('custom-payment', 'delete') && (
                             <button
                               onClick={() => handleDelete(entry._id)}
                               className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-500'}`}
@@ -341,6 +354,7 @@ export default function PaymentFilePage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
                             </button>
+                            )}
                           </div>
                         </div>
                         <div className="space-y-2">

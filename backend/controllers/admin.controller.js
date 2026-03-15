@@ -80,7 +80,6 @@ const deleteAdmin = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'Admin not found' });
-    if (user.role === 'superadmin') return res.status(403).json({ message: 'Cannot delete superadmin' });
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'Admin deleted' });
   } catch (error) {

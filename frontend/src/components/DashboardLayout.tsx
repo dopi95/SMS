@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { authService } from '@/lib/auth'
 import NotificationBell from './NotificationBell'
 import Image from 'next/image'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -41,9 +40,7 @@ export default function DashboardLayout({
   hideBell?: boolean
 }) {
   const { language, theme, getText } = useSettings()
-  const { canAccess, role } = usePermissions()
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const { canAccess, role, loading: permLoading, user } = usePermissions()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
@@ -59,34 +56,17 @@ export default function DashboardLayout({
     { name: getText('My Profile', 'የእኔ መገለጫ'), icon: UserCircleIcon, href: '/profile', page: 'profile' },
   ].filter(item => canAccess(item.page))
 
-  useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) {
-      router.push('/login')
-      return
-    }
-
-    const fetchUser = async () => {
-      try {
-        const userData = await authService.getCurrentUser()
-        setUser(userData.user)
-      } catch (error) {
-        localStorage.removeItem('token')
-        router.push('/login')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchUser()
-  }, [router])
-
   const handleLogout = () => {
     localStorage.removeItem('token')
     router.push('/login')
   }
 
-  if (loading) {
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) router.push('/login')
+  }, [router])
+
+  if (permLoading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>

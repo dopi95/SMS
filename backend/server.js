@@ -52,6 +52,7 @@ app.use('/api/custom-payments', require('./routes/customPayment.routes'));
 app.use('/api/payments', require('./routes/payment.routes'));
 app.use('/api/pending-students', require('./routes/pendingStudent.routes'));
 app.use('/api/admins', require('./routes/admin.routes'));
+app.use('/api/activity-logs', require('./routes/activityLog.routes'));
 
 app.get('/', (req, res) => {
   res.json({ 

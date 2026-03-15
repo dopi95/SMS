@@ -1,6 +1,7 @@
 const PendingStudent = require('../models/PendingStudent.model');
 const Student = require('../models/Student.model');
 const cloudinary = require('../config/cloudinary.config');
+const logActivity = require('../utils/logActivity');
 
 const submitPending = async (req, res) => {
   try {
@@ -77,6 +78,7 @@ const approvePending = async (req, res) => {
     });
     await student.save();
     await PendingStudent.findByIdAndUpdate(req.params.id, { status: 'approved' });
+    await logActivity(req.user, 'Approved', 'Pending Student', `Approved registration of ${pending.firstName} ${pending.lastName} (Student ID: ${student.studentId})`);
     res.json({ message: 'Student approved and added', studentId: student.studentId });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -87,13 +89,8 @@ const rejectPending = async (req, res) => {
   try {
     const pending = await PendingStudent.findByIdAndUpdate(req.params.id, { status: 'rejected' }, { new: true });
     if (!pending) return res.status(404).json({ message: 'Not found' });
-    // Remove from active students if they were previously approved
-    await Student.deleteOne({
-      firstName: pending.firstName,
-      middleName: pending.middleName,
-      lastName: pending.lastName,
-      fatherPhone: pending.fatherPhone,
-    });
+    await Student.deleteOne({ firstName: pending.firstName, middleName: pending.middleName, lastName: pending.lastName, fatherPhone: pending.fatherPhone });
+    await logActivity(req.user, 'Rejected', 'Pending Student', `Rejected registration of ${pending.firstName} ${pending.lastName}`);
     res.json({ message: 'Application rejected' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -104,13 +101,8 @@ const deletePending = async (req, res) => {
   try {
     const pending = await PendingStudent.findByIdAndDelete(req.params.id);
     if (!pending) return res.status(404).json({ message: 'Not found' });
-    // Also remove from Students collection if they were approved
-    await Student.deleteOne({
-      firstName: pending.firstName,
-      middleName: pending.middleName,
-      lastName: pending.lastName,
-      fatherPhone: pending.fatherPhone,
-    });
+    await Student.deleteOne({ firstName: pending.firstName, middleName: pending.middleName, lastName: pending.lastName, fatherPhone: pending.fatherPhone });
+    await logActivity(req.user, 'Deleted', 'Pending Student', `Deleted registration record of ${pending.firstName} ${pending.lastName}`);
     res.json({ message: 'Record deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });

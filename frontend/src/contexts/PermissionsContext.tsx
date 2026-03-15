@@ -11,6 +11,7 @@ export interface PagePermission {
 interface PermissionsContextType {
   role: string
   permissions: PagePermission[]
+  user: any
   canAccess: (page: string) => boolean
   canDo: (page: string, action: string) => boolean
   loading: boolean
@@ -19,8 +20,9 @@ interface PermissionsContextType {
 const PermissionsContext = createContext<PermissionsContextType>({
   role: '',
   permissions: [],
-  canAccess: () => true,
-  canDo: () => true,
+  user: null,
+  canAccess: () => false,
+  canDo: () => false,
   loading: true,
 })
 
@@ -28,16 +30,21 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState('')
   const [permissions, setPermissions] = useState<PagePermission[]>([])
   const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const token = localStorage.getItem('token')
     if (!token) { setLoading(false); return }
+
     authService.getCurrentUser()
       .then(data => {
         setRole(data.user.role)
         setPermissions(data.user.permissions || [])
+        setUser(data.user)
       })
-      .catch(() => {})
+      .catch(() => {
+        localStorage.removeItem('token')
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -55,7 +62,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <PermissionsContext.Provider value={{ role, permissions, canAccess, canDo, loading }}>
+    <PermissionsContext.Provider value={{ role, permissions, user, canAccess, canDo, loading }}>
       {children}
     </PermissionsContext.Provider>
   )

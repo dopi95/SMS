@@ -6,6 +6,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useSettings } from '@/contexts/SettingsContext';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface Teacher {
   _id: string;
@@ -30,6 +31,7 @@ interface Teacher {
 
 export default function ViewEmployeePage() {
   const { language, theme, getText } = useSettings();
+  const { role } = usePermissions();
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -149,6 +151,8 @@ export default function ViewEmployeePage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  {role !== 'executive' && (
+                  <>
                   <button
                     onClick={handleEdit}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-blue-800 text-blue-200 hover:bg-blue-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
@@ -161,6 +165,8 @@ export default function ViewEmployeePage() {
                   >
                     {getText('Delete', 'ሰርዝ')}
                   </button>
+                  </>
+                  )}
                 </div>
               </div>
             </div>

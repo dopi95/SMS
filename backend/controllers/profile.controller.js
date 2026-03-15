@@ -2,6 +2,7 @@ const User = require('../models/User.model');
 const cloudinary = require('../config/cloudinary.config');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
+const logActivity = require('../utils/logActivity');
 
 const updateProfile = async (req, res) => {
   try {
@@ -18,6 +19,12 @@ const updateProfile = async (req, res) => {
     // Validate required fields
     if (!name || !email) {
       return res.status(400).json({ message: 'Name and email are required' });
+    }
+
+    // Check if email is taken by another user
+    if (email) {
+      const existing = await User.findOne({ email, _id: { $ne: userId } });
+      if (existing) return res.status(400).json({ message: 'Email already in use by another account' });
     }
 
     const updateData = { name, email, phone: phone || '' };
@@ -79,13 +86,8 @@ const updateProfile = async (req, res) => {
 
     console.log('Updating user with data:', updateData);
     const user = await User.findByIdAndUpdate(userId, updateData, { new: true }).select('-password');
-    
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    console.log('Profile updated successfully for user:', user._id);
-    
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    await logActivity(req.user, 'Profile Updated', 'Profile', `${user.name} updated their profile`);
     res.json({
       message: 'Profile updated successfully',
       user: {
@@ -126,8 +128,9 @@ const changePassword = async (req, res) => {
     }
 
     user.password = newPassword;
+    user.plainPassword = newPassword;
     await user.save();
-
+    await logActivity(req.user, 'Password Changed', 'Profile', `${user.name} changed their password`);
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });

@@ -54,7 +54,8 @@ export default function PendingStudentsPage() {
   const [actionId, setActionId] = useState<string | null>(null)
   const [detail, setDetail] = useState<PendingStudent | null>(null)
   const [alert, setAlert] = useState<AlertState | null>(null)
-  const { canDo } = usePermissions()
+  const { canDo, role } = usePermissions()
+  const isExecutive = role === 'executive'
 
   // filters
   const [search, setSearch] = useState('')
@@ -474,9 +475,9 @@ export default function PendingStudentsPage() {
 
                       <div className="flex gap-2">
                         <button onClick={() => setDetail(s)} className="flex-1 py-2 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl border border-blue-200 transition-colors">Detail</button>
-                        {s.status !== 'approved' && <button onClick={() => approve(s._id)} disabled={actionId === s._id} className="flex-1 py-2 text-xs font-semibold bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl transition-colors">{actionId === s._id ? '...' : 'Approve'}</button>}
-                        {s.status !== 'rejected' && <button onClick={() => confirmReject(s._id)} disabled={actionId === s._id} className="flex-1 py-2 text-xs font-semibold bg-orange-50 hover:bg-orange-100 disabled:opacity-50 text-orange-600 rounded-xl border border-orange-200 transition-colors">Reject</button>}
-                        <button onClick={() => confirmDelete(s._id)} disabled={actionId === s._id} className="flex-1 py-2 text-xs font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl transition-colors">Delete</button>
+                        {!isExecutive && s.status !== 'approved' && canDo('pending-students','approve') && <button onClick={() => approve(s._id)} disabled={actionId === s._id} className="flex-1 py-2 text-xs font-semibold bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl transition-colors">{actionId === s._id ? '...' : 'Approve'}</button>}
+                        {!isExecutive && s.status !== 'rejected' && canDo('pending-students','reject') && <button onClick={() => confirmReject(s._id)} disabled={actionId === s._id} className="flex-1 py-2 text-xs font-semibold bg-orange-50 hover:bg-orange-100 disabled:opacity-50 text-orange-600 rounded-xl border border-orange-200 transition-colors">Reject</button>}
+                        {!isExecutive && canDo('pending-students','delete') && <button onClick={() => confirmDelete(s._id)} disabled={actionId === s._id} className="flex-1 py-2 text-xs font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl transition-colors">Delete</button>}
                       </div>
                     </div>
                   ))}
@@ -543,14 +544,14 @@ export default function PendingStudentsPage() {
             </div>
 
             <div className="px-6 pb-3 flex gap-3">
-              {detail.status !== 'approved' && (
+              {!isExecutive && detail.status !== 'approved' && (
                 <button onClick={() => approve(detail._id)} disabled={actionId === detail._id}
                   className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
                   {actionId === detail._id ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
                   Approve
                 </button>
               )}
-              {detail.status !== 'rejected' && (
+              {!isExecutive && detail.status !== 'rejected' && (
                 <button onClick={() => confirmReject(detail._id)} disabled={actionId === detail._id}
                   className="flex-1 py-2.5 bg-orange-50 hover:bg-orange-100 disabled:opacity-50 text-orange-600 font-semibold rounded-xl border border-orange-200 transition-colors flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -559,11 +560,13 @@ export default function PendingStudentsPage() {
               )}
             </div>
             <div className="px-6 pb-6">
+              {!isExecutive && (
               <button onClick={() => confirmDelete(detail._id)} disabled={actionId === detail._id}
                 className="w-full py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 Delete Record
               </button>
+              )}
             </div>
           </div>
         </div>

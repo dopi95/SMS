@@ -2,17 +2,14 @@ const CustomPaymentFile = require('../models/CustomPaymentFile.model');
 const CustomPaymentEntry = require('../models/CustomPaymentEntry.model');
 const asyncHandler = require('../utils/asyncHandler');
 const PDFDocument = require('pdfkit');
+const logActivity = require('../utils/logActivity');
 
 // Create new payment file
 exports.createFile = asyncHandler(async (req, res) => {
   const { title, year } = req.body;
   
-  const file = await CustomPaymentFile.create({
-    title,
-    year,
-    createdBy: req.user._id
-  });
-  
+  const file = await CustomPaymentFile.create({ title, year, createdBy: req.user._id });
+  await logActivity(req.user, 'Created File', 'Custom Payment', `Created custom payment file "${title}" (${year})`);
   res.status(201).json(file);
 });
 
@@ -50,7 +47,7 @@ exports.deleteFile = asyncHandler(async (req, res) => {
   
   await CustomPaymentEntry.deleteMany({ fileId: file._id });
   await file.deleteOne();
-  
+  await logActivity(req.user, 'Deleted File', 'Custom Payment', `Deleted custom payment file "${file.title}" (${file.year})`);
   res.json({ message: 'File deleted successfully' });
 });
 
@@ -68,6 +65,7 @@ exports.updateFile = asyncHandler(async (req, res) => {
   file.year = year || file.year;
   
   await file.save();
+  await logActivity(req.user, 'Edited File', 'Custom Payment', `Edited custom payment file "${file.title}" (${file.year})`);
   res.json(file);
 });
 
@@ -80,15 +78,8 @@ exports.addEntry = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: 'File not found' });
   }
   
-  const entry = await CustomPaymentEntry.create({
-    fileId,
-    studentName,
-    class: studentClass,
-    amount,
-    paymentDate,
-    paymentMethod
-  });
-  
+  const entry = await CustomPaymentEntry.create({ fileId, studentName, class: studentClass, amount, paymentDate, paymentMethod });
+  await logActivity(req.user, 'Added Entry', 'Custom Payment', `Added entry for "${studentName}" — ${amount} ETB`);
   res.status(201).json(entry);
 });
 
@@ -108,6 +99,7 @@ exports.updateEntry = asyncHandler(async (req, res) => {
   entry.paymentMethod = paymentMethod || entry.paymentMethod;
   
   await entry.save();
+  await logActivity(req.user, 'Edited Entry', 'Custom Payment', `Edited entry for "${entry.studentName}" — ${entry.amount} ETB`);
   res.json(entry);
 });
 
@@ -120,6 +112,7 @@ exports.deleteEntry = asyncHandler(async (req, res) => {
   }
   
   await entry.deleteOne();
+  await logActivity(req.user, 'Deleted Entry', 'Custom Payment', `Deleted entry for "${entry.studentName}" — ${entry.amount} ETB`);
   res.json({ message: 'Entry deleted successfully' });
 });
 

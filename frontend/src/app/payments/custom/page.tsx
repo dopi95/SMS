@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { useSettings } from '@/contexts/SettingsContext'
+import { usePermissions } from '@/contexts/PermissionsContext'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
@@ -20,6 +21,7 @@ interface PaymentFile {
 
 export default function CustomPaymentsPage() {
   const { theme, getText } = useSettings()
+  const { canDo } = usePermissions()
   const router = useRouter()
   const [files, setFiles] = useState<PaymentFile[]>([])
   const [loading, setLoading] = useState(true)
@@ -126,6 +128,7 @@ export default function CustomPaymentsPage() {
                     </svg>
                     <span>{getText('Back', 'ተመለስ')}</span>
                   </button>
+                  {canDo('custom-payment', 'add') && (
                   <button
                     onClick={() => setShowModal(true)}
                     className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95"
@@ -135,6 +138,7 @@ export default function CustomPaymentsPage() {
                     </svg>
                     <span>{getText('Create File', 'ፋይል ፍጠር')}</span>
                   </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -169,11 +173,9 @@ export default function CustomPaymentsPage() {
                         </p>
                       </div>
                       <div className="flex gap-1">
+                        {canDo('custom-payment', 'add') && (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            router.push(`/payments/custom/${file._id}`)
-                          }}
+                          onClick={(e) => { e.stopPropagation(); router.push(`/payments/custom/${file._id}`) }}
                           className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-green-900/30 text-green-400' : 'hover:bg-green-50 text-green-600'}`}
                           title={getText('Add Entry', 'ግቤት ጨምር')}
                         >
@@ -181,11 +183,10 @@ export default function CustomPaymentsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
                         </button>
+                        )}
+                        {canDo('custom-payment', 'edit') && (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEditFile(file)
-                          }}
+                          onClick={(e) => { e.stopPropagation(); handleEditFile(file) }}
                           className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-blue-900/30 text-blue-400' : 'hover:bg-blue-50 text-blue-500'}`}
                           title={getText('Edit File', 'ፋይል አርትዕ')}
                         >
@@ -193,11 +194,10 @@ export default function CustomPaymentsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
+                        )}
+                        {canDo('custom-payment', 'delete') && (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDeleteFile(file._id)
-                          }}
+                          onClick={(e) => { e.stopPropagation(); handleDeleteFile(file._id) }}
                           className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-500'}`}
                           title={getText('Delete File', 'ፋይል ሰርዝ')}
                         >
@@ -205,6 +205,7 @@ export default function CustomPaymentsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
+                        )}
                       </div>
                     </div>
                     <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>

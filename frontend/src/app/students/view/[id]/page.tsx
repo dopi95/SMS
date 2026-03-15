@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 
 import { useSettings } from '@/contexts/SettingsContext';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface Student {
   _id: string;
@@ -47,6 +48,7 @@ interface Payment {
 
 export default function ViewStudentPage() {
   const { language, theme, getText } = useSettings();
+  const { role } = usePermissions();
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<Payment[]>([])
@@ -368,6 +370,7 @@ export default function ViewStudentPage() {
               </div>
 
               {/* Action Buttons */}
+              {role !== 'executive' && (
               <div className={`flex justify-end gap-4 pt-6 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
                 <button
                   onClick={() => router.push(`/students/edit/${student._id}`)}
@@ -376,6 +379,7 @@ export default function ViewStudentPage() {
                   {getText('Edit Student', 'ተማሪ ያርትዑ')}
                 </button>
               </div>
+              )}
             </div>
           </div>
         </div>

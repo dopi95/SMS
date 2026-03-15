@@ -1,6 +1,7 @@
 const Payment = require('../models/Payment.model');
 const Student = require('../models/Student.model');
 const asyncHandler = require('../utils/asyncHandler');
+const logActivity = require('../utils/logActivity');
 
 // Create payment
 exports.createPayment = asyncHandler(async (req, res) => {
@@ -28,6 +29,8 @@ exports.createPayment = asyncHandler(async (req, res) => {
   });
 
   const populatedPayment = await Payment.findById(payment._id).populate('studentId');
+  const sName = populatedPayment.studentId ? `${populatedPayment.studentId.firstName} ${populatedPayment.studentId.lastName}` : studentId;
+  await logActivity(req.user, 'Payment Added', 'Payment', `Marked ${month} ${year} as paid for ${sName}`);
   res.status(201).json(populatedPayment);
 });
 
@@ -87,7 +90,8 @@ exports.deletePayment = asyncHandler(async (req, res) => {
   if (!payment) {
     return res.status(404).json({ message: 'Payment not found' });
   }
-
+  const sName = payment.studentId ? `${payment.studentId.firstName} ${payment.studentId.lastName}` : '';
+  await logActivity(req.user, 'Payment Deleted', 'Payment', `Removed ${payment.month} ${payment.year} payment for ${sName}`);
   res.json({ message: 'Payment deleted successfully' });
 });
 

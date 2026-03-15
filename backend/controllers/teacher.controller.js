@@ -1,5 +1,6 @@
 const Teacher = require('../models/Teacher.model');
 const cloudinary = require('../config/cloudinary.config');
+const logActivity = require('../utils/logActivity');
 
 const getTeachers = async (req, res) => {
   try {
@@ -59,6 +60,7 @@ const createTeacher = async (req, res) => {
     });
     
     await teacher.save();
+    await logActivity(req.user, 'Added', 'Employee', `Added employee ${teacher.fullName} (ID: ${teacher.teacherId})`);
     res.status(201).json(teacher);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -85,6 +87,7 @@ const updateTeacher = async (req, res) => {
     if (!teacher) {
       return res.status(404).json({ message: 'Teacher not found' });
     }
+    await logActivity(req.user, 'Edited', 'Employee', `Edited employee ${teacher.fullName} (ID: ${teacher.teacherId})`);
     res.json(teacher);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -97,6 +100,7 @@ const deleteTeacher = async (req, res) => {
     if (!teacher) {
       return res.status(404).json({ message: 'Teacher not found' });
     }
+    await logActivity(req.user, 'Deleted', 'Employee', `Deleted employee ${teacher.fullName} (ID: ${teacher.teacherId})`);
     res.json({ message: 'Teacher deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
