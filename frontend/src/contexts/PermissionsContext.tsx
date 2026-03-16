@@ -29,38 +29,55 @@ const PermissionsContext = createContext<PermissionsContextType>({
 export function PermissionsProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState('')
   const [permissions, setPermissions] = useState<PagePermission[]>([])
-  const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) { setLoading(false); return }
-
-    // Immediately load from localStorage so sidebar shows instantly
-    const cached = localStorage.getItem('user')
-    if (cached) {
-      try {
-        const u = JSON.parse(cached)
-        setRole(u.role || '')
-        setPermissions(u.permissions || [])
-        setUser(u)
+    const loadUser = () => {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setRole('')
+        setPermissions([])
+        setUser(null)
         setLoading(false)
+        return
+      }
+
+      // Load cached user immediately
+      try {
+        const cached = localStorage.getItem('user')
+        if (cached) {
+          const u = JSON.parse(cached)
+          setRole(u.role || '')
+          setPermissions(u.permissions || [])
+          setUser(u)
+          setLoading(false)
+        }
       } catch {}
+
+      // Refresh from API in background
+      authService.getCurrentUser()
+        .then(data => {
+          setRole(data.user.role)
+          setPermissions(data.user.permissions || [])
+          setUser(data.user)
+          localStorage.setItem('user', JSON.stringify(data.user))
+        })
+        .catch(() => {
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+        })
+        .finally(() => setLoading(false))
     }
 
-    // Refresh from API in background to get latest data
-    authService.getCurrentUser()
-      .then(data => {
-        setRole(data.user.role)
-        setPermissions(data.user.permissions || [])
-        setUser(data.user)
-        localStorage.setItem('user', JSON.stringify(data.user))
-      })
-      .catch(() => {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-      })
-      .finally(() => setLoading(false))
+    loadUser()
+
+    // Re-run whenever another tab or the login page writes to localStorage
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'user' || e.key === 'token') loadUser()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [])
 
   const isSuperAdmin = role === 'superadmin'

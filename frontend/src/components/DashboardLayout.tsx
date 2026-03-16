@@ -59,6 +59,7 @@ export default function DashboardLayout({
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    window.dispatchEvent(new StorageEvent('storage', { key: 'token' }))
     router.push('/login')
   }
 

@@ -23,7 +23,12 @@ export default function Login() {
     setLoading(true)
     try {
       const response = await authService.login(data.email, data.password)
+      // Clear old user first, then write new — must happen before navigation
+      localStorage.removeItem('user')
       localStorage.setItem('token', response.token)
+      localStorage.setItem('user', JSON.stringify(response.user))
+      // Notify PermissionsContext in the same tab to reload
+      window.dispatchEvent(new StorageEvent('storage', { key: 'user' }))
       toast.success('Login successful!')
       router.push('/dashboard')
     } catch (error: any) {
