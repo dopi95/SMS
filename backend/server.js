@@ -17,16 +17,25 @@ connectDB();
 
 // Middleware
 const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? ['https://blasms.vercel.app', 'https://blsms.vercel.app', 'https://sms-frontend.vercel.app', 'https://bluelight-sms.vercel.app']
+  ? [
+      'https://blasms.vercel.app',
+      'https://blsms.vercel.app',
+      'https://sms-frontend.vercel.app',
+      'https://bluelight-sms.vercel.app',
+      'https://sms-rjml.vercel.app',
+      'https://lbk-sms.vercel.app',
+    ]
   : ['http://localhost:4500', 'http://localhost:3000'];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+    // Allow requests with no origin (mobile apps, curl, Render health checks)
+    if (!origin) return callback(null, true);
+    // Allow any vercel.app subdomain
+    if (origin.endsWith('.vercel.app') || allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
     }
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
