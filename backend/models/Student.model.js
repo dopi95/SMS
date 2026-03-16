@@ -13,7 +13,7 @@ const studentSchema = new mongoose.Schema({
   dateOfBirth: { type: Date },
   joinedYear: { type: String, required: true },
   class: { type: String, required: true, enum: ['Nursery', 'LKG', 'UKG'] },
-  section: { type: String, enum: ['A', 'B', 'C', 'D'] },
+  section: { type: String, enum: ['A', 'B', 'C', 'D'], default: undefined },
   address: { type: String },
   paymentCode: { type: String },
   photo: { type: String },

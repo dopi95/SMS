@@ -71,6 +71,10 @@ const updateStudent = async (req, res) => {
     delete updateData.removePhoto;
     delete updateData.removeFatherPhoto;
     delete updateData.removeMotherPhoto;
+    // Remove empty enum fields to avoid validation errors
+    if (updateData.section === '') delete updateData.section;
+    if (updateData.gender === '') delete updateData.gender;
+    if (updateData.class === '') delete updateData.class;
 
     const photoUrl = await uploadPhoto(files.photo, 'students');
     const fatherPhotoUrl = await uploadPhoto(files.fatherPhoto, 'students/parents');

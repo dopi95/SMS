@@ -36,14 +36,29 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     const token = localStorage.getItem('token')
     if (!token) { setLoading(false); return }
 
+    // Immediately load from localStorage so sidebar shows instantly
+    const cached = localStorage.getItem('user')
+    if (cached) {
+      try {
+        const u = JSON.parse(cached)
+        setRole(u.role || '')
+        setPermissions(u.permissions || [])
+        setUser(u)
+        setLoading(false)
+      } catch {}
+    }
+
+    // Refresh from API in background to get latest data
     authService.getCurrentUser()
       .then(data => {
         setRole(data.user.role)
         setPermissions(data.user.permissions || [])
         setUser(data.user)
+        localStorage.setItem('user', JSON.stringify(data.user))
       })
       .catch(() => {
         localStorage.removeItem('token')
+        localStorage.removeItem('user')
       })
       .finally(() => setLoading(false))
   }, [])
