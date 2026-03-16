@@ -79,7 +79,7 @@ exports.addEntry = asyncHandler(async (req, res) => {
   }
   
   const entry = await CustomPaymentEntry.create({ fileId, studentName, class: studentClass, amount, paymentDate, paymentMethod });
-  await logActivity(req.user, 'Added Entry', 'Custom Payment', `Added entry for "${studentName}" — ${amount} ETB`);
+  await logActivity(req.user, 'Added Entry', 'Custom Payment', `Added "${studentName}" to "${file.title}" — ${amount} ETB (${file.year} E.C)`);
   res.status(201).json(entry);
 });
 
@@ -99,7 +99,7 @@ exports.updateEntry = asyncHandler(async (req, res) => {
   entry.paymentMethod = paymentMethod || entry.paymentMethod;
   
   await entry.save();
-  await logActivity(req.user, 'Edited Entry', 'Custom Payment', `Edited entry for "${entry.studentName}" — ${entry.amount} ETB`);
+  await logActivity(req.user, 'Edited Entry', 'Custom Payment', `Updated "${entry.studentName}" in file — ${entry.amount} ETB`);
   res.json(entry);
 });
 
@@ -112,7 +112,7 @@ exports.deleteEntry = asyncHandler(async (req, res) => {
   }
   
   await entry.deleteOne();
-  await logActivity(req.user, 'Deleted Entry', 'Custom Payment', `Deleted entry for "${entry.studentName}" — ${entry.amount} ETB`);
+  await logActivity(req.user, 'Deleted Entry', 'Custom Payment', `Removed "${entry.studentName}" from file — was ${entry.amount} ETB`);
   res.json({ message: 'Entry deleted successfully' });
 });
 
