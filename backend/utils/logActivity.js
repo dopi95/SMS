@@ -6,6 +6,7 @@ async function logActivity(user, action, module, description) {
       performedBy: user._id,
       performedByName: user.name,
       performedByRole: user.role,
+      performedByPhoto: user.profilePhoto || '',
       action,
       module,
       description,

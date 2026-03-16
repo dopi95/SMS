@@ -11,6 +11,7 @@ interface Log {
   _id: string
   performedByName: string
   performedByRole: string
+  performedByPhoto?: string
   action: string
   module: string
   description: string
@@ -148,8 +149,14 @@ export default function ActivityLogsPage() {
                 {filtered.map(log => (
                   <div key={log._id} className="px-5 py-4 flex items-start gap-4">
                     {/* Avatar */}
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                      <span className="text-white font-bold text-sm">{log.performedByName.charAt(0).toUpperCase()}</span>
+                    <div className="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden">
+                      {log.performedByPhoto ? (
+                        <img src={log.performedByPhoto} alt={log.performedByName} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                          <span className="text-white font-bold text-sm">{log.performedByName.charAt(0).toUpperCase()}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Content */}
