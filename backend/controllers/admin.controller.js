@@ -1,5 +1,6 @@
 const User = require('../models/User.model');
 const bcrypt = require('bcryptjs');
+const logActivity = require('../utils/logActivity');
 
 const ALL_PAGES = [
   { page: 'dashboard',        actions: ['view'] },
@@ -44,6 +45,7 @@ const createAdmin = async (req, res) => {
 
     const user = new User({ name, email, password, plainPassword: password, role, permissions: resolvedPermissions });
     await user.save();
+    await logActivity(req.user, 'Created Admin', 'Admins', `Created admin "${name}" with role "${role}"`);
     const result = user.toObject();
     delete result.password;
     res.status(201).json(result);
@@ -70,6 +72,7 @@ const updateAdmin = async (req, res) => {
 
     const user = await User.findByIdAndUpdate(req.params.id, updateData, { new: true, select: '-password' });
     if (!user) return res.status(404).json({ message: 'Admin not found' });
+    await logActivity(req.user, 'Updated Admin', 'Admins', `Updated admin "${user.name}" (role: ${user.role})`);
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -81,6 +84,7 @@ const deleteAdmin = async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'Admin not found' });
     await User.findByIdAndDelete(req.params.id);
+    await logActivity(req.user, 'Deleted Admin', 'Admins', `Deleted admin "${user.name}" (role: ${user.role})`);
     res.json({ message: 'Admin deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });
