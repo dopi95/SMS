@@ -77,7 +77,7 @@ const approvePending = async (req, res) => {
       status: 'active',
     });
     await student.save();
-    await PendingStudent.findByIdAndUpdate(req.params.id, { status: 'approved' });
+    await PendingStudent.findByIdAndUpdate(req.params.id, { status: 'approved', studentId: student.studentId });
     await logActivity(req.user, 'Approved', 'Pending Student', `Approved registration of ${pending.firstName} ${pending.lastName} (Student ID: ${student.studentId})`);
     res.json({ message: 'Student approved and added', studentId: student.studentId });
   } catch (error) {

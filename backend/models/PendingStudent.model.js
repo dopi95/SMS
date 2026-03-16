@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const pendingStudentSchema = new mongoose.Schema({
+  studentId: { type: String, default: '' },  // filled when approved
   studentType: { type: String, enum: ['new', 'existing'], default: 'new' },
   firstName: { type: String, required: true },
   middleName: { type: String, required: true },

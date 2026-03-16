@@ -32,14 +32,13 @@ studentSchema.pre('save', async function(next) {
   const year = this.joinedYear ? this.joinedYear.toString() : '';
 
   if (!this.studentId) {
-    // Find the highest numeric part across ALL students regardless of year
-    const allStudents = await mongoose.model('Student').find(
-      { studentId: { $regex: /^BLUE\d+\/\d{4}$/ } },
+    const all = await mongoose.model('Student').find(
+      { studentId: { $regex: /^BLUE\d+\// } },
       { studentId: 1 }
     );
 
     let maxNumber = 0;
-    for (const s of allStudents) {
+    for (const s of all) {
       const match = s.studentId && s.studentId.match(/^BLUE(\d+)\//);
       if (match) {
         const num = parseInt(match[1]);
@@ -48,12 +47,9 @@ studentSchema.pre('save', async function(next) {
     }
 
     this.studentId = `BLUE${String(maxNumber + 1).padStart(3, '0')}/${year}`;
-  } else if (this.isModified('joinedYear') && year.length === 4) {
-    // Existing student — update year part only
+  } else if (this.isModified('joinedYear') && year) {
     const match = this.studentId.match(/^BLUE(\d+)\//);
-    if (match) {
-      this.studentId = `BLUE${match[1]}/${year}`;
-    }
+    if (match) this.studentId = `BLUE${match[1]}/${year}`;
   }
 
   next();

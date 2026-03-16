@@ -1,4 +1,5 @@
 const Student = require('../models/Student.model');
+const PendingStudent = require('../models/PendingStudent.model');
 const cloudinary = require('../config/cloudinary.config');
 const logActivity = require('../utils/logActivity');
 
@@ -104,6 +105,8 @@ const deleteStudent = async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
+    // Also delete the approved pending record for this student
+    await PendingStudent.deleteOne({ studentId: student.studentId, status: 'approved' });
     await logActivity(req.user, 'Deleted', 'Student', `Deleted student ${student.firstName} ${student.lastName} (ID: ${student.studentId})`);
     res.json({ message: 'Student deleted successfully' });
   } catch (error) {
@@ -195,7 +198,11 @@ const bulkDelete = async (req, res) => {
       return res.status(400).json({ message: 'Student IDs are required' });
     }
     
+    const deletedStudents = await Student.find({ _id: { $in: studentIds } }, { studentId: 1 });
     await Student.deleteMany({ _id: { $in: studentIds } });
+    // Also delete approved pending records for these students
+    const ids = deletedStudents.map(s => s.studentId).filter(Boolean);
+    if (ids.length) await PendingStudent.deleteMany({ studentId: { $in: ids }, status: 'approved' });
     await logActivity(req.user, 'Bulk Deleted', 'Student', `Bulk deleted ${studentIds.length} students`);
     res.json({ message: `${studentIds.length} students deleted successfully` });
   } catch (error) {
