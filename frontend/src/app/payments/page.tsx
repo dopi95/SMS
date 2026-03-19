@@ -41,6 +41,7 @@ export default function PaymentsPage() {
   const canManagePayments = canDo('payments', 'add') || canDo('payments', 'delete')
   const [students, setStudents] = useState<Student[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
+  const [allPayments, setAllPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const gcToEc: Record<number, string> = {
@@ -80,6 +81,7 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     fetchStudents()
+    fetchAllPayments()
   }, [])
 
   useEffect(() => {
@@ -91,6 +93,18 @@ export default function PaymentsPage() {
       fetchPayments()
     }
   }, [selectedMonth, selectedYear, students])
+
+  const fetchAllPayments = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/payments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setAllPayments(response.data)
+    } catch (error) {
+      console.error('Failed to fetch all payments:', error)
+    }
+  }
 
   const fetchStudents = async () => {
     try {
@@ -159,6 +173,7 @@ export default function PaymentsPage() {
       setDescription('')
       setPaymentDate(new Date().toISOString().split('T')[0])
       fetchPayments()
+      fetchAllPayments()
     } catch (error: any) {
       toast.error(error.response?.data?.message || getText('Failed to add payment', 'ክፍያ መጨመር አልተሳካም'))
     }
@@ -185,6 +200,7 @@ export default function PaymentsPage() {
       })
       toast.success(getText('Payment deleted successfully', 'ክፍያ በተሳካ ሁኔታ ተሰርዟል'))
       fetchPayments()
+      fetchAllPayments()
     } catch (error) {
       toast.error(getText('Failed to delete payment', 'ክፍያ መሰረዝ አልተሳካም'))
     }
@@ -255,6 +271,7 @@ export default function PaymentsPage() {
       setBulkDescription('')
       setBulkPaymentDate(new Date().toISOString().split('T')[0])
       fetchPayments()
+      fetchAllPayments()
     } catch (error: any) {
       toast.error(error.response?.data?.message || getText('Failed to add payments', 'ክፍያዎችን መጨመር አልተሳካም'))
     }
@@ -285,6 +302,7 @@ export default function PaymentsPage() {
       toast.success(getText(`${selectedPaidStudents.length} payments removed successfully`, `${selectedPaidStudents.length} ክፍያዎች በተሳካ ሁኔታ ተወግደዋል`))
       setSelectedPaidStudents([])
       fetchPayments()
+      fetchAllPayments()
     } catch (error: any) {
       toast.error(error.response?.data?.message || getText('Failed to remove payments', 'ክፍያዎችን ማስወገድ አልተሳካም'))
     }
@@ -437,6 +455,12 @@ export default function PaymentsPage() {
     
     const paymentDescription = studentPayment?.description?.toLowerCase() || ''
     const paymentAmount = studentPayment?.amount?.toString() || ''
+
+    // Check descriptions across all months for this student
+    const anyDescriptionMatches = allPayments.some(p => {
+      const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+      return paymentStudentId === student._id && p.description?.toLowerCase().includes(searchLower)
+    })
     
     // Search filter
     const matchesSearch = (
@@ -447,7 +471,8 @@ export default function PaymentsPage() {
       fatherPhone.includes(searchLower) ||
       motherPhone.includes(searchLower) ||
       paymentDescription.includes(searchLower) ||
-      paymentAmount.includes(searchLower)
+      paymentAmount.includes(searchLower) ||
+      anyDescriptionMatches
     )
     
     if (!matchesSearch) return false

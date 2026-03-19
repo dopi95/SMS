@@ -24,6 +24,8 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'https://bluelight-sms.vercel.app',
       'https://sms-rjml.vercel.app',
       'https://lbk-sms.vercel.app',
+      'http://localhost:4500',
+      'http://localhost:3000',
     ]
   : ['http://localhost:4500', 'http://localhost:3000'];
 
