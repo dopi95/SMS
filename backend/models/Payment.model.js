@@ -42,4 +42,7 @@ const paymentSchema = new mongoose.Schema({
 
 paymentSchema.index({ studentId: 1, month: 1, year: 1 }, { unique: true });
 
+const { registerMirrorHooks } = require('../utils/mirrorSync');
+registerMirrorHooks(paymentSchema, 'Payment');
+
 module.exports = mongoose.model('Payment', paymentSchema);

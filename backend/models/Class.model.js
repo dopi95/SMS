@@ -9,4 +9,7 @@ const classSchema = new mongoose.Schema({
   room: { type: String }
 }, { timestamps: true });
 
+const { registerMirrorHooks } = require('../utils/mirrorSync');
+registerMirrorHooks(classSchema, 'Class');
+
 module.exports = mongoose.model('Class', classSchema);

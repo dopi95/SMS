@@ -19,4 +19,7 @@ const customPaymentFileSchema = new mongoose.Schema({
   timestamps: true
 });
 
+const { registerMirrorHooks } = require('../utils/mirrorSync');
+registerMirrorHooks(customPaymentFileSchema, 'CustomPaymentFile');
+
 module.exports = mongoose.model('CustomPaymentFile', customPaymentFileSchema);

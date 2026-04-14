@@ -33,7 +33,7 @@ interface NotificationHistory {
   message: string
   recipients: number
   phoneNumbers: number
-  sentAt: string
+  createdAt: string
   sentBy: string
 }
 
@@ -128,42 +128,54 @@ export default function NotificationsPage() {
     }
   }
 
-  const fetchNotificationHistory = () => {
-    // Load from localStorage
-    const history = localStorage.getItem('notificationHistory')
-    if (history) {
-      setNotificationHistory(JSON.parse(history))
+  const fetchNotificationHistory = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/notification-history`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setNotificationHistory(res.data)
+    } catch {
+      // fallback to localStorage if API fails
+      const history = localStorage.getItem('notificationHistory')
+      if (history) setNotificationHistory(JSON.parse(history))
     }
   }
 
-  const saveNotificationToHistory = (title: string, message: string, recipients: number, phoneNumbers: number) => {
-    const newNotification: NotificationHistory = {
-      _id: Date.now().toString(),
-      title,
-      message,
-      recipients,
-      phoneNumbers,
-      sentAt: new Date().toISOString(),
-      sentBy: 'Admin'
+  const saveNotificationToHistory = async (title: string, message: string, recipients: number, phoneNumbers: number) => {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/notification-history`,
+        { title, message, recipients, phoneNumbers },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      setNotificationHistory(prev => [res.data, ...prev])
+    } catch {
+      // fallback to localStorage
+      const newNotification: NotificationHistory = {
+        _id: Date.now().toString(), title, message, recipients, phoneNumbers,
+        sentAt: new Date().toISOString(), sentBy: 'Admin'
+      }
+      const history = localStorage.getItem('notificationHistory')
+      const current = history ? JSON.parse(history) : []
+      const updated = [newNotification, ...current]
+      localStorage.setItem('notificationHistory', JSON.stringify(updated))
+      setNotificationHistory(updated)
     }
-    
-    const history = localStorage.getItem('notificationHistory')
-    const currentHistory = history ? JSON.parse(history) : []
-    const updatedHistory = [newNotification, ...currentHistory]
-    
-    localStorage.setItem('notificationHistory', JSON.stringify(updatedHistory))
-    setNotificationHistory(updatedHistory)
   }
 
-  const deleteNotificationFromHistory = (id: string) => {
-    if (!confirm(getText('Are you sure you want to delete this notification from history?', 'እርግጠኛ ነዎት ይህን ማሳወቂያ ከታሪክ መሰረዝ ይፈልጋሉ?'))) {
-      return
+  const deleteNotificationFromHistory = async (id: string) => {
+    if (!confirm(getText('Are you sure you want to delete this notification from history?', 'እርግጠኛ ነዎት ይህን ማሳወቂያ ከታሪክ መሰረዝ ይፈልጋሉ?'))) return
+    try {
+      const token = localStorage.getItem('token')
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/notification-history/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setNotificationHistory(prev => prev.filter(n => n._id !== id))
+      toast.success(getText('Notification deleted from history', 'ማሳወቂያ ከታሪክ ተሰርዟል'))
+    } catch {
+      toast.error(getText('Failed to delete', 'መሰረዝ አልተሳካም'))
     }
-    
-    const updatedHistory = notificationHistory.filter(n => n._id !== id)
-    localStorage.setItem('notificationHistory', JSON.stringify(updatedHistory))
-    setNotificationHistory(updatedHistory)
-    toast.success(getText('Notification deleted from history', 'ማሳወቂያ ከታሪክ ተሰርዟል'))
   }
 
   const getPhoneContacts = (student: Student): PhoneContact[] => {
@@ -570,7 +582,7 @@ export default function NotificationsPage() {
                                 {notification.phoneNumbers} {getText('phone numbers', 'ስልክ ቁጥሮች')}
                               </span>
                               <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {new Date(notification.sentAt).toLocaleString()}
+                                {new Date(notification.createdAt).toLocaleString()}
                               </span>
                             </div>
                             {notification.title && (

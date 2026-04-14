@@ -35,4 +35,7 @@ const customPaymentEntrySchema = new mongoose.Schema({
   timestamps: true
 });
 
+const { registerMirrorHooks } = require('../utils/mirrorSync');
+registerMirrorHooks(customPaymentEntrySchema, 'CustomPaymentEntry');
+
 module.exports = mongoose.model('CustomPaymentEntry', customPaymentEntrySchema);

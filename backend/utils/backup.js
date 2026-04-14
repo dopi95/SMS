@@ -9,9 +9,10 @@ const PendingStudent = require('../models/PendingStudent.model');
 const CustomPaymentFile = require('../models/CustomPaymentFile.model');
 const CustomPaymentEntry = require('../models/CustomPaymentEntry.model');
 const ActivityLog = require('../models/ActivityLog.model');
+const NotificationHistory = require('../models/NotificationHistory.model');
 
 const generateBackup = async () => {
-  const [students, teachers, users, classes, payments, pendingStudents, customPaymentFiles, customPaymentEntries, activityLogs] = await Promise.all([
+  const [students, teachers, users, classes, payments, pendingStudents, customPaymentFiles, customPaymentEntries, activityLogs, notificationHistories] = await Promise.all([
     Student.find().lean(),
     Teacher.find().lean(),
     User.find().select('-password').lean(),
@@ -21,12 +22,13 @@ const generateBackup = async () => {
     CustomPaymentFile.find().lean(),
     CustomPaymentEntry.find().lean(),
     ActivityLog.find().lean(),
+    NotificationHistory.find().lean(),
   ]);
 
   return {
     exportedAt: new Date().toISOString(),
     counts: { students: students.length, teachers: teachers.length, users: users.length, classes: classes.length, payments: payments.length },
-    data: { students, teachers, users, classes, payments, pendingStudents, customPaymentFiles, customPaymentEntries, activityLogs },
+    data: { students, teachers, users, classes, payments, pendingStudents, customPaymentFiles, customPaymentEntries, activityLogs, notificationHistories },
   };
 };
 
@@ -41,6 +43,7 @@ const restoreBackup = async (data) => {
     { model: User, key: 'users' },
     { model: Teacher, key: 'teachers' },
     { model: Student, key: 'students' },
+    { model: NotificationHistory, key: 'notificationHistories' },
   ];
 
   const results = {};

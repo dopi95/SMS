@@ -25,4 +25,7 @@ const pendingStudentSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
 }, { timestamps: true });
 
+const { registerMirrorHooks } = require('../utils/mirrorSync');
+registerMirrorHooks(pendingStudentSchema, 'PendingStudent');
+
 module.exports = mongoose.model('PendingStudent', pendingStudentSchema);

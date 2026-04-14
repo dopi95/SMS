@@ -10,4 +10,7 @@ const activityLogSchema = new mongoose.Schema({
   description: { type: String, required: true },
 }, { timestamps: true });
 
+const { registerMirrorHooks } = require('../utils/mirrorSync');
+registerMirrorHooks(activityLogSchema, 'ActivityLog');
+
 module.exports = mongoose.model('ActivityLog', activityLogSchema);

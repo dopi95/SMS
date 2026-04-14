@@ -28,4 +28,7 @@ userSchema.methods.comparePassword = async function(password) {
   return await bcrypt.compare(password, this.password);
 };
 
+const { registerMirrorHooks } = require('../utils/mirrorSync');
+registerMirrorHooks(userSchema, 'User');
+
 module.exports = mongoose.model('User', userSchema);

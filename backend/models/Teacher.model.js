@@ -25,4 +25,7 @@ const teacherSchema = new mongoose.Schema({
   salaries: [salarySchema]
 }, { timestamps: true });
 
+const { registerMirrorHooks } = require('../utils/mirrorSync');
+registerMirrorHooks(teacherSchema, 'Teacher');
+
 module.exports = mongoose.model('Teacher', teacherSchema);

@@ -27,6 +27,9 @@ const studentSchema = new mongoose.Schema({
   enrollmentDate: { type: Date, default: Date.now }
 }, { timestamps: true });
 
+const { registerMirrorHooks } = require('../utils/mirrorSync');
+registerMirrorHooks(studentSchema, 'Student');
+
 // Auto-generate or update studentId
 studentSchema.pre('save', async function(next) {
   const year = this.joinedYear ? this.joinedYear.toString() : '';
