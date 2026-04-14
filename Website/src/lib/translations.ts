@@ -17,8 +17,8 @@ export const translations = {
     heroTitle2: 'Academy',
     heroMotto: 'Be the light, lead the way',
     heroSubtitle: 'Empowering minds, shaping futures, and creating tomorrow\'s leaders through excellence in education',
-    getStarted: 'Get Started',
-    learnMore: 'Learn More',
+    getStarted: 'Online Register',
+    learnMore: 'View Gallery',
     
     // About
     aboutTitle: 'About Us',
@@ -55,8 +55,8 @@ export const translations = {
     heroTitle2: 'አካዳሚ',
     heroMotto: 'ብርሃን ሁን፣ መንገድ መርህ',
     heroSubtitle: 'አእምሮን በማብቃት፣ የወደፊትን በመቅረጽ እና የነገ መሪዎችን በትምህርት ላቀነት በመፍጠር',
-    getStarted: 'ይጀምሩ',
-    learnMore: 'ተጨማሪ ይወቁ',
+    getStarted: 'ምዝገባ',
+    learnMore: 'ፎቶ ጋለሪ',
     
     // About
     aboutTitle: 'ስለ እኛ',
