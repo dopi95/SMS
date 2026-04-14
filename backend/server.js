@@ -63,6 +63,7 @@ app.use('/api/payments', require('./routes/payment.routes'));
 app.use('/api/pending-students', require('./routes/pendingStudent.routes'));
 app.use('/api/admins', require('./routes/admin.routes'));
 app.use('/api/activity-logs', require('./routes/activityLog.routes'));
+app.use('/api/backup', require('./routes/backup.routes'));
 
 app.get('/', (req, res) => {
   res.json({ 
@@ -76,4 +77,17 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+
+  // Auto backup every 24 hours
+  const { uploadBackupToCloudinary } = require('./utils/backup');
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+  const runBackup = () => {
+    uploadBackupToCloudinary()
+      .then(() => console.log('[Backup] Auto backup completed'))
+      .catch(err => console.error('[Backup] Auto backup failed:', err.message));
+  };
+
+  // Run once 1 min after server starts, then every 24h
+  setTimeout(() => { runBackup(); setInterval(runBackup, TWENTY_FOUR_HOURS); }, 60 * 1000);
 });
