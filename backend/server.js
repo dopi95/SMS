@@ -16,18 +16,17 @@ const app = express();
 connectDB();
 
 // Middleware
-const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? [
-      'https://blasms.vercel.app',
-      'https://blsms.vercel.app',
-      'https://sms-frontend.vercel.app',
-      'https://bluelight-sms.vercel.app',
-      'https://sms-rjml.vercel.app',
-      'https://lbk-sms.vercel.app',
-      'http://localhost:4500',
-      'http://localhost:3000',
-    ]
-  : ['http://localhost:4500', 'http://localhost:3000'];
+const allowedOrigins = [
+  'https://blasms.vercel.app',
+  'https://blsms.vercel.app',
+  'https://sms-frontend.vercel.app',
+  'https://bluelight-sms.vercel.app',
+  'https://sms-rjml.vercel.app',
+  'https://sms-vwyd.onrender.com',
+  'https://lbk-sms.vercel.app',
+  'http://localhost:4500',
+  'http://localhost:3000',
+];
 
 const corsOptions = {
   origin: function (origin, callback) {
