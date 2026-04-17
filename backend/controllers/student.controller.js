@@ -210,4 +210,63 @@ const bulkDelete = async (req, res) => {
   }
 };
 
-module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete };
+const bulkImport = async (req, res) => {
+  try {
+    const { students } = req.body;
+    if (!Array.isArray(students) || students.length === 0)
+      return res.status(400).json({ message: 'No students provided' });
+
+    const validClasses = ['Nursery', 'LKG', 'UKG'];
+    const validSections = ['A', 'B', 'C', 'D'];
+    const validGenders = ['Male', 'Female'];
+
+    const results = { created: 0, failed: [], students: [] };
+
+    for (const row of students) {
+      try {
+        const classVal = validClasses.find(c => c.toLowerCase() === (row.class || '').toLowerCase()) || null;
+        const sectionVal = validSections.find(s => s.toLowerCase() === (row.section || '').toLowerCase()) || undefined;
+        const genderVal = validGenders.find(g => g.toLowerCase() === (row.gender || '').toLowerCase()) || null;
+
+        if (!row.firstName || !row.middleName || !row.lastName || !classVal || !genderVal || !row.joinedYear) {
+          results.failed.push({ row, reason: 'Missing required fields (firstName, middleName, lastName, class, gender, joinedYear)' });
+          continue;
+        }
+
+        const student = new Student({
+          firstName: row.firstName,
+          middleName: row.middleName,
+          lastName: row.lastName,
+          firstNameAmharic: row.firstNameAmharic || '',
+          middleNameAmharic: row.middleNameAmharic || '',
+          lastNameAmharic: row.lastNameAmharic || '',
+          email: row.email || '',
+          gender: genderVal,
+          dateOfBirth: row.dateOfBirth || undefined,
+          joinedYear: String(row.joinedYear),
+          class: classVal,
+          section: sectionVal,
+          address: row.address || '',
+          paymentCode: row.paymentCode || '',
+          fatherName: row.fatherName || '',
+          fatherPhone: row.fatherPhone || '',
+          motherName: row.motherName || '',
+          motherPhone: row.motherPhone || '',
+        });
+
+        await student.save();
+        results.created++;
+        results.students.push(student);
+      } catch (err) {
+        results.failed.push({ row, reason: err.message });
+      }
+    }
+
+    await logActivity(req.user, 'Bulk Imported', 'Student', `Imported ${results.created} students`);
+    res.status(201).json(results);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport };

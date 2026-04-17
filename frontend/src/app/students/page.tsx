@@ -61,6 +61,10 @@ export default function StudentsPage() {
   }>({ isOpen: false, type: 'inactive', studentId: '', studentName: '' });
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -323,6 +327,89 @@ export default function StudentsPage() {
     } catch (error: any) {
       toast.dismiss(loadingToast);
       toast.error(getText('Failed to delete students', 'ተማሪዎችን መሰርዝ አልተሳካም'));
+    }
+  };
+
+  const normalizeRow = (raw: Record<string, any>) => {
+    const get = (...keys: string[]) => {
+      for (const k of keys) {
+        const found = Object.keys(raw).find(rk => rk.toLowerCase().replace(/[^a-z]/g, '') === k.toLowerCase().replace(/[^a-z]/g, ''));
+        if (found && raw[found] !== undefined && raw[found] !== null && String(raw[found]).trim() !== '') return String(raw[found]).trim();
+      }
+      return '';
+    };
+    return {
+      firstName: get('firstname', 'first name', 'fname'),
+      middleName: get('middlename', 'middle name', 'mname', 'fathername'),
+      lastName: get('lastname', 'last name', 'lname', 'grandfathername'),
+      firstNameAmharic: get('firstnameamharic', 'first name amharic', 'fname amharic'),
+      middleNameAmharic: get('middlenameamharic', 'middle name amharic'),
+      lastNameAmharic: get('lastnameamharic', 'last name amharic'),
+      gender: get('gender', 'sex'),
+      dateOfBirth: get('dateofbirth', 'date of birth', 'dob', 'birthdate'),
+      joinedYear: get('joinedyear', 'joined year', 'batch', 'year'),
+      class: get('class', 'grade', 'level'),
+      section: get('section', 'sec'),
+      email: get('email'),
+      address: get('address'),
+      paymentCode: get('paymentcode', 'payment code', 'code'),
+      fatherName: get('fathername', 'father name', 'father'),
+      fatherPhone: get('fatherphone', 'father phone', 'fathercontact'),
+      motherName: get('mothername', 'mother name', 'mother'),
+      motherPhone: get('motherphone', 'mother phone', 'mothercontact'),
+    };
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportErrors([]);
+    setImportPreview([]);
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+
+    if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const rows = raw.map(normalizeRow);
+      setImportPreview(rows);
+    } else if (ext === 'pdf') {
+      toast.error(getText('PDF import: please use Excel/CSV for best results. PDF text extraction is limited.', 'PDF ማስገቢያ: Excel/CSV ይጠቀሙ። PDF ጽሑፍ ማውጣት ውስን ነው።'));
+      // Basic PDF text extraction via pdf.js would require a heavy lib;
+      // We inform the user to use Excel instead.
+      setImportErrors([getText('PDF import is not supported. Please export your data as Excel (.xlsx) or CSV and import that instead.', 'PDF ማስገቢያ አይደገፍም። ውሂቡን እንደ Excel (.xlsx) ወይም CSV ወደ ውጭ አውጥተው ያስገቡ።')]);
+    } else {
+      setImportErrors([getText('Unsupported file type. Please use .xlsx, .xls, or .csv', 'ያልተደገፈ የፋይል አይነት። .xlsx፣ .xls ወይም .csv ይጠቀሙ')]);
+    }
+    e.target.value = '';
+  };
+
+  const handleImportConfirm = async () => {
+    if (importPreview.length === 0) return;
+    setImporting(true);
+    const loadingToast = toast.loading(getText('Importing students...', 'ተማሪዎችን እያስገባ ነው...'));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/bulk/import`, { students: importPreview }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.dismiss(loadingToast);
+      const { created, failed } = res.data;
+      toast.success(getText(`${created} students imported successfully!`, `${created} ተማሪዎች በተሳካ ሁኔታ ገብተዋል!`));
+      if (failed.length > 0) {
+        toast.error(getText(`${failed.length} rows failed. Check console.`, `${failed.length} ረድፎች አልተሳኩም።`));
+        console.warn('Import failures:', failed);
+      }
+      setShowImportModal(false);
+      setImportPreview([]);
+      fetchStudents();
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error(getText('Import failed', 'ማስገቢያ አልተሳካም'));
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -655,6 +742,19 @@ export default function StudentsPage() {
                       </div>
                     )}
                   </div>
+                  
+                  {/* Import Button */}
+                  {canDo('students', 'add') && (
+                  <button
+                    onClick={() => setShowImportModal(true)}
+                    className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-4 sm:px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    {getText('Import', 'አስገባ')}
+                  </button>
+                  )}
                   
                   {canDo('students', 'add') && (
                   <button
@@ -1119,6 +1219,120 @@ export default function StudentsPage() {
         </div>
       </div>
       
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Import Students', 'ተማሪዎችን አስገባ')}</h2>
+              <button onClick={() => { setShowImportModal(false); setImportPreview([]); setImportErrors([]); }} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
+              {importPreview.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${theme === 'dark' ? 'bg-indigo-900' : 'bg-indigo-100'}`}>
+                    <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                  </div>
+                  <h3 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Upload Student List', 'የተማሪዎች ዝርዝር ይስቀሉ')}</h3>
+                  <p className={`text-sm mb-6 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{getText('Supported formats: Excel (.xlsx, .xls), CSV', 'የሚደገፉ ቅርጸቶች: Excel (.xlsx, .xls), CSV')}</p>
+                  
+                  {importErrors.length > 0 && (
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-left max-w-md mx-auto">
+                      <h4 className="text-sm font-semibold text-red-800 mb-2">{getText('Errors', 'ስህተቶች')}:</h4>
+                      {importErrors.map((err, i) => <p key={i} className="text-xs text-red-700">{err}</p>)}
+                    </div>
+                  )}
+                  
+                  <label className="inline-block cursor-pointer">
+                    <input type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={handleImportFile} className="hidden" />
+                    <span className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                      {getText('Choose File', 'ፋይል ምረጥ')}
+                    </span>
+                  </label>
+                  <div className="mt-3">
+                    <a href="/student-import-template.csv" download className={`text-sm underline ${theme === 'dark' ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-700'}`}>
+                      {getText('Download sample template', 'የሞደል ቅርዓት አውርድ')}
+                    </a>
+                  </div>
+                  
+                  <div className={`mt-8 p-4 rounded-lg text-left max-w-2xl mx-auto ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                    <h4 className={`text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Required Columns', 'የሚያስፈልጉ አምዶች')}:</h4>
+                    <ul className={`text-xs space-y-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <li>• <strong>firstName</strong>, <strong>middleName</strong>, <strong>lastName</strong> ({getText('required', 'ያስፈልጋል')})</li>
+                      <li>• <strong>gender</strong> (Male/Female) ({getText('required', 'ያስፈልጋል')})</li>
+                      <li>• <strong>class</strong> (Nursery/LKG/UKG) ({getText('required', 'ያስፈልጋል')})</li>
+                      <li>• <strong>joinedYear</strong> (e.g. 2017) ({getText('required', 'ያስፈልጋል')})</li>
+                      <li>• <strong>section</strong> (A/B/C/D), <strong>email</strong>, <strong>dateOfBirth</strong>, <strong>address</strong>, <strong>paymentCode</strong>, <strong>fatherName</strong>, <strong>fatherPhone</strong>, <strong>motherName</strong>, <strong>motherPhone</strong> ({getText('optional', 'አማራጭ')})</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Preview', 'ቅድመ እይታ')}: <strong>{importPreview.length}</strong> {getText('rows', 'ረድፎች')}</p>
+                    <label className="cursor-pointer">
+                      <input type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={handleImportFile} className="hidden" />
+                      <span className={`text-sm px-4 py-2 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>{getText('Choose Different File', 'ሌላ ፋይል ምረጥ')}</span>
+                    </label>
+                  </div>
+                  
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full text-xs">
+                      <thead className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <tr>
+                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>#</th>
+                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('First Name', 'የመጀመሪያ ስም')}</th>
+                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Middle Name', 'የአባት ስም')}</th>
+                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Last Name', 'የአያት ስም')}</th>
+                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Gender', 'ጾታ')}</th>
+                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Class', 'ክፍል')}</th>
+                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Section', 'ክፍል')}</th>
+                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Batch', 'ቡድን')}</th>
+                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Father Phone', 'የአባት ስልክ')}</th>
+                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Mother Phone', 'የእናት ስልክ')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                        {importPreview.slice(0, 100).map((row, i) => (
+                          <tr key={i} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{i + 1}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.firstName || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.middleName || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.lastName || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.gender || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.class || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.section || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.joinedYear || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.fatherPhone || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.motherPhone || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {importPreview.length > 100 && (
+                    <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Showing first 100 rows. All rows will be imported.', 'የመጀመሪያዎቹ 100 ረድፎች እየታዩ ነው። ሁሉም ረድፎች ይገባሉ።')}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {importPreview.length > 0 && (
+              <div className={`px-6 py-4 border-t flex justify-end gap-3 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+                <button onClick={() => { setShowImportModal(false); setImportPreview([]); }} className={`px-4 py-2 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>{getText('Cancel', 'ሰርዝ')}</button>
+                <button onClick={handleImportConfirm} disabled={importing} className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2">
+                  {importing ? getText('Importing...', 'እያስገባ ነው...') : getText('Import Students', 'ተማሪዎችን አስገባ')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog({ isOpen: false, type: 'inactive', studentId: '', studentName: '' })}

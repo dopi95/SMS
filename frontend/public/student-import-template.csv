@@ -1,0 +1,3 @@
+firstName,middleName,lastName,firstNameAmharic,middleNameAmharic,lastNameAmharic,gender,dateOfBirth,joinedYear,class,section,email,address,paymentCode,fatherName,fatherPhone,motherName,motherPhone
+John,Michael,Smith,ጆን,ማይክል,ስሚዝ,Male,15/05/2018,2024,Nursery,A,john.smith@example.com,Addis Ababa,PAY001,David Smith,+251911234567,Sarah Smith,+251922345678
+Emma,Grace,Johnson,ኤማ,ግሬስ,ጆንሰን,Female,20/08/2017,2023,LKG,B,emma.johnson@example.com,Bole,PAY002,Robert Johnson,+251933456789,Lisa Johnson,+251944567890
