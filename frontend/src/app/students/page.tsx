@@ -373,12 +373,12 @@ export default function StudentsPage() {
       const wb = XLSX.read(buffer, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      console.log('Raw Excel data:', raw);
       const rows = raw.map(normalizeRow);
+      console.log('Normalized rows:', rows);
       setImportPreview(rows);
     } else if (ext === 'pdf') {
       toast.error(getText('PDF import: please use Excel/CSV for best results. PDF text extraction is limited.', 'PDF ማስገቢያ: Excel/CSV ይጠቀሙ። PDF ጽሑፍ ማውጣት ውስን ነው።'));
-      // Basic PDF text extraction via pdf.js would require a heavy lib;
-      // We inform the user to use Excel instead.
       setImportErrors([getText('PDF import is not supported. Please export your data as Excel (.xlsx) or CSV and import that instead.', 'PDF ማስገቢያ አይደገፍም። ውሂቡን እንደ Excel (.xlsx) ወይም CSV ወደ ውጭ አውጥተው ያስገቡ።')]);
     } else {
       setImportErrors([getText('Unsupported file type. Please use .xlsx, .xls, or .csv', 'ያልተደገፈ የፋይል አይነት። .xlsx፣ .xls ወይም .csv ይጠቀሙ')]);
