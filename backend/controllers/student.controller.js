@@ -224,12 +224,26 @@ const bulkImport = async (req, res) => {
 
     for (const row of students) {
       try {
-        const classVal = validClasses.find(c => c.toLowerCase() === (row.class || '').toLowerCase()) || null;
-        const sectionVal = validSections.find(s => s.toLowerCase() === (row.section || '').toLowerCase()) || undefined;
-        const genderVal = validGenders.find(g => g.toLowerCase() === (row.gender || '').toLowerCase()) || null;
+        // Flexible class matching: "nursery", "NURSERY", "lkg", "ukg" etc.
+        const classVal = validClasses.find(c => c.toLowerCase() === (row.class || '').toLowerCase().trim()) || null;
+        // Flexible section: strip spaces
+        const sectionVal = validSections.find(s => s.toLowerCase() === (row.section || '').toLowerCase().trim()) || undefined;
+        // Flexible gender: accept "m"/"f" shorthand too
+        let genderInput = (row.gender || '').toLowerCase().trim();
+        if (genderInput === 'm') genderInput = 'male';
+        if (genderInput === 'f') genderInput = 'female';
+        const genderVal = validGenders.find(g => g.toLowerCase() === genderInput) || null;
 
-        if (!row.firstName || !row.middleName || !row.lastName || !classVal || !genderVal || !row.joinedYear) {
-          results.failed.push({ row, reason: 'Missing required fields (firstName, middleName, lastName, class, gender, joinedYear)' });
+        const missing = [];
+        if (!row.firstName) missing.push('firstName');
+        if (!row.middleName) missing.push('middleName');
+        if (!row.lastName) missing.push('lastName');
+        if (!classVal) missing.push(`class (got: "${row.class}")`);
+        if (!genderVal) missing.push(`gender (got: "${row.gender}")`);
+        if (!row.joinedYear) missing.push('joinedYear');
+
+        if (missing.length > 0) {
+          results.failed.push({ row, reason: `Missing or invalid: ${missing.join(', ')}` });
           continue;
         }
 
@@ -249,9 +263,9 @@ const bulkImport = async (req, res) => {
           address: row.address || '',
           paymentCode: row.paymentCode || '',
           fatherName: row.fatherName || '',
-          fatherPhone: row.fatherPhone || '',
+          fatherPhone: String(row.fatherPhone || ''),
           motherName: row.motherName || '',
-          motherPhone: row.motherPhone || '',
+          motherPhone: String(row.motherPhone || ''),
         });
 
         await student.save();

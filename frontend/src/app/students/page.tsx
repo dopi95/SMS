@@ -399,8 +399,8 @@ export default function StudentsPage() {
       const { created, failed } = res.data;
       toast.success(getText(`${created} students imported successfully!`, `${created} ተማሪዎች በተሳካ ሁኔታ ገብተዋል!`));
       if (failed.length > 0) {
-        toast.error(getText(`${failed.length} rows failed. Check console.`, `${failed.length} ረድፎች አልተሳኩም።`));
-        console.warn('Import failures:', failed);
+        toast.error(failed[0]?.reason ? "Row failed: " + failed[0].reason : failed.length + " rows failed");
+        console.error('Import failures:', failed);
       }
       setShowImportModal(false);
       setImportPreview([]);
