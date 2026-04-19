@@ -33,7 +33,8 @@ interface NotificationHistory {
   message: string
   recipients: number
   phoneNumbers: number
-  createdAt: string
+  createdAt?: string
+  sentAt?: string
   sentBy: string
 }
 
@@ -582,7 +583,7 @@ export default function NotificationsPage() {
                                 {notification.phoneNumbers} {getText('phone numbers', 'ስልክ ቁጥሮች')}
                               </span>
                               <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {new Date(notification.createdAt).toLocaleString()}
+                                {new Date(notification.createdAt ?? notification.sentAt ?? Date.now()).toLocaleString()}
                               </span>
                             </div>
                             {notification.title && (
