@@ -247,6 +247,15 @@ const bulkImport = async (req, res) => {
           continue;
         }
 
+        const parseDate = (val) => {
+          if (!val) return undefined;
+          // dd/mm/yyyy → Date
+          const dmyMatch = String(val).trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (dmyMatch) return new Date(`${dmyMatch[3]}-${dmyMatch[2].padStart(2,'0')}-${dmyMatch[1].padStart(2,'0')}`);
+          const d = new Date(val);
+          return isNaN(d.getTime()) ? undefined : d;
+        };
+
         const student = new Student({
           firstName: row.firstName,
           middleName: row.middleName,
@@ -256,7 +265,7 @@ const bulkImport = async (req, res) => {
           lastNameAmharic: row.lastNameAmharic || '',
           email: row.email || '',
           gender: genderVal,
-          dateOfBirth: row.dateOfBirth || undefined,
+          dateOfBirth: parseDate(row.dateOfBirth),
           joinedYear: String(row.joinedYear),
           class: classVal,
           section: sectionVal,
