@@ -9,7 +9,7 @@ const MAPS_URL = 'https://maps.app.goo.gl/ikQjq35ZC1Pb1PhZA'
 const SOCIALS = [
   {
     label: 'Instagram',
-    href: 'https://instagram.com/bluelightacademy',
+    href: 'https://www.instagram.com/bluelight__academy?igsh=MTg1emk3MDVlY2VzOA==',
     color: '#E1306C',
     icon: (
       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -19,7 +19,7 @@ const SOCIALS = [
   },
   {
     label: 'TikTok',
-    href: 'https://tiktok.com/@bluelightacademy',
+    href: 'https://www.tiktok.com/@bluelight__academy?_r=1&_t=ZS-95v2geW0HUC',
     color: '#ffffff',
     icon: (
       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -29,7 +29,7 @@ const SOCIALS = [
   },
   {
     label: 'YouTube',
-    href: 'https://youtube.com/@bluelightacademy',
+    href: 'https://youtube.com/@bluelightacademy001?si=WjRWO_n615cS7us8',
     color: '#FF0000',
     icon: (
       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">

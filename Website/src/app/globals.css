@@ -114,8 +114,148 @@
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* FAQ items staggered entrance */
+/* ── Hero Abstract Background ── */
+@keyframes orb-1 {
+  0%   { transform: translate(0px,0px) scale(1); }
+  20%  { transform: translate(60px,-80px) scale(1.1); }
+  45%  { transform: translate(-40px,-120px) scale(0.92); }
+  70%  { transform: translate(-80px,-30px) scale(1.06); }
+  100% { transform: translate(0px,0px) scale(1); }
+}
+@keyframes orb-2 {
+  0%   { transform: translate(0px,0px) scale(1); }
+  25%  { transform: translate(-70px,60px) scale(1.12); }
+  55%  { transform: translate(80px,90px) scale(0.9); }
+  80%  { transform: translate(30px,-20px) scale(1.05); }
+  100% { transform: translate(0px,0px) scale(1); }
+}
+@keyframes orb-3 {
+  0%   { transform: translate(0px,0px) scale(1); }
+  30%  { transform: translate(50px,70px) scale(1.15); }
+  60%  { transform: translate(-60px,30px) scale(0.88); }
+  85%  { transform: translate(20px,-50px) scale(1.08); }
+  100% { transform: translate(0px,0px) scale(1); }
+}
+@keyframes orb-4 {
+  0%   { transform: translate(0px,0px) scale(1); }
+  35%  { transform: translate(-50px,-80px) scale(1.18); }
+  65%  { transform: translate(70px,-40px) scale(0.85); }
+  100% { transform: translate(0px,0px) scale(1); }
+}
+@keyframes orb-5 {
+  0%   { transform: translate(0px,0px) scale(1); }
+  40%  { transform: translate(80px,40px) scale(1.12); }
+  70%  { transform: translate(-30px,70px) scale(0.92); }
+  100% { transform: translate(0px,0px) scale(1); }
+}
+
+/* Educational floating elements */
+@keyframes edu-float {
+  0%,100% { transform: translateY(0px) rotate(0deg); opacity: 0.15; }
+  25%     { transform: translateY(-18px) rotate(5deg); opacity: 0.28; }
+  50%     { transform: translateY(-8px) rotate(-3deg); opacity: 0.2; }
+  75%     { transform: translateY(-22px) rotate(4deg); opacity: 0.25; }
+}
+@keyframes edu-float-r {
+  0%,100% { transform: translateY(0px) rotate(0deg); opacity: 0.12; }
+  33%     { transform: translateY(-14px) rotate(-6deg); opacity: 0.22; }
+  66%     { transform: translateY(-24px) rotate(3deg); opacity: 0.18; }
+}
+@keyframes edu-spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes edu-draw {
+  0%   { stroke-dashoffset: 300; opacity: 0; }
+  20%  { opacity: 0.3; }
+  80%  { opacity: 0.3; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes hero-ring-pulse {
+  0%,100% { transform: translate(-50%,-50%) scale(1);    opacity: 0.1; }
+  50%      { transform: translate(-50%,-50%) scale(1.12); opacity: 0.2; }
+}
+@keyframes hero-ring-pulse2 {
+  0%,100% { transform: translate(-50%,-50%) scale(1);    opacity: 0.06; }
+  50%      { transform: translate(-50%,-50%) scale(1.08); opacity: 0.14; }
+}
+@keyframes hero-ring-pulse3 {
+  0%,100% { transform: translate(-50%,-50%) scale(1);    opacity: 0.04; }
+  50%      { transform: translate(-50%,-50%) scale(1.06); opacity: 0.1; }
+}
+@keyframes bg-breathe {
+  0%,100% { background-position: 0% 50%; }
+  50%     { background-position: 100% 50%; }
+}
+@keyframes particle-float {
+  0%,100% { transform: translateY(0) translateX(0); opacity: 0.35; }
+  50%     { transform: translateY(-24px) translateX(8px); opacity: 0.7; }
+}
+@keyframes line-travel {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  10%  { opacity: 0.15; }
+  90%  { opacity: 0.15; }
+  100% { transform: translateX(100vw); opacity: 0; }
+}
+
+.hero-bg      { animation: bg-breathe 18s ease infinite; background-size: 250% 250%; }
+.hero-orb-1   { animation: orb-1 20s ease-in-out infinite; }
+.hero-orb-2   { animation: orb-2 26s ease-in-out infinite; }
+.hero-orb-3   { animation: orb-3 17s ease-in-out infinite; }
+.hero-orb-4   { animation: orb-4 28s ease-in-out infinite; }
+.hero-orb-5   { animation: orb-5 22s ease-in-out infinite; }
+.hero-ring-1  { animation: hero-ring-pulse  7s ease-in-out infinite; }
+.hero-ring-2  { animation: hero-ring-pulse2 11s ease-in-out infinite; animation-delay:3.5s; }
+.hero-ring-3  { animation: hero-ring-pulse3 15s ease-in-out infinite; animation-delay:7s; }
+.hero-particle { animation: particle-float 4s ease-in-out infinite; }
+.edu-float    { animation: edu-float   6s ease-in-out infinite; }
+.edu-float-r  { animation: edu-float-r 8s ease-in-out infinite; }
+.edu-spin     { animation: edu-spin-slow 30s linear infinite; }
+.edu-line     { animation: line-travel 8s linear infinite; }
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%       { transform: translateY(-28px) scale(1.04); }
+}
+@keyframes float-mid {
+  0%, 100% { transform: translateY(0) scale(1) rotate(0deg); }
+  50%       { transform: translateY(20px) scale(1.06) rotate(6deg); }
+}
+@keyframes float-fast {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%       { transform: translateY(-14px) scale(0.96); }
+}
+@keyframes drift {
+  0%   { transform: translateX(0) translateY(0); }
+  33%  { transform: translateX(18px) translateY(-12px); }
+  66%  { transform: translateX(-12px) translateY(10px); }
+  100% { transform: translateX(0) translateY(0); }
+}
+@keyframes pulse-ring {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50%       { opacity: 0.3;  transform: scale(1.08); }
+}
+@keyframes shimmer-line {
+  0%   { opacity: 0; transform: scaleX(0) translateX(-50%); }
+  40%  { opacity: 1; }
+  100% { opacity: 0; transform: scaleX(1) translateX(0); }
+}
+@keyframes bg-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.hero-bg { animation: bg-shift 12s ease infinite; background-size: 200% 200%; }
+.hero-orb-1 { animation: float-slow 9s ease-in-out infinite; }
+.hero-orb-2 { animation: float-mid  11s ease-in-out infinite; }
+.hero-orb-3 { animation: float-fast 7s ease-in-out infinite; }
+.hero-orb-4 { animation: drift 14s ease-in-out infinite; }
+.hero-ring  { animation: pulse-ring 5s ease-in-out infinite; }
 .faq-item {
   opacity: 0;
   animation: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
+/* Success Popup */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popIn { from { opacity: 0; transform: scale(0.85) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes drawCheck { from { stroke-dasharray: 30; stroke-dashoffset: 30; } to { stroke-dasharray: 30; stroke-dashoffset: 0; } }

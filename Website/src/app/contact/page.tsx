@@ -10,7 +10,7 @@ const MAPS_URL = 'https://maps.app.goo.gl/ikQjq35ZC1Pb1PhZA'
 const SOCIALS = [
   {
     label: 'Instagram',
-    href: 'https://instagram.com/bluelightacademy',
+    href: 'https://www.instagram.com/bluelight__academy?igsh=MTg1emk3MDVlY2VzOA==',
     color: '#E1306C',
     icon: (
       <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
@@ -20,7 +20,7 @@ const SOCIALS = [
   },
   {
     label: 'TikTok',
-    href: 'https://tiktok.com/@bluelightacademy',
+    href: 'https://www.tiktok.com/@bluelight__academy?_r=1&_t=ZS-95v2geW0HUC',
     color: '#010101',
     icon: (
       <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
@@ -30,7 +30,7 @@ const SOCIALS = [
   },
   {
     label: 'YouTube',
-    href: 'https://youtube.com/@bluelightacademy',
+    href: 'https://youtube.com/@bluelightacademy001?si=WjRWO_n615cS7us8',
     color: '#FF0000',
     icon: (
       <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
@@ -40,17 +40,82 @@ const SOCIALS = [
   },
 ]
 
+/* ── Animated Success Popup ── */
+function SuccessPopup({ onClose, lang }: { onClose: () => void; lang: string }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        style={{ animation: 'fadeIn 0.3s ease' }}
+      />
+
+      {/* Card */}
+      <div
+        className="relative bg-white rounded-3xl shadow-2xl p-8 sm:p-10 max-w-sm w-full text-center z-10"
+        style={{ animation: 'popIn 0.4s cubic-bezier(0.22,1,0.36,1)' }}
+      >
+        {/* Animated check circle */}
+        <div className="flex items-center justify-center mb-5">
+          <div className="relative w-20 h-20">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 opacity-20 animate-ping" />
+            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-200">
+              <svg className="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                style={{ animation: 'drawCheck 0.5s ease 0.3s both' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+          {lang === 'en' ? 'Message Sent!' : 'መልዕክት ተልኳል!'}
+        </h3>
+        <p className="text-sm sm:text-base text-gray-500 leading-6 mb-6">
+          {lang === 'en'
+            ? 'Thank you for reaching out. We will get back to you as soon as possible.'
+            : 'ስለ ደወሉልን እናመሰግናለን። በቅርቡ እናገኝዎታለን።'}
+        </p>
+
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-200 text-sm"
+        >
+          {lang === 'en' ? 'Done' : 'ዝጋ'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function ContactPage() {
   const { currentLang } = useLanguage()
   const t = translations[currentLang]
 
-  const [form, setForm] = useState({ name: '', phone: '', message: '' })
-  const [sent, setSent] = useState(false)
+  const [form, setForm]       = useState({ name: '', phone: '', message: '' })
+  const [loading, setLoading] = useState(false)
+  const [showPopup, setShowPopup] = useState(false)
+  const [error, setError]     = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSent(true)
-    setForm({ name: '', phone: '', message: '' })
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) throw new Error()
+      setForm({ name: '', phone: '', message: '' })
+      setShowPopup(true)
+    } catch {
+      setError(currentLang === 'en' ? 'Something went wrong. Please try again.' : 'ስህተት ተፈጥሯል። እንደገና ይሞክሩ።')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const contactItems = [
@@ -92,6 +157,9 @@ export default function ContactPage() {
 
   return (
     <main className="bg-white">
+
+      {/* Success Popup */}
+      {showPopup && <SuccessPopup lang={currentLang} onClose={() => setShowPopup(false)} />}
 
       {/* Hero */}
       <section className="relative bg-gradient-to-br from-blue-600 to-cyan-500 overflow-hidden">
@@ -141,18 +209,16 @@ export default function ContactPage() {
             ))}
 
             {/* Map preview */}
-            <a
-              href={MAPS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+            <a href={MAPS_URL} target="_blank" rel="noopener noreferrer"
               className="group relative rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 mt-2"
               style={{ height: 180 }}
             >
               <iframe
-                src="https://www.openstreetmap.org/export/embed.html?bbox=38.7425,9.0112,38.7625,9.0272&layer=mapnik&marker=9.0192,38.7525"
+                src="https://maps.google.com/maps?q=8.9828257,38.8608926&z=17&output=embed"
                 className="w-full h-full border-0 pointer-events-none"
-                title="Map"
+                title="Bluelight Academy location"
                 loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
               />
               <div className="absolute inset-0 bg-blue-900/0 group-hover:bg-blue-900/20 transition-all duration-300 flex items-center justify-center">
                 <span className="opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0 flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow text-blue-700 font-semibold text-xs sm:text-sm">
@@ -165,101 +231,78 @@ export default function ContactPage() {
             <div className="pt-1">
               <p className="text-xs text-gray-400 uppercase tracking-widest mb-3">Follow Us</p>
               <div className="flex items-center gap-4">
-              {SOCIALS.map(s => (
-                <a
-                  key={s.label}
-                  href={s.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={s.label}
-                  className="group hover:scale-110 active:scale-95 transition-all duration-200"
-                >
-                  <span
-                    className="block transition-all duration-200 group-hover:opacity-0 group-hover:absolute"
-                    style={{ color: s.color }}
+                {SOCIALS.map(s => (
+                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" aria-label={s.label}
+                    className="group hover:scale-110 active:scale-95 transition-all duration-200"
                   >
-                    {s.icon}
-                  </span>
-                  <span className="block text-blue-500 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                    {s.icon}
-                  </span>
-                </a>
-              ))}
+                    <span className="block transition-colors duration-200 group-hover:text-blue-500" style={{ color: s.color }}>
+                      {s.icon}
+                    </span>
+                  </a>
+                ))}
               </div>
             </div>
           </div>
 
           {/* Contact Form */}
           <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl sm:rounded-3xl p-5 sm:p-8 border border-gray-100 shadow-sm">
-            {sent ? (
-              <div className="h-full flex flex-col items-center justify-center text-center py-10 gap-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg">
-                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <p className="text-base sm:text-lg font-semibold text-gray-800">{t.contactFormSuccess}</p>
-                <button
-                  onClick={() => setSent(false)}
-                  className="text-sm text-blue-600 hover:underline mt-2"
-                >
-                  {currentLang === 'en' ? 'Send another message' : 'ሌላ መልዕክት ላክ'}
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">
-                  {currentLang === 'en' ? 'Send us a message' : 'መልዕክት ላኩልን'}
-                </h3>
-                <div className="w-10 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full mb-2" />
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">
+                {currentLang === 'en' ? 'Send us a message' : 'መልዕክት ላኩልን'}
+              </h3>
+              <div className="w-10 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full mb-2" />
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t.contactFormName}</label>
-                  <input
-                    type="text"
-                    required
-                    value={form.name}
-                    onChange={e => setForm({ ...form, name: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
-                    placeholder={t.contactFormName}
-                    suppressHydrationWarning
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t.contactFormPhone}</label>
-                  <input
-                    type="tel"
-                    required
-                    value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
-                    placeholder={t.contactFormPhone}
-                    suppressHydrationWarning
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t.contactFormMessage}</label>
-                  <textarea
-                    required
-                    rows={4}
-                    value={form.message}
-                    onChange={e => setForm({ ...form, message: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition resize-none"
-                    placeholder={t.contactFormMessage}
-                  />
-                </div>
-
-                <button
-                  type="submit"
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t.contactFormName}</label>
+                <input
+                  type="text" required value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                  placeholder={t.contactFormName}
                   suppressHydrationWarning
-                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-200 text-sm mt-1"
-                >
-                  {t.contactFormSend}
-                </button>
-              </form>
-            )}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t.contactFormPhone}</label>
+                <input
+                  type="tel" required value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                  placeholder={t.contactFormPhone}
+                  suppressHydrationWarning
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t.contactFormMessage}</label>
+                <textarea
+                  required rows={4} value={form.message}
+                  onChange={e => setForm({ ...form, message: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition resize-none"
+                  placeholder={t.contactFormMessage}
+                />
+              </div>
+
+              {error && <p className="text-xs text-red-500">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={loading}
+                suppressHydrationWarning
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-200 text-sm mt-1 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    {currentLang === 'en' ? 'Sending...' : 'እየተላከ...'}
+                  </>
+                ) : t.contactFormSend}
+              </button>
+            </form>
           </div>
 
         </div>

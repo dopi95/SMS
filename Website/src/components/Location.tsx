@@ -3,14 +3,13 @@
 import { useLanguage } from '@/contexts/LanguageContext'
 import { translations } from '@/lib/translations'
 
-// Replace with the real coordinates once known
-const LAT  = 9.0192
-const LNG  = 38.7525
-const MAPS_URL = 'https://maps.app.goo.gl/ikQjq35ZC1Pb1PhZA'
-const STATIC_MAP = `https://maps.googleapis.com/maps/api/staticmap?center=${LAT},${LNG}&zoom=15&size=1200x500&scale=2&maptype=roadmap&markers=color:blue%7C${LAT},${LNG}&style=feature:poi|visibility:off&key=`
+// Real coordinates — Summit Condominium, Block 50, near LG College, Addis Ababa
+const LAT  = 8.9828257
+const LNG  = 38.8608926
+const MAPS_URL = 'https://www.google.com/maps/place/Bluelight+Academy/@8.9828257,38.8608926,17z'
 
-// Fallback: OpenStreetMap tile preview (no API key needed)
-const OSM_PREVIEW = `https://www.openstreetmap.org/export/embed.html?bbox=${LNG-0.01},${LAT-0.008},${LNG+0.01},${LAT+0.008}&layer=mapnik&marker=${LAT},${LNG}`
+// Google Maps embed — shows the real satellite/road map at the exact pin
+const GMAPS_EMBED = `https://maps.google.com/maps?q=${LAT},${LNG}&z=17&output=embed`
 
 const InfoRow = ({ icon, text }: { icon: React.ReactNode; text: string }) => (
   <div className="flex items-start gap-3">
@@ -60,10 +59,11 @@ export default function Location() {
             aria-label={t.locationOpenMap}
           >
             <iframe
-              src={OSM_PREVIEW}
+              src={GMAPS_EMBED}
               className="w-full h-[220px] sm:h-[300px] lg:h-[360px] border-0 pointer-events-none"
-              title="School location map"
+              title="Bluelight Academy location"
               loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
             />
 
             {/* Hover overlay */}

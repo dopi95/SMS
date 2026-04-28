@@ -30,6 +30,21 @@ const icons: Record<string, React.ReactNode> = {
       <circle cx="16.5" cy="10.5" r="1" fill="currentColor" stroke="none" />
     </svg>
   ),
+  firstaid: (
+    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <path d="M12 8v8M8 12h8" />
+    </svg>
+  ),
+  playroom: (
+    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="3" />
+      <path d="M6 20v-2a6 6 0 0112 0v2" />
+      <path d="M3 17h3m15 0h-3" />
+      <path d="M6 17a3 3 0 006 0" />
+      <path d="M12 17a3 3 0 006 0" />
+    </svg>
+  ),
   safety: (
     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 2l7 3v5c0 4.5-3 8.5-7 10C5 18.5 2 14.5 2 10V5l7-3z" />

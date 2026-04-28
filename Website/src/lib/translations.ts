@@ -54,16 +54,12 @@ export const translations = {
         a: 'We currently enroll children from KG1 through KG3, typically ages 3 to 6. Our programs are designed to meet the developmental needs of each age group with age-appropriate activities and learning goals.'
       },
       {
-        q: 'What is the school schedule and operating hours?',
-        a: 'Classes run Sunday through Thursday. Morning sessions begin at 7:30 AM and end at 12:00 PM, with an optional afternoon program available until 3:00 PM. We follow the Ethiopian academic calendar.'
+        q: 'Where is Bluelight Academy located?',
+        a: 'We are located at Summit Condominium, 3rd Gate, Block 50 — in front of / 100 meters in front of LG College, Addis Ababa, Ethiopia. You can find us easily on Google Maps.'
       },
       {
         q: 'How do I register my child?',
-        a: 'You can register online through our registration form on this website, or visit us in person at the school. Our admissions team will guide you through the required documents and enrollment steps.'
-      },
-      {
-        q: 'What language is used for instruction?',
-        a: 'Our primary language of instruction is Amharic, with English introduced as a second language from KG1. We believe early bilingual exposure builds strong communication skills for the future.'
+        a: 'You can register your child in two ways. You can visit us in person at our school and our admissions team will guide you through the process. Or you can register online by clicking the \'Online Register\' button on this website, fill in all the required fields, and submit. After registering, come to the school to complete the payment and your child\'s enrollment will be officially approved.'
       },
       {
         q: 'What makes Bluelight Academy different from other kindergartens?',
@@ -138,8 +134,8 @@ export const translations = {
     facilitiesList: [
       { title: 'Bright Classrooms', desc: 'Spacious, well-lit classrooms designed to spark curiosity and make learning enjoyable every day.', icon: 'classroom' },
       { title: 'Outdoor Play Area', desc: 'A safe and open play area where children develop physical skills, teamwork, and confidence.', icon: 'outdoor' },
-      { title: 'Reading Corner', desc: 'A cozy, dedicated space filled with books to build a lifelong love of reading and storytelling.', icon: 'reading' },
-      { title: 'Art & Craft Room', desc: 'A creative studio where children express themselves freely through painting, drawing, and crafts.', icon: 'art' },
+      { title: 'First Aid Room', desc: 'A dedicated first aid room equipped to handle minor injuries and health needs, ensuring every child is cared for promptly and safely.', icon: 'firstaid' },
+      { title: 'Playing Room', desc: 'A vibrant indoor play room where children explore, imagine, and develop social skills through fun and structured play activities.', icon: 'playroom' },
       { title: 'Safe Premises', desc: 'Fully secured campus with monitored entry points to ensure every child is always safe.', icon: 'safety' },
       { title: 'Clean Restrooms', desc: 'Child-friendly, clean, and well-maintained restrooms available throughout the school.', icon: 'restroom' },
     ],
@@ -214,8 +210,8 @@ export const translations = {
         a: 'አሁን ከKG1 እስከ KG3 ድረስ ልጆችን እንቀበላለን፣ ብዙውን ጊዜ ከ3 እስከ 6 ዓመት። ፕሮግራሞቻችን ለእያንዳንዱ የዕድሜ ቡድን ተስማሚ እንቅስቃሴዎችን እና የትምህርት ግቦችን ያካትታሉ።'
       },
       {
-        q: 'የትምህርት ሰዓት እና የስራ ሰዓት ምን ያህል ነው?',
-        a: 'ክፍሎች ከእሁድ እስከ ሐሙስ ይካሄዳሉ። የጠዋት ክፍለ ጊዜ ከ7:30 ጀምሮ እስከ 12:00 ሰዓት ድረስ ሲሆን፣ እስከ 3:00 ሰዓት ድረስ የሚቆይ የከሰዓት ፕሮግራምም አለ። የኢትዮጵያ የትምህርት ዘመን ቀን አቆጣጠርን እንከተላለን።'
+        q: 'ብሉላይት አካዳሚ የት ይገኛል?',
+        a: 'ሰሚት ኮንዶሚኒየም፣ 3ኛ በር፣ ብሎክ 50 — ከLG ኮሌጅ ፊት / 100 ሜትር ፊት፣ አዲስ አበባ፣ ኢትዮጵያ። በጉግል ካርታ ላይ በቀላሉ ማግኘት ይችላሉ።'
       },
       {
         q: 'ልጄን እንዴት መመዝገብ እችላለሁ?',
@@ -299,7 +295,7 @@ export const translations = {
       { title: 'ብሩህ ክፍሎች', desc: 'ሰፊ፣ ብርሃናማ ክፍሎች ጉጉትን ለማነሳሳት እና ትምህርትን ደስ የሚያሰኝ ለማድረግ የተዘጋጁ።', icon: 'classroom' },
       { title: 'የውጭ መጫወቻ ቦታ', desc: 'ልጆች አካላዊ ክህሎቶችን፣ የቡድን ሥራ እና ድፍረትን የሚያዳብሩበት ደህንነቱ የተጠበቀ ቦታ።', icon: 'outdoor' },
       { title: 'የንባብ ጥግ', desc: 'ለዕድሜ ልክ የንባብ ፍቅር ለመገንባት መጻሕፍት የተሞላ ምቹ ቦታ።', icon: 'reading' },
-      { title: 'የጥበብ ክፍል', desc: 'ልጆች በሥዕል፣ ስዕል እና ዕደ-ጥበብ ነፃ ሆነው ራሳቸውን የሚገልጹበት የፈጠራ ስቱዲዮ።', icon: 'art' },
+      { title: 'የጥበብ ክፍል', desc: 'ልጆች በሥዕል፣ ስዕል እና ዕደ-ጥበብ ነፃ ሆነው ራሳቸውን የሚገልጹበት የፈጠራ ስቱዲዮ።', icon: 'playroom' },
       { title: 'ደህንነቱ የተጠበቀ ግቢ', desc: 'እያንዳንዱ ልጅ ሁልጊዜ ደህንነቱ እንዲጠበቅ የሚቆጣጠሩ መግቢያ ነጥቦች ያሉት ሙሉ ደህንነቱ የተጠበቀ ግቢ።', icon: 'safety' },
       { title: 'ንጹህ መጸዳጃ ቤቶች', desc: 'በትምህርት ቤቱ ውስጥ ለልጆች ምቹ፣ ንጹህ እና ጥሩ ሁኔታ ያላቸው መጸዳጃ ቤቶች።', icon: 'restroom' },
     ],
@@ -321,3 +317,5 @@ export const translations = {
     welcomeSubtitle: 'የእርስዎ የላቀነት ጉዞ እዚህ ይጀምራል'
   }
 }
+
+
