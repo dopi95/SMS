@@ -166,7 +166,7 @@ body {
 .card-footer {
   display:flex;
   align-items:stretch;
-  height:72px;
+  height:88px;
   background:#fff;
   overflow:hidden;
 }
@@ -192,6 +192,34 @@ body {
   inset:0;
   width:100%;
   height:100%;
+}
+.footer-qr {
+  position:absolute;
+  right:22px;
+  top:50%;
+  transform:translateY(-50%);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:3px;
+  z-index:3;
+}
+.footer-qr img {
+  width:58px;
+  height:58px;
+  border-radius:6px;
+  border:2px solid rgba(255,255,255,.9);
+  background:#fff;
+  display:block;
+}
+.footer-qr span {
+  font-size:8.5px;
+  font-weight:700;
+  color:#fff;
+  letter-spacing:.4px;
+  text-align:center;
+  text-shadow:0 1px 3px rgba(0,0,0,.4);
+  white-space:nowrap;
 }
 </style>
 </head>
@@ -321,12 +349,17 @@ Thank you for your continued support.</textarea>
       <span style="margin-left:12px;font-size:12px;font-style:italic;font-weight:600;color:#1e40af;white-space:nowrap;">"Be the light, Lead the way!"</span>
     </div>
     <div class="footer-curve-side">
-      <svg viewBox="0 0 600 72" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
-        <path d="M0,72 L0,36 Q60,0 150,20 Q260,44 380,16 Q480,0 600,28 L600,72 Z"
+      <svg viewBox="0 0 600 88" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <path d="M0,88 L0,44 Q60,0 150,24 Q260,54 380,20 Q480,0 600,34 L600,88 Z"
               fill="#1e40af"/>
-        <path d="M0,72 L0,52 Q80,20 200,38 Q320,56 440,30 Q520,14 600,42 L600,72 Z"
+        <path d="M0,88 L0,64 Q80,24 200,46 Q320,68 440,36 Q520,17 600,51 L600,88 Z"
               fill="#3b82f6" opacity="0.7"/>
       </svg>
+      <div class="footer-qr">
+        <img src="qrcode.png" alt="QR Code"
+             onerror="this.style.display='none'">
+        <span>Scan to visit website</span>
+      </div>
     </div>
   </div>
 
