@@ -97,11 +97,35 @@ export default function ContactPage() {
   const [loading, setLoading] = useState(false)
   const [showPopup, setShowPopup] = useState(false)
   const [error, setError]     = useState('')
+  const [phoneError, setPhoneError] = useState('')
+
+  const validatePhone = (val: string) => {
+    if (!val) return ''
+    if (!/^[0-9]*$/.test(val)) return currentLang === 'en' ? 'Numbers only' : 'ቁጥሮች ብቻ'
+    if (val.length > 0 && !['07', '09'].some(p => val.startsWith(p.slice(0, val.length))))
+      return currentLang === 'en' ? 'Must start with 07 or 09' : '07 ወይም 09 መጀመር አለበት'
+    if (val.length === 10 && !val.startsWith('07') && !val.startsWith('09'))
+      return currentLang === 'en' ? 'Must start with 07 or 09' : '07 ወይም 09 መጀመር አለበት'
+    if (val.length === 10) return ''
+    return ''
+  }
+
+  const handlePhoneChange = (val: string) => {
+    const digits = val.replace(/[^0-9]/g, '').slice(0, 10)
+    setForm({ ...form, phone: digits })
+    setPhoneError(validatePhone(digits))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    // Final phone validation before submit
+    if (!form.phone.match(/^(07|09)[0-9]{8}$/)) {
+      setPhoneError(currentLang === 'en' ? 'Enter a valid 10-digit number starting with 07 or 09' : 'የሚጀምረው 07 ወይም 09 የሆነ 10 አሃዝ ቁጥር ያስገቡ')
+      setLoading(false)
+      return
+    }
     try {
       const res = await fetch('/api/contact', {
         method: 'POST',
@@ -267,11 +291,16 @@ export default function ContactPage() {
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t.contactFormPhone}</label>
                 <input
                   type="tel" required value={form.phone}
-                  onChange={e => setForm({ ...form, phone: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
-                  placeholder={t.contactFormPhone}
+                  onChange={e => handlePhoneChange(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border bg-white text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition ${
+                    phoneError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-400'
+                  }`}
+                  placeholder="09xxxxxxxx / 07xxxxxxxx"
+                  maxLength={10}
+                  inputMode="numeric"
                   suppressHydrationWarning
                 />
+                {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
               </div>
 
               <div>
