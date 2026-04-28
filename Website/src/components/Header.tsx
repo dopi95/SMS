@@ -15,7 +15,7 @@ export default function Header() {
   return (
     <>
       <header className="bg-white sticky top-0 z-50">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 relative">
           <div className="flex items-center justify-between h-16">
             {/* Logo and Text */}
             <Link href="/" className="flex items-center space-x-3">
@@ -23,8 +23,8 @@ export default function Header() {
               <span className="text-xl font-bold text-gray-900">{t.siteName}</span>
             </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-8">
+            {/* Desktop Navigation — centered */}
+            <nav className="hidden md:flex items-center space-x-8 absolute left-1/2 -translate-x-1/2">
               <Link href="/" className="text-gray-700 hover:text-primary-600 transition-colors">
                 {t.home}
               </Link>
@@ -69,16 +69,6 @@ export default function Header() {
                 {t.facilities}
               </Link>
             </nav>
-
-            {/* Contact Button */}
-            <div className="hidden md:flex items-center">
-              <Link
-                href="/contact"
-                className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                {t.contact}
-              </Link>
-            </div>
 
             {/* Mobile Menu Button */}
             <button
@@ -177,14 +167,7 @@ export default function Header() {
               {t.facilities}
             </Link>
 
-            {/* Mobile Contact Button */}
-            <Link
-              href="/contact"
-              className="block w-full bg-primary-600 hover:bg-primary-700 text-white text-center px-4 py-3 rounded-xl transition-colors font-medium mt-4"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              {t.contact}
-            </Link>
+
           </nav>
         </div>
       </div>

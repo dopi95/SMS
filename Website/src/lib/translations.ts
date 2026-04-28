@@ -15,10 +15,10 @@ export const translations = {
     // Hero
     heroTitle1: 'Bluelight',
     heroTitle2: 'Academy',
-    heroMotto: 'Be the light, lead the way',
+    heroMotto: 'Be the light, lead the way!',
     heroSubtitle: 'Empowering minds, shaping futures, and creating tomorrow\'s leaders through excellence in education',
     getStarted: 'Online Register',
-    learnMore: 'View Gallery',
+    learnMore: 'Contact Us',
     
     // About
     aboutTitle: 'About Us',
@@ -32,9 +32,62 @@ export const translations = {
     valuesText: 'Excellence, innovation, personalized attention, and fostering both academic and emotional growth.',
     programsTitle: 'Our Programs',
     programsText: 'Currently offering Kindergarten programs (KG1-KG3) with plans to expand to higher education levels while maintaining our commitment to innovative teaching methods.',
+
+    // Student Life
+    studentLifeTitle: 'Student Life',
+    studentLifeSubtitle: 'Every day at Bluelight Academy is a new adventure — filled with discovery, creativity, friendship, and joy.',
+    studentLifeSlides: [
+      { label: 'Creative Arts', caption: 'Painting, crafts & self-expression' },
+      { label: 'Outdoor Play', caption: 'Active learning in the open air' },
+      { label: 'Reading Corner', caption: 'Building a love for stories' },
+      { label: 'Science & Discovery', caption: 'Curious minds exploring the world' },
+      { label: 'Music & Rhythm', caption: 'Finding joy through sound' },
+      { label: 'Teamwork', caption: 'Growing together every day' },
+    ],
     
+    // FAQ
+    faqTitle: 'Frequently Asked Questions',
+    faqSubtitle: 'Everything you need to know before joining the Bluelight Academy family.',
+    faqItems: [
+      {
+        q: 'What age groups does Bluelight Academy accept?',
+        a: 'We currently enroll children from KG1 through KG3, typically ages 3 to 6. Our programs are designed to meet the developmental needs of each age group with age-appropriate activities and learning goals.'
+      },
+      {
+        q: 'What is the school schedule and operating hours?',
+        a: 'Classes run Sunday through Thursday. Morning sessions begin at 7:30 AM and end at 12:00 PM, with an optional afternoon program available until 3:00 PM. We follow the Ethiopian academic calendar.'
+      },
+      {
+        q: 'How do I register my child?',
+        a: 'You can register online through our registration form on this website, or visit us in person at the school. Our admissions team will guide you through the required documents and enrollment steps.'
+      },
+      {
+        q: 'What language is used for instruction?',
+        a: 'Our primary language of instruction is Amharic, with English introduced as a second language from KG1. We believe early bilingual exposure builds strong communication skills for the future.'
+      },
+      {
+        q: 'What makes Bluelight Academy different from other kindergartens?',
+        a: 'We combine a nurturing environment with structured learning, focusing on the whole child — academic, emotional, social, and creative development. Every child receives personalized attention from our passionate and experienced teachers.'
+      },
+    ],
+
+    // Location
+    locationTitle: 'Find Us',
+    locationSubtitle: 'We are easy to find. Click the map to open directions.',
+    locationAddress: 'Summit Condominium\n3rd Gate, Block 50\nIn front / 100 meters in front of LG College',
+    locationPhone: '+251945409940',
+    locationEmail: 'info@bluelight.edu.et',
+    locationEmail2: 'contact@bluelight.edu.et',
+    locationOpenMap: 'Open in Google Maps',
+
+    // Footer
+    footerTagline: 'A place where every child learns, grows, and shines.',
+    footerQuickLinks: 'Quick Links',
+    footerContact: 'Contact Us',
+    footerRights: '© 2026 Bluelight Academy. All rights reserved.',
+    footerMadeWith: 'Built with care for every child.',
+
     // Home page
-    welcomeTitle: 'Welcome to Bluelight Academy',
     welcomeSubtitle: 'Your journey to excellence starts here'
   },
   am: {
@@ -53,10 +106,10 @@ export const translations = {
     // Hero
     heroTitle1: 'ብሉላይት',
     heroTitle2: 'አካዳሚ',
-    heroMotto: 'ብርሃን ሁን፣ መንገድ መርህ',
+    heroMotto: 'ብርሃን ሁን፣ መንገድ መርህ!',
     heroSubtitle: 'አእምሮን በማብቃት፣ የወደፊትን በመቅረጽ እና የነገ መሪዎችን በትምህርት ላቀነት በመፍጠር',
     getStarted: 'ምዝገባ',
-    learnMore: 'ፎቶ ጋለሪ',
+    learnMore: 'ያግኙን',
     
     // About
     aboutTitle: 'ስለ እኛ',
@@ -70,7 +123,61 @@ export const translations = {
     valuesText: 'ላቀነት፣ አዳዲስነት፣ ለግል የተበጀ ትኩረት እና ሁለቱንም የትምህርት እና ስሜታዊ እድገት ማሳደግ።',
     programsTitle: 'የእኛ ፕሮግራሞች',
     programsText: 'አሁን የመዋዕለ ሕፃናት ፕሮግራሞችን (KG1-KG3) እንሰጣለን እና የእኛን አዳዲስ የማስተማር ዘዴዎች መስጠት እየቀጠልን ወደ ከፍተኛ የትምህርት ደረጃዎች ለማስፋት እንፈልግ አለን።',
+
+    // Student Life
+    studentLifeTitle: 'የተማሪ ሕይወት',
+    studentLifeSubtitle: 'በብሉላይት አካዳሚ እያንዳንዱ ቀን አዲስ ጀብዱ ነው — በፈጠራ፣ በወዳጅነት እና በደስታ የተሞላ።',
+    studentLifeSlides: [
+      { label: 'የፈጠራ ጥበብ', caption: 'ሥዕል፣ ዕደ-ጥበብ እና ራስን መግለጽ' },
+      { label: 'ውጭ መጫወት', caption: 'በክፍት አየር ውስጥ ንቁ ትምህርት' },
+      { label: 'የንባብ ጥግ', caption: 'ለታሪኮች ፍቅር መገንባት' },
+      { label: 'ሳይንስ እና ግኝት', caption: 'ጉጉ አእምሮዎች ዓለምን ያስሳሉ' },
+      { label: 'ሙዚቃ እና ምት', caption: 'በድምፅ ደስታ ማግኘት' },
+      { label: 'የቡድን ሥራ', caption: 'በየቀኑ አብረን እያደግን' },
+    ],
     
+    // FAQ
+    faqTitle: 'ተደጋጋሚ ጥያቄዎች',
+    faqSubtitle: 'ወደ ብሉላይት አካዳሚ ቤተሰብ ከመቀላቀልዎ በፊት ማወቅ የሚፈልጉትን ሁሉ።',
+    faqItems: [
+      {
+        q: 'ብሉላይት አካዳሚ የትኞቹን የዕድሜ ቡድኖች ይቀበላል?',
+        a: 'አሁን ከKG1 እስከ KG3 ድረስ ልጆችን እንቀበላለን፣ ብዙውን ጊዜ ከ3 እስከ 6 ዓመት። ፕሮግራሞቻችን ለእያንዳንዱ የዕድሜ ቡድን ተስማሚ እንቅስቃሴዎችን እና የትምህርት ግቦችን ያካትታሉ።'
+      },
+      {
+        q: 'የትምህርት ሰዓት እና የስራ ሰዓት ምን ያህል ነው?',
+        a: 'ክፍሎች ከእሁድ እስከ ሐሙስ ይካሄዳሉ። የጠዋት ክፍለ ጊዜ ከ7:30 ጀምሮ እስከ 12:00 ሰዓት ድረስ ሲሆን፣ እስከ 3:00 ሰዓት ድረስ የሚቆይ የከሰዓት ፕሮግራምም አለ። የኢትዮጵያ የትምህርት ዘመን ቀን አቆጣጠርን እንከተላለን።'
+      },
+      {
+        q: 'ልጄን እንዴት መመዝገብ እችላለሁ?',
+        a: 'በዚህ ድህረ ገጽ ላይ ባለው የምዝገባ ቅጽ በኩል በመስመር ላይ መመዝገብ ወይም ወደ ትምህርት ቤቱ በአካል መምጣት ይችላሉ። የምዝገባ ቡድናችን አስፈላጊ ሰነዶችን እና የምዝገባ ደረጃዎችን ያሳይዎታል።'
+      },
+      {
+        q: 'ለትምህርት የሚጠቀሙት ቋንቋ ምንድን ነው?',
+        a: 'ዋናው የትምህርት ቋንቋ አማርኛ ሲሆን፣ እንግሊዝኛ ከKG1 ጀምሮ እንደ ሁለተኛ ቋንቋ ይተዋወቃል። ቀደምት ሁለት ቋንቋ ተጋላጭነት ለወደፊቱ ጠንካራ የግንኙነት ክህሎቶችን ይገነባል ብለን እናምናለን።'
+      },
+      {
+        q: 'ብሉላይት አካዳሚ ከሌሎች መዋዕለ ሕፃናት የሚለየው ምንድን ነው?',
+        a: 'ተንከባካቢ አካባቢን ከተዋቀረ ትምህርት ጋር እናጣምራለን፣ ሙሉ ልጁን — ትምህርታዊ፣ ስሜታዊ፣ ማህበራዊ እና ፈጠራ ልማትን እናተኩራለን። እያንዳንዱ ልጅ ከፍቅረኛ እና ልምድ ካላቸው አስተማሪዎቻችን ለግል የተበጀ ትኩረት ያገኛል።'
+      },
+    ],
+
+    // Location
+    locationTitle: 'አድራሻችን',
+    locationSubtitle: 'ለማግኘት ቀላል ነን። ካርታውን ጠቅ ያድርጉ እና አቅጣጫ ያግኙ።',
+    locationAddress: 'ሰሚት ኮንዶሚኒየም\n3ኛ በር፣ ብሎክ 50\nከLG ኮሌጅ ፊት / 100 ሜትር ፊት',
+    locationPhone: '+251945409940',
+    locationEmail: 'info@bluelight.edu.et',
+    locationEmail2: 'contact@bluelight.edu.et',
+    locationOpenMap: 'በጉግል ካርታ ክፈት',
+
+    // Footer
+    footerTagline: 'እያንዳንዱ ልጅ የሚማር፣ የሚይዘረጉባት እና የሚባራ ቢት ።',
+    footerQuickLinks: 'ፈጣን አገናኞች',
+    footerContact: 'ያግኙን',
+    footerRights: '© 2026 ብሉላይት አካዳሚ። መብቱ በሕግ የተጠበቀ ነው።',
+    footerMadeWith: 'ለእያንዳንዱ ልጅ በፍቅር የተሰራ።',
+
     // Home page
     welcomeTitle: 'እንኳን ወደ ብሉላይት አካዳሚ በደህና መጡ',
     welcomeSubtitle: 'የእርስዎ የላቀነት ጉዞ እዚህ ይጀምራል'
