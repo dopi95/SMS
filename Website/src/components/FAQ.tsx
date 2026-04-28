@@ -68,7 +68,7 @@ function FAQItem({ q, a, index, open, onToggle }: {
 export default function FAQ() {
   const { currentLang } = useLanguage()
   const t = translations[currentLang]
-  const [openIndex, setOpenIndex] = useState<number | null>(0)
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
 
   return (
     <section className="py-12 sm:py-16 lg:py-20 bg-gradient-to-br from-slate-50 to-blue-50 relative overflow-hidden">

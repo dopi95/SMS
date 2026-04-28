@@ -34,6 +34,7 @@ export default function Header() {
                 <button
                   onClick={() => setIsAboutOpen(!isAboutOpen)}
                   className="flex items-center text-gray-700 hover:text-primary-600 transition-colors"
+                  suppressHydrationWarning
                 >
                   {t.about}
                   <svg
@@ -52,12 +53,14 @@ export default function Header() {
                 }`}>
                   <Link
                     href="/about/our-story"
+                    onClick={() => setIsAboutOpen(false)}
                     className="block px-4 py-3 text-gray-700 hover:bg-primary-50 hover:text-primary-600 transition-colors rounded-t-lg"
                   >
                     {t.ourStory}
                   </Link>
                   <Link
                     href="/about/school-fees"
+                    onClick={() => setIsAboutOpen(false)}
                     className="block px-4 py-3 text-gray-700 hover:bg-primary-50 hover:text-primary-600 transition-colors rounded-b-lg"
                   >
                     {t.schoolFees}
@@ -145,14 +148,14 @@ export default function Header() {
                 <Link 
                   href="/about/our-story" 
                   className="block px-4 py-2 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-lg transition-colors"
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  onClick={() => { setIsMobileMenuOpen(false); setIsAboutOpen(false) }}
                 >
                   {t.ourStory}
                 </Link>
                 <Link 
                   href="/about/school-fees" 
                   className="block px-4 py-2 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-lg transition-colors"
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  onClick={() => { setIsMobileMenuOpen(false); setIsAboutOpen(false) }}
                 >
                   {t.schoolFees}
                 </Link>
