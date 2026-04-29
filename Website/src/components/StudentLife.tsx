@@ -4,12 +4,39 @@ import { useState, useEffect, useCallback } from 'react'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { translations } from '@/lib/translations'
 const IMAGES = [
-  'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200&q=85',
-  'https://images.unsplash.com/photo-1560785496-3c9d27877182?w=1200&q=85',
-  'https://images.unsplash.com/photo-1544717305-2782549b5136?w=1200&q=85',
-  'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1200&q=85',
-  'https://images.unsplash.com/photo-1514369118554-e4b54e674e2e?w=1200&q=85',
-  'https://images.unsplash.com/photo-1588072432836-e10032774350?w=1200&q=85',
+  '/img/s-1.jpg',
+  '/img/sl-1.jpg',
+  '/img/g-1.jpg',
+  '/img/s-2.jpg',
+  '/img/sl-2.jpg',
+  '/img/g-2.jpg',
+  '/img/s-3.jpg',
+  '/img/sl-3.jpg',
+  '/img/g-3.jpg',
+  '/img/s-4.jpg',
+  '/img/sl-4.jpg',
+  '/img/g-4.jpg',
+  '/img/s-5.jpg',
+  '/img/sl-5.jpg',
+  '/img/g-5.jpg',
+  '/img/s-6.jpg',
+  '/img/sl-6.jpg',
+  '/img/g-6.jpg',
+  '/img/s-7.jpg',
+  '/img/sl-7.jpg',
+  '/img/s-8.jpg',
+  '/img/sl-8.jpg',
+  '/img/s-9.jpg',
+  '/img/sl-9.jpg',
+  '/img/s-10.jpg',
+  '/img/sl-10.jpg',
+  '/img/sl-11.jpg',
+  '/img/sl-12.jpg',
+  '/img/sl-13.jpg',
+  '/img/sl-14.jpg',
+  '/img/sl-15.jpg',
+  '/img/sl-16.jpg',
+  '/img/sl-17.jpg',
 ]
 
 const DURATION = 4000
@@ -87,10 +114,21 @@ export default function StudentLife() {
                 key={src}
                 className={`absolute inset-0 ${isActive ? enterClass : exitClass}`}
               >
+                {/* Blurred background fill */}
+                <img
+                  src={src}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover object-center scale-110"
+                  style={{ filter: 'blur(18px)', opacity: 0.7 }}
+                  draggable={false}
+                  aria-hidden
+                />
+                <div className="absolute inset-0 bg-black/20" />
+                {/* Main image */}
                 <img
                   src={src}
                   alt={`Slide ${i + 1}`}
-                  className="w-full h-full object-cover object-center"
+                  className="relative w-full h-full object-contain object-center"
                   draggable={false}
                 />
               </div>
