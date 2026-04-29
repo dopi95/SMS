@@ -14,12 +14,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
 
   title: {
-    default: 'Bluelight Academy | Best Kindergarten in Addis Ababa | ብሉላይት አካዳሚ',
+    default: 'Bluelight Academy | Best School in Addis Ababa | ብሉላይት አካዳሚ | በአዲስ አበባ ምርጥ ትምህርት ቤት',
     template: '%s | Bluelight Academy',
   },
 
   description:
-    'Bluelight Academy — the best kindergarten school in Addis Ababa, Ethiopia. Offering KG1, KG2, KG3 programs at Summit Condominium near CMC & LG College. Nurturing young minds to learn, grow, and shine. ብሉላይት አካዳሚ — በአዲስ አበባ ምርጥ መዋዕለ ሕፃናት ትምህርት ቤት። KG1፣ KG2፣ KG3 ፕሮግራሞች።',
+    'Bluelight Academy — the best school in Addis Ababa, Ethiopia. Offering KG1, KG2, KG3 programs at Summit Condominium near CMC & LG College. Nurturing young minds to learn, grow, and shine. ብሉላይት አካዳሚ — በአዲስ አበባ ምርጥ ትምህርት ቤት። KG1፣ KG2፣ KG3 ፕሮግራሞች። ሰሚት ኮንዶሚኒየም፣ አዲስ አበባ።',
 
   keywords: [
     // English keywords
@@ -72,15 +72,16 @@ export const metadata: Metadata = {
 
   icons: {
     icon: [
-      { url: '/icons/favicon.ico',  sizes: 'any' },
+      { url: '/favicon.ico',        sizes: 'any',    type: 'image/x-icon' },
       { url: '/icons/icon-16.png',  sizes: '16x16',  type: 'image/png' },
       { url: '/icons/icon-32.png',  sizes: '32x32',  type: 'image/png' },
+      { url: '/icons/icon-48.png',  sizes: '48x48',  type: 'image/png' },
       { url: '/icons/icon-96.png',  sizes: '96x96',  type: 'image/png' },
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple:    '/icons/icon-180.png',
-    shortcut: '/icons/icon-32.png',
+    shortcut: '/favicon.ico',
   },
 
   openGraph: {
@@ -88,8 +89,8 @@ export const metadata: Metadata = {
     locale:      'en_ET',
     url:         BASE_URL,
     siteName:    'Bluelight Academy',
-    title:       'Bluelight Academy | Best Kindergarten in Addis Ababa',
-    description: 'Bluelight Academy — nurturing, inspiring KG1–KG3 education at Summit Condominium, Addis Ababa. Every child learns, grows, and shines.',
+    title:       'Bluelight Academy | Best School in Addis Ababa | ብሉላይት አካዳሚ',
+    description: 'Bluelight Academy — nurturing, inspiring KG1–KG3 education at Summit Condominium, Addis Ababa. በአዲስ አበባ ምርጥ ትምህርት ቤት። Every child learns, grows, and shines.',
     images: [
       {
         url:    '/icons/icon-512.png',
