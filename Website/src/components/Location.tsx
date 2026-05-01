@@ -6,7 +6,7 @@ import { translations } from '@/lib/translations'
 // Real coordinates — Summit Condominium, Block 50, near LG College, Addis Ababa
 const LAT  = 8.9828257
 const LNG  = 38.8608926
-const MAPS_URL = 'https://www.google.com/maps/place/Bluelight+Academy/@8.9828257,38.8608926,17z'
+const MAPS_URL = 'https://www.google.com/maps/place/Bluelight+Academy/@8.982831,38.8583177,17z/data=!3m1!4b1!4m6!3m5!1s0x164b9b007408752d:0x6f3a94420fe41a9f!8m2!3d8.9828257!4d38.8608926!16s%2Fg%2F11ww92j9x4?entry=tts&g_ep=EgoyMDI2MDQyMi4wIPu8ASoASAFQAw%3D%3D&skid=e3ae8f55-1be3-4f30-a161-d8383cb01bf6'
 
 // Google Maps embed — shows the real satellite/road map at the exact pin
 const GMAPS_EMBED = `https://maps.google.com/maps?q=${LAT},${LNG}&z=17&output=embed`
