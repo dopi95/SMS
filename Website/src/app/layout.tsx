@@ -8,8 +8,10 @@ import { LanguageProvider } from '@/contexts/LanguageContext'
 
 const inter = Inter({ subsets: ['latin'] })
 
-// Works on both Vercel preview URLs and the real domain
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://bluelight.edu.et'
+// Works on Vercel preview, Vercel production, and custom domain
+const BASE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://bluelight.edu.et')
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
@@ -77,7 +79,7 @@ export const metadata: Metadata = {
   },
 
   twitter: {
-    card:        'summary',
+    card:        'summary_large_image',
     title:       'Bluelight Academy | Best School in Addis Ababa | ብሉላይት አካዳሚ',
     description: 'Best school in Addis Ababa. KG1–KG3 at Summit Condominium near CMC & LG College. ብሉላይት አካዳሚ — ሰሚት ኮንዶሚኒየም።',
     images:      [`${BASE_URL}/icons/icon-512.png`],
