@@ -9,6 +9,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 interface Teacher {
   _id: string;
@@ -39,6 +40,10 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
   const router = useRouter();
 
   useEffect(() => { fetchTeachers(); }, []);
@@ -108,6 +113,75 @@ export default function EmployeesPage() {
     } catch {
       toast.dismiss(t);
       toast.error(getText('Failed to update status', 'ሁኔታን ማዘመን አልተሳካም'));
+    }
+  };
+
+  const normalizeRow = (raw: Record<string, any>) => {
+    const get = (...keys: string[]) => {
+      for (const k of keys) {
+        const found = Object.keys(raw).find(rk => rk.toLowerCase().replace(/[^a-z]/g, '') === k.toLowerCase().replace(/[^a-z]/g, ''));
+        if (found && raw[found] !== undefined && raw[found] !== null && String(raw[found]).trim() !== '') return String(raw[found]).trim();
+      }
+      return '';
+    };
+    return {
+      fullName: get('fullname', 'full name', 'name'),
+      phone: get('phone', 'phonenumber', 'mobile', 'contact'),
+      email: get('email'),
+      role: get('role', 'position', 'jobtitle'),
+      sex: get('sex', 'gender'),
+      employmentDate: get('employmentdate', 'employment date', 'joindate', 'joined date'),
+      employmentType: get('employmenttype', 'employment type', 'type'),
+      qualification: get('qualification'),
+      qualificationLevel: get('qualificationlevel', 'qualification level'),
+      experienceYears: get('experienceyears', 'experience years', 'experience'),
+      address: get('address'),
+      teachingClass: get('teachingclass', 'teaching class', 'class'),
+      teachingSubject: get('teachingsubject', 'teaching subject', 'subject'),
+    };
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportErrors([]);
+    setImportPreview([]);
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      setImportPreview(raw.map(normalizeRow));
+    } else {
+      setImportErrors([getText('Unsupported file type. Please use .xlsx, .xls, or .csv', 'ያልተደገፈ የፋይል አይነት። .xlsx፣ .xls ወይም .csv ይጠቀሙ')]);
+    }
+    e.target.value = '';
+  };
+
+  const handleImportConfirm = async () => {
+    if (importPreview.length === 0) return;
+    setImporting(true);
+    const loadingToast = toast.loading(getText('Importing employees...', 'ሰራተኞችን እያስገባ ነው...'));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/teachers/bulk/import`, { teachers: importPreview }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.dismiss(loadingToast);
+      const { created, failed } = res.data;
+      toast.success(getText(`${created} employees imported successfully!`, `${created} ሰራተኞች በተሳካ ሁኔታ ገብተዋል!`));
+      if (failed.length > 0) {
+        toast.error(failed[0]?.reason ? 'Row failed: ' + failed[0].reason : failed.length + ' rows failed');
+      }
+      setShowImportModal(false);
+      setImportPreview([]);
+      fetchTeachers();
+    } catch {
+      toast.dismiss(loadingToast);
+      toast.error(getText('Import failed', 'ማስገቢያ አልተሳካም'));
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -227,6 +301,16 @@ export default function EmployeesPage() {
                   <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Manage employee information', 'የሰራተኞች መረጃ አስተዳድር')}</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
+                  {canDo('employees', 'add') && (
+                  <button
+                    onClick={() => setShowImportModal(true)}
+                    className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    {getText('Import', 'አስገባ')}
+                  </button>
+                  )}
                   <button onClick={exportToPDF}
                     className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -377,6 +461,100 @@ export default function EmployeesPage() {
           </div>
         </div>
       </div>
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Import Employees', 'ሰራተኞችን አስገባ')}</h2>
+              <button onClick={() => { setShowImportModal(false); setImportPreview([]); setImportErrors([]); }} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
+              {importPreview.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${theme === 'dark' ? 'bg-indigo-900' : 'bg-indigo-100'}`}>
+                    <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                  </div>
+                  <h3 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Upload Employee List', 'የሰራተኞች ዝርዝር ይስቀሉ')}</h3>
+                  <p className={`text-sm mb-6 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{getText('Supported formats: Excel (.xlsx, .xls), CSV', 'የሚደገፉ ቅርጸቶች: Excel (.xlsx, .xls), CSV')}</p>
+                  {importErrors.length > 0 && (
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-left max-w-md mx-auto">
+                      {importErrors.map((err, i) => <p key={i} className="text-xs text-red-700">{err}</p>)}
+                    </div>
+                  )}
+                  <label className="inline-block cursor-pointer">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportFile} className="hidden" />
+                    <span className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                      {getText('Choose File', 'ፋይል ምረጥ')}
+                    </span>
+                  </label>
+                  <div className="mt-3">
+                    <a href="/employee-import-template.csv" download className={`text-sm underline ${theme === 'dark' ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-700'}`}>
+                      {getText('Download sample template', 'የሞደል ቅርዓት አውርድ')}
+                    </a>
+                  </div>
+                  <div className={`mt-8 p-4 rounded-lg text-left max-w-xl mx-auto ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                    <h4 className={`text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Required Columns', 'የሚያስፈልጉ አምዶች')}:</h4>
+                    <ul className={`text-xs space-y-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <li>• <strong>fullName</strong>, <strong>phone</strong>, <strong>role</strong>, <strong>sex</strong>, <strong>employmentDate</strong>, <strong>employmentType</strong> ({getText('required', 'ያስፈልጋል')})</li>
+                      <li>• <strong>email</strong>, <strong>qualification</strong>, <strong>qualificationLevel</strong>, <strong>experienceYears</strong>, <strong>address</strong>, <strong>teachingClass</strong>, <strong>teachingSubject</strong> ({getText('optional', 'አማራጭ')})</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Preview', 'ቅድመ እይታ')}: <strong>{importPreview.length}</strong> {getText('rows', 'ረድፎች')}</p>
+                    <label className="cursor-pointer">
+                      <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportFile} className="hidden" />
+                      <span className={`text-sm px-4 py-2 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>{getText('Choose Different File', 'ሌላ ፋይል ምረጥ')}</span>
+                    </label>
+                  </div>
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full text-xs">
+                      <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
+                        <tr>
+                          {['#', 'Full Name', 'Phone', 'Role', 'Sex', 'Employment Date', 'Employment Type', 'Teaching Class'].map(h => (
+                            <th key={h} className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                        {importPreview.slice(0, 100).map((row, i) => (
+                          <tr key={i} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{i + 1}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.fullName || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.phone || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.role || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.sex || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.employmentDate || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.employmentType || '-'}</td>
+                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.teachingClass || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {importPreview.length > 100 && (
+                    <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Showing first 100 rows. All rows will be imported.', 'የመጀመሪያዎቹ 100 ረድፎች እየታዩ ነው። ሁሉም ረድፎች ይገባሉ።')}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            {importPreview.length > 0 && (
+              <div className={`px-6 py-4 border-t flex justify-end gap-3 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+                <button onClick={() => { setShowImportModal(false); setImportPreview([]); }} className={`px-4 py-2 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>{getText('Cancel', 'ሰርዝ')}</button>
+                <button onClick={handleImportConfirm} disabled={importing} className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2">
+                  {importing ? getText('Importing...', 'እያስገባ ነው...') : getText('Import Employees', 'ሰራተኞችን አስገባ')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

@@ -1,0 +1,4 @@
+fullName,phone,role,sex,employmentDate,employmentType,email,qualification,qualificationLevel,experienceYears,address,teachingClass,teachingSubject
+Abebe Kebede,+251911234567,Teacher,Male,01/09/2020,Full-Time,abebe.kebede@example.com,Bachelor of Education,Degree,5,Addis Ababa,LKG,Mathematics
+Tigist Alemu,+251922345678,Assistant,Female,15/01/2022,Part-Time,tigist.alemu@example.com,Diploma in Education,Diploma,2,Bole,,
+Dawit Haile,+251933456789,Principal,Male,01/03/2018,Full-Time,dawit.haile@example.com,Master of Education,Masters,10,Addis Ababa,,

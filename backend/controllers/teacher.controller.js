@@ -107,4 +107,43 @@ const deleteTeacher = async (req, res) => {
   }
 };
 
-module.exports = { getTeachers, getTeacher, createTeacher, updateTeacher, deleteTeacher };
+const bulkImportTeachers = async (req, res) => {
+  try {
+    const { teachers: rows } = req.body;
+    if (!Array.isArray(rows) || rows.length === 0)
+      return res.status(400).json({ message: 'No data provided' });
+
+    const lastTeacher = await Teacher.findOne().sort({ teacherId: -1 });
+    let counter = 1;
+    if (lastTeacher?.teacherId) {
+      const n = parseInt(lastTeacher.teacherId.replace('BLSTAFF', ''));
+      if (!isNaN(n)) counter = n + 1;
+    }
+
+    const created = [];
+    const failed = [];
+
+    for (const row of rows) {
+      try {
+        if (!row.fullName || !row.phone || !row.role || !row.sex || !row.employmentDate || !row.employmentType) {
+          failed.push({ row, reason: 'Missing required fields (fullName, phone, role, sex, employmentDate, employmentType)' });
+          continue;
+        }
+        const teacherId = `BLSTAFF${String(counter).padStart(3, '0')}`;
+        const teacher = new Teacher({ ...row, teacherId });
+        await teacher.save();
+        created.push(teacher);
+        counter++;
+      } catch (err) {
+        failed.push({ row, reason: err.message });
+      }
+    }
+
+    await logActivity(req.user, 'Added', 'Employee', `Bulk imported ${created.length} employees`);
+    res.json({ created: created.length, failed });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getTeachers, getTeacher, createTeacher, updateTeacher, deleteTeacher, bulkImportTeachers };
