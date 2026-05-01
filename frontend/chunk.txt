@@ -1,0 +1,31 @@
+g: 'am' | 'en') =>
+    lang === 'am' && s.firstNameAmharic
+      ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim()
+      : `${s.firstName} ${s.middleName} ${s.lastName}`;
+
+  const getAge = (dob?: string) => {
+    if (!dob) return '-';
+    const parts = dob.includes('/') ? dob.split('/') : null;
+    const birth = parts ? new Date(+parts[2], +parts[1] - 1, +parts[0]) : new Date(dob);
+    if (isNaN(birth.getTime())) return '-';
+    return String(new Date().getFullYear() - birth.getFullYear());
+  };
+
+  const downloadAttendancePDF = () => {
+    const list = getAttendanceStudents();
+    const isAm = attendanceLang === 'am';
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const pageW = doc.internal.pageSize.getWidth();
+
+    // Title
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    const title = isAm ? 'Bluelight Academy - Student Attendance Sheet' : 'Bluelight Academy - Student Attendance Sheet';
+    doc.text(title, pageW / 2, 16, { align: 'center' });
+    if (isAm) {
+      doc.setFontSize(11);
+      doc.text('\u12E8\u1265\u1209 \u120B\u12ED\u1275 \u12A0\u12AB\u12F3\u121A  \u12E8\u1270\u121B\u122A\u12CE\u127D \u1235\u121D \u1218\u1240\u1323 \u1320\u122A\u12EB', pageW / 2, 23, { align: 'center' });
+    }
+
+    // Header info lines
+ 

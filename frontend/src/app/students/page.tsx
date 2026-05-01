@@ -8,9 +8,8 @@ import DashboardLayout from '@/components/DashboardLayout';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useSettings } from '@/contexts/SettingsContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import XLSXStyle from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
 
 interface Student {
@@ -61,6 +60,10 @@ export default function StudentsPage() {
   }>({ isOpen: false, type: 'inactive', studentId: '', studentName: '' });
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [attendanceLang, setAttendanceLang] = useState<'am' | 'en'>('am');
+  const [attendanceClass, setAttendanceClass] = useState('');
+  const [attendanceSection, setAttendanceSection] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -426,76 +429,148 @@ export default function StudentsPage() {
     return `${dd}/${mm}/${yyyy}`;
   };
 
-  const exportToPDF = () => {
-    const doc = new jsPDF('l', 'mm', 'a4');
-    
-    // Title
-    doc.setFontSize(18);
-    doc.text(getText('Students Report', 'የተማሪዎች ሪፖርት'), 14, 20);
-    
-    // Subtitle with filters
-    doc.setFontSize(12);
-    let subtitle = '';
-    if (classFilter) subtitle += `${getText('Class', 'ክፍል')}: ${getText(classFilter, classFilter === 'Nursery' ? 'ጀማሪ' : classFilter === 'LKG' ? 'ደረጃ 1' : classFilter === 'UKG' ? 'ደረጃ 2' : classFilter)} `;
-    if (sectionFilter) subtitle += `${getText('Section', 'ክፍል')}: ${language === 'am' ? (sectionFilter === 'A' ? 'አ' : sectionFilter === 'B' ? 'ለ' : sectionFilter === 'C' ? 'ሐ' : sectionFilter === 'D' ? 'መ' : sectionFilter) : sectionFilter} `;
-    if (batchFilter) subtitle += `${getText('Batch', 'ቡድን')}: ${batchFilter} E.C `;
-    if (typeFilter) subtitle += `${getText('Type', 'አይነት')}: ${getText(typeFilter, typeFilter === 'regular' ? 'መደበኛ' : 'ልዩ')} `;
-    
-    if (subtitle) {
-      doc.text(subtitle.trim(), 14, 28);
-    }
-    
-    doc.text(`${getText('Generated on', 'የተፈጠረበት ቀን')}: ${new Date().toLocaleDateString()}`, 14, subtitle ? 36 : 28);
-    doc.text(`${getText('Total Students', 'ጠቅላላ ተማሪዎች')}: ${filteredStudents.length}`, 14, subtitle ? 44 : 36);
-    
-    // Table data
-    const tableData = filteredStudents.map((student, index) => [
-      index + 1,
-      language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId,
-      language === 'am' && student.firstNameAmharic 
-        ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-        : `${student.firstName} ${student.middleName} ${student.lastName}`,
-      getText(student.class, student.class === 'Nursery' ? 'ጀማሪ' : student.class === 'LKG' ? 'ደረጃ 1' : student.class === 'UKG' ? 'ደረጃ 2' : student.class),
-      language === 'am' && student.section ? 
-        (student.section === 'A' ? 'አ' : student.section === 'B' ? 'ለ' : student.section === 'C' ? 'ሐ' : student.section === 'D' ? 'መ' : student.section) 
-        : (student.section || '-'),
-      getText(student.gender, student.gender === 'Male' ? 'ወንድ' : student.gender === 'Female' ? 'ሴት' : student.gender),
-      formatDOB(student.dateOfBirth),
-      student.paymentCode || '-',
-      student.fatherPhone || '-',
-      student.motherName || '-',
-      student.motherPhone || '-',
-      student.email || '-'
-    ]);
-    
-    autoTable(doc, {
-      head: [[
-        '#',
-        getText('Student ID', 'የተማሪ መለያ'),
-        getText('Full Name', 'ሙሉ ስም'),
-        getText('Class', 'ክፍል'),
-        getText('Section', 'ክፍል'),
-        getText('Gender', 'ጾታ'),
-        getText('Date of Birth', 'የትውልድ ቀን'),
-        getText('Payment Code', 'የክፍያ ኮድ'),
-        getText('Father Phone', 'የአባት ስልክ'),
-        getText('Mother Name', 'የእናት ስም'),
-        getText('Mother Phone', 'የእናት ስልክ'),
-        getText('Email', 'ኢሜይል')
-      ]],
-      body: tableData,
-      startY: subtitle ? 52 : 44,
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      margin: { left: 14, right: 14 }
-    });
-    
-    doc.save(`${fileName}.pdf`);
-    setShowExportMenu(false);
-    toast.success(getText('PDF exported successfully!', 'PDF በተሳካ ሁኔታ ወጣ!'));
+
+  const getAttendanceStudents = () => {
+    let list = students;
+    if (attendanceClass) list = list.filter(s => s.class === attendanceClass);
+    if (attendanceSection) list = list.filter(s => s.section === attendanceSection);
+    return list;
   };
-  
+
+  const getStudentName = (s: Student, lang: 'am' | 'en') =>
+    lang === 'am' && s.firstNameAmharic
+      ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim()
+      : `${s.firstName} ${s.middleName} ${s.lastName}`;
+
+  const getAge = (dob?: string) => {
+    if (!dob) return '-';
+    const parts = dob.includes('/') ? dob.split('/') : null;
+    const birth = parts ? new Date(+parts[2], +parts[1] - 1, +parts[0]) : new Date(dob);
+    if (isNaN(birth.getTime())) return '-';
+    return String(new Date().getFullYear() - birth.getFullYear());
+  };
+
+
+
+  const downloadAttendanceExcel = () => {
+    const list = getAttendanceStudents();
+    const isAm = attendanceLang === 'am';
+    const days = Array.from({ length: 22 }, (_, i) => String(i + 1));
+    const totalCols = 4 + 22;
+
+    const titleStyle: any = { font: { bold: true, sz: 14, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E3A5F' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } };
+    const metaLabelStyle: any = { font: { bold: true, sz: 10, color: { rgb: '1E3A5F' } }, fill: { fgColor: { rgb: 'EBF5FB' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'BDC3C7' } }, bottom: { style: 'thin', color: { rgb: 'BDC3C7' } }, left: { style: 'thin', color: { rgb: 'BDC3C7' } }, right: { style: 'thin', color: { rgb: 'BDC3C7' } } } };
+    const metaValueStyle: any = { font: { sz: 10, color: { rgb: '2C3E50' } }, fill: { fgColor: { rgb: 'FDFEFE' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'BDC3C7' } }, bottom: { style: 'thin', color: { rgb: 'BDC3C7' } }, left: { style: 'thin', color: { rgb: 'BDC3C7' } }, right: { style: 'thin', color: { rgb: 'BDC3C7' } } } };
+    const headerStyle: any = { font: { bold: true, sz: 9, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E40AF' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { top: { style: 'medium', color: { rgb: '1E3A5F' } }, bottom: { style: 'medium', color: { rgb: '1E3A5F' } }, left: { style: 'thin', color: { rgb: '3B82F6' } }, right: { style: 'thin', color: { rgb: '3B82F6' } } } };
+    const nameHeaderStyle: any = { ...headerStyle, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } };
+    const rowEvenStyle: any = { font: { sz: 9, color: { rgb: '1A1A2E' } }, fill: { fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'BFDBFE' } }, bottom: { style: 'thin', color: { rgb: 'BFDBFE' } }, left: { style: 'thin', color: { rgb: 'BFDBFE' } }, right: { style: 'thin', color: { rgb: 'BFDBFE' } } } };
+    const rowOddStyle: any = { font: { sz: 9, color: { rgb: '1A1A2E' } }, fill: { fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'BFDBFE' } }, bottom: { style: 'thin', color: { rgb: 'BFDBFE' } }, left: { style: 'thin', color: { rgb: 'BFDBFE' } }, right: { style: 'thin', color: { rgb: 'BFDBFE' } } } };
+    const nameStyle = (even: boolean): any => ({ ...(even ? rowEvenStyle : rowOddStyle), alignment: { horizontal: 'left', vertical: 'center' } });
+    const legendTitleStyle: any = { font: { bold: true, sz: 9, color: { rgb: '1E3A5F' } }, fill: { fgColor: { rgb: 'DBEAFE' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: { top: { style: 'medium', color: { rgb: '1E40AF' } } } };
+    const legendStyle: any = { font: { sz: 9, color: { rgb: '374151' } }, fill: { fgColor: { rgb: 'F0F9FF' } }, alignment: { horizontal: 'left', vertical: 'center' } };
+
+    const ws: any = {};
+    const merges: any[] = [];
+    let R = 0;
+    const setCell = (r: number, col: number, v: any, s: any) => {
+      const addr = XLSXStyle.utils.encode_cell({ r, c: col });
+      ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s };
+    };
+
+    const titleText = isAm
+      ? 'የብሉ ላይት አካዳሚ  የተማሪዎች ስም መቆጣጠሪያ'
+      : 'Bluelight Academy - Student Attendance Sheet';
+    setCell(R, 0, titleText, titleStyle);
+    for (let col = 1; col < totalCols; col++) setCell(R, col, '', titleStyle);
+    merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
+    R++;
+    R++;
+
+    const metaPairs: [string, string][] = isAm
+      ? [
+          ['የመምህሩ ስም', ''],
+          ['ክፍል', attendanceClass || ''],
+          ['ክፍል ቅፅ', attendanceSection || ''],
+          ['ወር', ''],
+          ['የትምህርት አይነት', ''],
+        ]
+      : [
+          ['Teacher Name', ''],
+          ['Class', attendanceClass || ''],
+          ['Section', attendanceSection || ''],
+          ['Month', ''],
+          ['Subject', ''],
+        ];
+
+    const blankBorder: any = { fill: { fgColor: { rgb: 'FDFEFE' } }, border: { top: { style: 'thin', color: { rgb: 'BDC3C7' } }, bottom: { style: 'thin', color: { rgb: 'BDC3C7' } } } };
+    metaPairs.forEach(([label, val]) => {
+      setCell(R, 0, label, metaLabelStyle);
+      setCell(R, 1, val, metaValueStyle);
+      for (let col = 2; col < totalCols; col++) setCell(R, col, '', blankBorder);
+      merges.push({ s: { r: R, c: 1 }, e: { r: R, c: totalCols - 1 } });
+      R++;
+    });
+    R++;
+
+    const headerRowIdx = R;
+    const headers = isAm
+      ? ['ተ.ቁ', 'የተማሪው ስም', 'ዕድሜ', 'ጾታ', ...days]
+      : ['No.', 'Student Name', 'Age', 'Gender', ...days];
+    headers.forEach((h, col) => setCell(R, col, h, col === 1 ? nameHeaderStyle : headerStyle));
+    R++;
+
+    list.forEach((s, i) => {
+      const even = i % 2 === 0;
+      const base = even ? rowEvenStyle : rowOddStyle;
+      setCell(R, 0, i + 1, base);
+      setCell(R, 1, getStudentName(s, attendanceLang), nameStyle(even));
+      setCell(R, 2, getAge(s.dateOfBirth), base);
+      const genderVal = isAm
+        ? (s.gender === 'Male' ? 'ወንድ' : s.gender === 'Female' ? 'ሴት' : s.gender)
+        : (s.gender === 'Male' ? 'M' : s.gender === 'Female' ? 'F' : s.gender);
+      setCell(R, 3, genderVal, base);
+      for (let col = 4; col < totalCols; col++) setCell(R, col, '', base);
+      R++;
+    });
+    R++;
+
+    const legendTitle = isAm ? 'ማስታወሻ፡' : 'Legend:';
+    setCell(R, 0, legendTitle, legendTitleStyle);
+    for (let col = 1; col < totalCols; col++) setCell(R, col, '', legendTitleStyle);
+    merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
+    R++;
+
+    const legendItems = isAm
+      ? ['✓ :- የተገኘ', '✘ :- ያልተገኘ', 'P :- ፈቃድ']
+      : ['\u2713 = Present', '\u2718 = Absent', 'P = Permission'];
+    legendItems.forEach(item => {
+      setCell(R, 0, item, legendStyle);
+      for (let col = 1; col < totalCols; col++) setCell(R, col, '', legendStyle);
+      merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
+      R++;
+    });
+
+    ws['!cols'] = [{ wch: 6 }, { wch: 32 }, { wch: 7 }, { wch: 9 }, ...Array(22).fill({ wch: 4.5 })];
+    const rowHeights: any[] = [];
+    rowHeights[0] = { hpt: 28 };
+    for (let r = 2; r < 2 + metaPairs.length; r++) rowHeights[r] = { hpt: 18 };
+    rowHeights[headerRowIdx] = { hpt: 22 };
+    for (let r = headerRowIdx + 1; r < headerRowIdx + 1 + list.length; r++) rowHeights[r] = { hpt: 18 };
+    ws['!rows'] = rowHeights;
+    ws['!merges'] = merges;
+    ws['!ref'] = XLSXStyle.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: R - 1, c: totalCols - 1 } });
+
+    const wb = XLSXStyle.utils.book_new();
+    const sheetName = isAm ? 'ሁኔታ' : 'Attendance';
+    XLSXStyle.utils.book_append_sheet(wb, ws, sheetName);
+    const buf = XLSXStyle.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const cls = attendanceClass ? '_' + attendanceClass : '';
+    const sec = attendanceSection ? '_' + attendanceSection : '';
+    saveAs(blob, 'Attendance' + cls + sec + '_' + new Date().toISOString().split('T')[0] + '.xlsx');
+    toast.success(getText('Attendance Excel downloaded!', 'የሁኔታ Excel ወጣ!'));
+  };
+
   const exportToExcel = () => {
     const worksheetData = [
       // Header row
@@ -711,16 +786,6 @@ export default function StudentsPage() {
                           {/* Export Buttons */}
                           <div className="flex gap-2">
                             <button
-                              onClick={exportToPDF}
-                              disabled={filteredStudents.length === 0}
-                              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                              </svg>
-                              PDF
-                            </button>
-                            <button
                               onClick={exportToExcel}
                               disabled={filteredStudents.length === 0}
                               className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
@@ -743,6 +808,17 @@ export default function StudentsPage() {
                     )}
                   </div>
                   
+                  {/* Attendance Button */}
+                  <button
+                    onClick={() => setShowAttendanceModal(true)}
+                    className="w-full sm:w-auto bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white px-4 sm:px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    {getText('Attendance', 'ሁኔታ ዝርዝር')}
+                  </button>
+
                   {/* Import Button */}
                   {canDo('students', 'add') && (
                   <button
@@ -1219,6 +1295,105 @@ export default function StudentsPage() {
         </div>
       </div>
       
+      {/* Attendance Modal */}
+      {showAttendanceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl w-full max-w-md ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                {getText('Download Attendance Sheet', 'የattendance ዝርዝር አውርድ')}
+              </h2>
+              <button onClick={() => setShowAttendanceModal(false)} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Language */}
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                  {getText('Language', 'ቋንቋ')}
+                </label>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setAttendanceLang('am')}
+                    className={`flex-1 py-2.5 rounded-lg border-2 font-medium text-sm transition-all ${
+                      attendanceLang === 'am'
+                        ? 'border-teal-600 bg-teal-50 text-teal-700'
+                        : theme === 'dark' ? 'border-gray-600 text-gray-300' : 'border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    🇪🇹 አማርኛ
+                  </button>
+                  <button
+                    onClick={() => setAttendanceLang('en')}
+                    className={`flex-1 py-2.5 rounded-lg border-2 font-medium text-sm transition-all ${
+                      attendanceLang === 'en'
+                        ? 'border-teal-600 bg-teal-50 text-teal-700'
+                        : theme === 'dark' ? 'border-gray-600 text-gray-300' : 'border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    🇬🇧 English
+                  </button>
+                </div>
+              </div>
+
+              {/* Class */}
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                  {getText('Class', 'ክፍል')} ({getText('optional', 'አማራጭ')})
+                </label>
+                <select
+                  value={attendanceClass}
+                  onChange={e => setAttendanceClass(e.target.value)}
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-teal-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                >
+                  <option value="">{getText('All Classes', 'ሁሉም ክፍሎች')}</option>
+                  <option value="Nursery">{getText('Nursery', 'ጀማሪ')}</option>
+                  <option value="LKG">{getText('LKG', 'ደረጃ 1')}</option>
+                  <option value="UKG">{getText('UKG', 'ደረጃ 2')}</option>
+                </select>
+              </div>
+
+              {/* Section */}
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                  {getText('Section', 'ክፍል')} ({getText('optional', 'አማራጭ')})
+                </label>
+                <select
+                  value={attendanceSection}
+                  onChange={e => setAttendanceSection(e.target.value)}
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-teal-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                >
+                  <option value="">{getText('All Sections', 'ሁሉም ክፍሎች')}</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
+                </select>
+              </div>
+
+              {/* Preview count */}
+              <div className={`text-sm px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-teal-50 text-teal-800'}`}>
+                {getText('Students in sheet', 'ተማሪዎች')}: <strong>{getAttendanceStudents().length}</strong>
+              </div>
+
+              {/* Download buttons */}
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => { downloadAttendanceExcel(); setShowAttendanceModal(false); }}
+                  disabled={getAttendanceStudents().length === 0}
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  Excel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Import Modal */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
