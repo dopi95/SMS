@@ -144,7 +144,7 @@ export default function MessagePage() {
             {/* Logo */}
             <div style={{ flexShrink:0, width:86, height:86, borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/img/logo.png" alt="Logo" style={{ width:'100%', height:'100%', objectFit:'contain' }} />
+              <img src="/icons/icon.png" alt="Logo" style={{ width:'100%', height:'100%', objectFit:'contain' }} />
             </div>
 
             {/* Brand */}
@@ -213,7 +213,7 @@ export default function MessagePage() {
         <div style={{ display:'flex', alignItems:'stretch', height:88, background:'#fff', overflow:'hidden' }}>
           <div style={{ display:'flex', alignItems:'center', padding:'10px 18px 10px 22px', flexShrink:0, background:'#fff', zIndex:2 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/img/logo.png" alt="Logo" style={{ width:50, height:50, borderRadius:'50%', objectFit:'contain' }} />
+            <img src="/icons/icon.png" alt="Logo" style={{ width:50, height:50, borderRadius:'50%', objectFit:'contain' }} />
             <span style={{ marginLeft:12, fontSize:12, fontStyle:'italic', fontWeight:600, color:'#1e40af', whiteSpace:'nowrap' }}>&ldquo;Be the light, Lead the way!&rdquo;</span>
           </div>
           <div style={{ flex:1, position:'relative', overflow:'hidden' }}>

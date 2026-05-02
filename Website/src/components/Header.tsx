@@ -19,7 +19,7 @@ export default function Header() {
           <div className="flex items-center justify-between h-16">
             {/* Logo and Text */}
             <Link href="/" className="flex items-center space-x-3">
-              <img src="/img/logo.png" alt="Bluelight Academy" className="w-16 h-12" />
+              <img src="/icons/icon.png" alt="Bluelight Academy" className="w-12 h-12" />
               <span className="text-xl font-bold text-gray-900">{t.siteName}</span>
             </Link>
 
