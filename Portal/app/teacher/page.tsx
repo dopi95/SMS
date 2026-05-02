@@ -139,6 +139,23 @@ export default function TeacherDashboard() {
 
         {tab === 'password' && (
           <Section title="Change Password">
+            {/* Show current credentials */}
+            <div className="mb-6 p-4 rounded-xl border-2 border-blue-100 bg-blue-50 space-y-3">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Your Current Login Credentials</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-white rounded-lg px-4 py-3 border border-blue-200">
+                  <p className="text-xs text-gray-400 font-medium mb-1">Username</p>
+                  <p className="font-mono font-semibold text-blue-700 text-sm">{profile.portalUsername}</p>
+                </div>
+                <div className="bg-white rounded-lg px-4 py-3 border border-blue-200">
+                  <p className="text-xs text-gray-400 font-medium mb-1">Password</p>
+                  <p className="font-mono font-semibold text-green-700 text-sm">{'•'.repeat(8)} <span className="text-xs text-gray-400">(change below)</span></p>
+                </div>
+              </div>
+              <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+                Keep your credentials secure. Do not share with anyone.
+              </p>
+            </div>
             <form onSubmit={handleChangePassword} className="space-y-4 max-w-sm">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
