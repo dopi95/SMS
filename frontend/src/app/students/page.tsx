@@ -500,6 +500,96 @@ export default function StudentsPage() {
     }
   };
 
+  const downloadCredentialsPDF = async (list: {studentId:string;name:string;username:string;password:string}[]) => {
+    if (list.length === 0) return;
+    const { default: jsPDF } = await import('jspdf');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = doc.internal.pageSize.getWidth();
+    const cardH = 42;
+    const cardW = (W - 30) / 2; // 2 cards per row
+    const cols = 2;
+    const marginX = 10;
+    const marginY = 18;
+    const gapX = 10;
+    const gapY = 6;
+
+    // Header
+    doc.setFillColor(30, 58, 95);
+    doc.rect(0, 0, W, 12, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Bluelight Academy — Student Portal Credentials', W / 2, 8, { align: 'center' });
+
+    list.forEach((c, idx) => {
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const x = marginX + col * (cardW + gapX);
+      const y = marginY + row * (cardH + gapY);
+
+      // New page if needed
+      if (y + cardH > doc.internal.pageSize.getHeight() - 10) {
+        doc.addPage();
+        doc.setFillColor(30, 58, 95);
+        doc.rect(0, 0, W, 12, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Bluelight Academy — Student Portal Credentials', W / 2, 8, { align: 'center' });
+      }
+
+      // Card background
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(x, y, cardW, cardH, 3, 3, 'F');
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(x, y, cardW, cardH, 3, 3, 'S');
+
+      // Top accent bar
+      doc.setFillColor(30, 58, 95);
+      doc.roundedRect(x, y, cardW, 7, 3, 3, 'F');
+      doc.rect(x, y + 4, cardW, 3, 'F');
+
+      // Name
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.text(c.name.length > 28 ? c.name.substring(0, 26) + '..' : c.name, x + 3, y + 5.5);
+
+      // Username label + value
+      doc.setTextColor(100, 116, 139);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'bold');
+      doc.text('USERNAME', x + 3, y + 14);
+      doc.setFillColor(239, 246, 255);
+      doc.roundedRect(x + 3, y + 15.5, cardW - 6, 8, 1.5, 1.5, 'F');
+      doc.setTextColor(29, 78, 216);
+      doc.setFontSize(8);
+      doc.setFont('courier', 'bold');
+      doc.text(c.username, x + 5, y + 21);
+
+      // Password label + value
+      doc.setTextColor(100, 116, 139);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PASSWORD', x + 3, y + 28);
+      doc.setFillColor(240, 253, 244);
+      doc.roundedRect(x + 3, y + 29.5, cardW - 6, 8, 1.5, 1.5, 'F');
+      doc.setTextColor(21, 128, 61);
+      doc.setFontSize(8);
+      doc.setFont('courier', 'bold');
+      doc.text(c.password, x + 5, y + 35);
+
+      // Footer line
+      doc.setTextColor(148, 163, 184);
+      doc.setFontSize(5.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Keep confidential', x + cardW - 3, y + cardH - 2, { align: 'right' });
+    });
+
+    doc.save(`credentials_all_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success(getText('PDF downloaded!', 'PDF ወጣ!'));
+  };
+
   const handleGenerateSingleCredential = async (studentId: string) => {
     const loadingToast = toast.loading(getText('Generating...', 'እየፈጠረ ነው...'));
     try {
@@ -1782,8 +1872,17 @@ export default function StudentsPage() {
                 </tbody>
               </table>
             </div>
-            <div className={`px-6 py-3 border-t flex justify-end ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-              <button onClick={() => setShowCredModal(false)} className="bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+            <div className={`px-6 py-3 border-t flex justify-between items-center ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <button
+                onClick={() => downloadCredentialsPDF(credResults)}
+                className="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                {getText('Download PDF', 'PDF አውርድ')}
+              </button>
+              <button onClick={() => setShowCredModal(false)} className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
                 {getText('Close', 'የረስት')}
               </button>
             </div>

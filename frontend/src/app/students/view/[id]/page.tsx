@@ -116,6 +116,95 @@ export default function ViewStudentPage() {
     }
   };
 
+  const downloadCredentialPDF = async () => {
+    if (!student || !credential?.username) return;
+    const { default: jsPDF } = await import('jspdf');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
+
+    const fullName = language === 'am' && student.firstNameAmharic
+      ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
+      : `${student.firstName} ${student.middleName} ${student.lastName}`;
+
+    const W = doc.internal.pageSize.getWidth();
+
+    // Header bar
+    doc.setFillColor(30, 58, 95);
+    doc.rect(0, 0, W, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Bluelight Academy', W / 2, 10, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Student Portal Credentials', W / 2, 17, { align: 'center' });
+
+    // Card background
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(10, 28, W - 20, 90, 4, 4, 'F');
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(10, 28, W - 20, 90, 4, 4, 'S');
+
+    // Student name
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(fullName, W / 2, 42, { align: 'center' });
+
+    // Student ID
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(`ID: ${student.studentId}  |  Class: ${student.class}${student.section ? '  Section: ' + student.section : ''}`, W / 2, 50, { align: 'center' });
+
+    // Divider
+    doc.setDrawColor(226, 232, 240);
+    doc.line(18, 55, W - 18, 55);
+
+    // Username box
+    doc.setFillColor(239, 246, 255);
+    doc.roundedRect(14, 60, W - 28, 18, 3, 3, 'F');
+    doc.setDrawColor(147, 197, 253);
+    doc.roundedRect(14, 60, W - 28, 18, 3, 3, 'S');
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('USERNAME', 18, 66);
+    doc.setTextColor(29, 78, 216);
+    doc.setFontSize(12);
+    doc.setFont('courier', 'bold');
+    doc.text(credential.username, 18, 74);
+
+    // Password box
+    doc.setFillColor(240, 253, 244);
+    doc.roundedRect(14, 83, W - 28, 18, 3, 3, 'F');
+    doc.setDrawColor(134, 239, 172);
+    doc.roundedRect(14, 83, W - 28, 18, 3, 3, 'S');
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PASSWORD', 18, 89);
+    doc.setTextColor(21, 128, 61);
+    doc.setFontSize(12);
+    doc.setFont('courier', 'bold');
+    doc.text(credential.password || '', 18, 97);
+
+    // Warning note
+    doc.setFillColor(254, 252, 232);
+    doc.roundedRect(10, 122, W - 20, 12, 2, 2, 'F');
+    doc.setTextColor(133, 77, 14);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Keep this document confidential. Do not share with others.', W / 2, 129, { align: 'center' });
+
+    // Footer
+    doc.setTextColor(148, 163, 184);
+    doc.setFontSize(7);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, W / 2, 142, { align: 'center' });
+
+    doc.save(`credential_${student.studentId.replace('/', '_')}.pdf`);
+    toast.success(getText('PDF downloaded!', 'PDF ወጣ!'));
+  };
+
   const fetchStudent = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -420,16 +509,29 @@ export default function ViewStudentPage() {
                     <h3 className={`text-lg font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                       🔑 {getText('Portal Credentials', 'የፖርታል ምስክርነቶች')}
                     </h3>
-                    <button
-                      onClick={handleGenerateCredential}
-                      disabled={generatingSingle}
-                      className="bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      {generatingSingle ? getText('Generating...', 'እየፈጠረ ነው...') : getText('Regenerate', 'ዳግሞ ፍጠር')}
-                    </button>
+                    <div className="flex gap-2">
+                      {credential?.username && (
+                        <button
+                          onClick={downloadCredentialPDF}
+                          className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          PDF
+                        </button>
+                      )}
+                      <button
+                        onClick={handleGenerateCredential}
+                        disabled={generatingSingle}
+                        className="bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        {generatingSingle ? getText('Generating...', 'እየፈጠረ ነው...') : getText('Regenerate', 'ዳግሞ ፍጠር')}
+                      </button>
+                    </div>
                   </div>
 
                   {credLoading ? (
