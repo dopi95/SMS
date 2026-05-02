@@ -22,6 +22,8 @@ const teacherSchema = new mongoose.Schema({
   teachingSubject: { type: String },
   photo: { type: String },
   isActive: { type: Boolean, default: true },
+  portalUsername: { type: String, default: '' },
+  portalPassword: { type: String, default: '' },
   salaries: [salarySchema]
 }, { timestamps: true });
 

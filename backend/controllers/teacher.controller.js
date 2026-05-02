@@ -1,6 +1,29 @@
 const Teacher = require('../models/Teacher.model');
+const User = require('../models/User.model');
 const cloudinary = require('../config/cloudinary.config');
 const logActivity = require('../utils/logActivity');
+
+const generateRandomPassword = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+};
+
+const upsertTeacherCredential = async (teacher) => {
+  const username = teacher.teacherId;
+  const plainPassword = generateRandomPassword();
+  const email = teacher.email || `${username.toLowerCase()}@bluelight.edu`;
+  const existing = await User.findOne({ email });
+  if (existing) {
+    existing.password = plainPassword;
+    existing.plainPassword = plainPassword;
+    existing.name = teacher.fullName;
+    await existing.save();
+  } else {
+    await new User({ name: teacher.fullName, email, password: plainPassword, plainPassword, role: 'teacher' }).save();
+  }
+  await Teacher.findByIdAndUpdate(teacher._id, { portalUsername: username, portalPassword: plainPassword });
+  return { teacherId: teacher.teacherId, name: teacher.fullName, role: teacher.role, username, password: plainPassword };
+};
 
 const getTeachers = async (req, res) => {
   try {
@@ -146,4 +169,50 @@ const bulkImportTeachers = async (req, res) => {
   }
 };
 
-module.exports = { getTeachers, getTeacher, createTeacher, updateTeacher, deleteTeacher, bulkImportTeachers };
+const generateEmployeeCredentials = async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
+    const teachers = await Teacher.find({ isActive: true, role: { $in: ['Teacher', 'Principal'] } });
+    if (teachers.length === 0) return res.status(404).json({ message: 'No active teachers/principals found' });
+    const results = [];
+    for (const t of teachers) results.push(await upsertTeacherCredential(t));
+    await logActivity(req.user, 'Generated Credentials', 'Employee', `Generated credentials for ${results.length} employees`);
+    res.json({ message: `Credentials generated for ${results.length} employees`, credentials: results });
+  } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+const generateEmployeeCredentialSingle = async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
+    const teacher = await Teacher.findById(req.params.id);
+    if (!teacher) return res.status(404).json({ message: 'Employee not found' });
+    const result = await upsertTeacherCredential(teacher);
+    await logActivity(req.user, 'Generated Credential', 'Employee', `Generated credential for ${teacher.fullName}`);
+    res.json(result);
+  } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+const getEmployeeCredential = async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
+    const teacher = await Teacher.findById(req.params.id, { teacherId: 1, fullName: 1, role: 1, portalUsername: 1, portalPassword: 1 });
+    if (!teacher) return res.status(404).json({ message: 'Employee not found' });
+    res.json({ teacherId: teacher.teacherId, name: teacher.fullName, role: teacher.role, username: teacher.portalUsername || null, password: teacher.portalPassword || null });
+  } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+const getAllEmployeeCredentials = async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
+    const teachers = await Teacher.find(
+      { isActive: true, portalUsername: { $ne: '' }, portalPassword: { $ne: '' } },
+      { teacherId: 1, fullName: 1, role: 1, portalUsername: 1, portalPassword: 1 }
+    );
+    const credentials = teachers
+      .filter(t => t.portalUsername && t.portalPassword)
+      .map(t => ({ teacherId: t.teacherId, name: t.fullName, role: t.role, username: t.portalUsername, password: t.portalPassword }));
+    res.json({ credentials });
+  } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+module.exports = { getTeachers, getTeacher, createTeacher, updateTeacher, deleteTeacher, bulkImportTeachers, generateEmployeeCredentials, generateEmployeeCredentialSingle, getEmployeeCredential, getAllEmployeeCredentials };

@@ -35,6 +35,7 @@ interface Teacher {
 export default function EmployeesPage() {
   const { language, theme, getText } = useSettings();
   const { canDo } = usePermissions();
+  const { role: userRole } = usePermissions();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [filteredTeachers, setFilteredTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +45,10 @@ export default function EmployeesPage() {
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
+  const [showCredModal, setShowCredModal] = useState(false);
+  const [credResults, setCredResults] = useState<{teacherId:string;name:string;role:string;username:string;password:string}[]>([]);
+  const [generatingCreds, setGeneratingCreds] = useState(false);
+  const [singleCredResult, setSingleCredResult] = useState<{teacherId:string;name:string;role:string;username:string;password:string}|null>(null);
   const router = useRouter();
 
   useEffect(() => { fetchTeachers(); }, []);
@@ -185,6 +190,82 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleGenerateAllCredentials = async () => {
+    setGeneratingCreds(true);
+    const t = toast.loading(getText('Generating credentials...', 'ምስክርነቶችን እየፈጠረ ነው...'));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/teachers/generate-credentials`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      toast.dismiss(t);
+      setCredResults(res.data.credentials);
+      setShowCredModal(true);
+      toast.success(getText(`Credentials generated for ${res.data.credentials.length} employees!`, `${res.data.credentials.length} ሰራተኞች ምስክርነቶች ተፈጥረዋል!`));
+    } catch {
+      toast.dismiss(t);
+      toast.error(getText('Failed to generate credentials', 'ምስክርነቶችን መፍጠር አልተሳካም'));
+    } finally { setGeneratingCreds(false); }
+  };
+
+  const handleGenerateSingleCredential = async (id: string) => {
+    const t = toast.loading(getText('Generating...', 'እየፈጠረ ነው...'));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/teachers/${id}/generate-credential`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      toast.dismiss(t);
+      setSingleCredResult(res.data);
+    } catch {
+      toast.dismiss(t);
+      toast.error(getText('Failed to generate credential', 'ምስክርነት መፍጠር አልተሳካም'));
+    }
+  };
+
+  const downloadCredentialsPDF = async (list: {teacherId:string;name:string;role:string;username:string;password:string}[]) => {
+    if (list.length === 0) return toast.error(getText('No credentials to download', 'ምስክርነቶች የሉም'));
+    const { default: jsPDFLib } = await import('jspdf');
+    const { default: autoTableLib } = await import('jspdf-autotable');
+    const doc = new (jsPDFLib as any)({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = doc.internal.pageSize.getWidth();
+    doc.setFillColor(30, 58, 95); doc.rect(0, 0, W, 18, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+    doc.text('Bluelight Academy', W / 2, 9, { align: 'center' });
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    doc.text('Employee Portal Credentials', W / 2, 15, { align: 'center' });
+    doc.setFillColor(254, 252, 232); doc.rect(10, 21, W - 20, 7, 'F');
+    doc.setTextColor(133, 77, 14); doc.setFontSize(7);
+    doc.text('CONFIDENTIAL — Keep secure. Share only with the respective employee.', W / 2, 26, { align: 'center' });
+    autoTableLib(doc, {
+      startY: 31,
+      head: [['#', 'Full Name', 'Role', 'Username', 'Password']],
+      body: list.map((c, i) => [i + 1, c.name, c.role, c.username, c.password]),
+      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [239, 246, 255] },
+      columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 1: { cellWidth: 60 }, 2: { cellWidth: 28 }, 3: { cellWidth: 42 }, 4: { cellWidth: 42 } },
+      margin: { left: 10, right: 10 },
+    });
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i); doc.setFontSize(7); doc.setTextColor(148, 163, 184);
+      doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Page ${i} of ${pageCount}`, W / 2, doc.internal.pageSize.getHeight() - 5, { align: 'center' });
+    }
+    doc.save(`employee_credentials_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success(getText('PDF downloaded!', 'PDF ወጣ!'));
+  };
+
+  const handleDownloadCredentialsPDF = async () => {
+    const t = toast.loading(getText('Loading credentials...', 'ምስክርነቶችን እየጠበቀ ነው...'));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/teachers/all-credentials`, { headers: { Authorization: `Bearer ${token}` } });
+      toast.dismiss(t);
+      if (res.data.credentials.length === 0) return toast.error(getText('No credentials found. Generate first.', 'ምስክርነቶች አልተገኙም። መጀመሪያ ፍጠር።'));
+      await downloadCredentialsPDF(res.data.credentials);
+    } catch {
+      toast.dismiss(t);
+      toast.error(getText('Failed to load credentials', 'ምስክርነቶችን መጫን አልተሳካም'));
+    }
+  };
+
   const exportToPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
@@ -244,6 +325,13 @@ export default function EmployeesPage() {
           <button onClick={() => handleDelete(teacher._id)}
             className={`${cls} ${theme === 'dark' ? 'bg-red-800 text-red-200 hover:bg-red-700' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>
             {getText('Delete', 'ሰርዝ')}
+          </button>
+        )}
+        {userRole === 'superadmin' && (teacher.role === 'Teacher' || teacher.role === 'Principal') && (
+          <button onClick={() => handleGenerateSingleCredential(teacher._id)}
+            className={`${cls} ${theme === 'dark' ? 'bg-rose-800 text-rose-200 hover:bg-rose-700' : 'bg-rose-100 text-rose-700 hover:bg-rose-200'}`}
+            title={getText('Generate Credential', 'ምስክርነት ፍጠር')}>
+            {mobile ? `🔑 ${getText('Cred.', 'ምስክርነት')}` : '🔑'}
           </button>
         )}
       </>
@@ -325,6 +413,24 @@ export default function EmployeesPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
                       {getText('Add New Employee', 'አዲስ ሰራተኛ ጨምር')}
+                    </button>
+                  )}
+                  {userRole === 'superadmin' && (
+                    <button onClick={handleGenerateAllCredentials} disabled={generatingCreds}
+                      className="w-full sm:w-auto bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 disabled:opacity-60 text-white px-5 py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-md">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                      </svg>
+                      Gen. Credentials
+                    </button>
+                  )}
+                  {userRole === 'superadmin' && (
+                    <button onClick={handleDownloadCredentialsPDF}
+                      className="w-full sm:w-auto bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white px-5 py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-md">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Cred. PDF
                     </button>
                   )}
                 </div>
@@ -461,6 +567,98 @@ export default function EmployeesPage() {
           </div>
         </div>
       </div>
+      {/* Bulk Credentials Modal */}
+      {showCredModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                {getText('Generated Credentials', 'Generated Credentials')} ({credResults.length})
+              </h2>
+              <button onClick={() => setShowCredModal(false)} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className={`px-4 py-2 text-xs ${theme === 'dark' ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-50 text-yellow-800'}`}>
+              Save these credentials now — passwords cannot be recovered later.
+            </div>
+            <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 160px)' }}>
+              <table className="w-full text-sm">
+                <thead className={`sticky top-0 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <tr>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>#</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Name</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Role</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Username</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Password</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-100'}`}>
+                  {credResults.map((c, i) => (
+                    <tr key={c.teacherId} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                      <td className={`px-4 py-2 text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{i + 1}</td>
+                      <td className={`px-4 py-2 text-xs font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{c.name}</td>
+                      <td className={`px-4 py-2 text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{c.role}</td>
+                      <td className="px-4 py-2"><span className={`text-xs font-mono px-2 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-600 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>{c.username}</span></td>
+                      <td className="px-4 py-2"><span className={`text-xs font-mono px-2 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-600 text-green-300' : 'bg-green-50 text-green-700'}`}>{c.password}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className={`px-6 py-3 border-t flex justify-between items-center ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <button onClick={() => downloadCredentialsPDF(credResults)}
+                className="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download PDF
+              </button>
+              <button onClick={() => setShowCredModal(false)} className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Single Credential Modal */}
+      {singleCredResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl w-full max-w-sm ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Credential Generated</h2>
+              <button onClick={() => setSingleCredResult(null)} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className={`text-xs px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-50 text-yellow-800'}`}>
+                Save this password — it cannot be recovered later.
+              </div>
+              <div>
+                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Employee</p>
+                <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{singleCredResult.name}</p>
+                <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{singleCredResult.role}</p>
+              </div>
+              <div>
+                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Username</p>
+                <span className={`font-mono text-sm px-3 py-1.5 rounded-lg inline-block ${theme === 'dark' ? 'bg-gray-700 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>{singleCredResult.username}</span>
+              </div>
+              <div>
+                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Password</p>
+                <span className={`font-mono text-sm px-3 py-1.5 rounded-lg inline-block ${theme === 'dark' ? 'bg-gray-700 text-green-300' : 'bg-green-50 text-green-700'}`}>{singleCredResult.password}</span>
+              </div>
+            </div>
+            <div className={`px-6 py-3 border-t flex justify-end ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <button onClick={() => setSingleCredResult(null)} className="bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Import Modal */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
