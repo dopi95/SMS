@@ -38,7 +38,7 @@ interface Student {
 
 export default function StudentsPage() {
   const { language, theme, getText } = useSettings();
-  const { canDo } = usePermissions();
+  const { canDo, role } = usePermissions();
   const [students, setStudents] = useState<Student[]>([]);
   const [inactiveStudents, setInactiveStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
@@ -74,6 +74,10 @@ export default function StudentsPage() {
   const [studentsPerSection, setStudentsPerSection] = useState('');
   const [sectionPreview, setSectionPreview] = useState<{id:string;name:string;section:string}[]>([]);
   const [assigningSection, setAssigningSection] = useState(false);
+  const [showCredModal, setShowCredModal] = useState(false);
+  const [credResults, setCredResults] = useState<{studentId:string;name:string;username:string;password:string}[]>([]);
+  const [generatingCreds, setGeneratingCreds] = useState(false);
+  const [singleCredResult, setSingleCredResult] = useState<{studentId:string;name:string;username:string;password:string}|null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -473,6 +477,41 @@ export default function StudentsPage() {
       toast.error(getText('Failed to assign sections', 'ክፍሎችን መስጠት አልተሳካም'));
     } finally {
       setAssigningSection(false);
+    }
+  };
+
+  const handleGenerateAllCredentials = async () => {
+    setGeneratingCreds(true);
+    const loadingToast = toast.loading(getText('Generating credentials...', 'ምስክርነቶችን እየፈጠረ ነው...'));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/generate-credentials`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.dismiss(loadingToast);
+      setCredResults(res.data.credentials);
+      setShowCredModal(true);
+      toast.success(getText(`Credentials generated for ${res.data.credentials.length} students!`, `${res.data.credentials.length} ተማሪዎች ምስክርነቶች ተፈጥረዋል!`));
+    } catch {
+      toast.dismiss(loadingToast);
+      toast.error(getText('Failed to generate credentials', 'ምስክርነቶችን መፍጠር አልተሳካም'));
+    } finally {
+      setGeneratingCreds(false);
+    }
+  };
+
+  const handleGenerateSingleCredential = async (studentId: string) => {
+    const loadingToast = toast.loading(getText('Generating...', 'እየፈጠረ ነው...'));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/${studentId}/generate-credential`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.dismiss(loadingToast);
+      setSingleCredResult(res.data);
+    } catch {
+      toast.dismiss(loadingToast);
+      toast.error(getText('Failed to generate credential', 'ምስክርነት መፍጠር አልተሳካም'));
     }
   };
 
@@ -887,6 +926,20 @@ export default function StudentsPage() {
                       {getText('Import', 'አስገባ')}
                     </button>
                   )}
+
+                  {/* Generate Credentials — superadmin only */}
+                  {role === 'superadmin' && (
+                    <button
+                      onClick={handleGenerateAllCredentials}
+                      disabled={generatingCreds}
+                      className="col-span-2 sm:col-span-1 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                      </svg>
+                      {getText('Gen. Credentials', 'ምስክርነቶች')}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1220,6 +1273,15 @@ export default function StudentsPage() {
                               {getText('Delete', 'ሰርዝ')}
                             </button>
                             )}
+                            {role === 'superadmin' && (
+                            <button
+                              onClick={() => handleGenerateSingleCredential(student._id)}
+                              className={`text-xs px-2 py-1 rounded transition-colors ${theme === 'dark' ? 'bg-rose-800 text-rose-200 hover:bg-rose-700' : 'bg-rose-100 text-rose-700 hover:bg-rose-200'}`}
+                              title={getText('Generate Credential', 'ምስክርነት ፍጠር')}
+                            >
+                              🔑
+                            </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1327,6 +1389,7 @@ export default function StudentsPage() {
                             {canDo('students','edit') && <button onClick={() => router.push(`/students/edit/${student._id}`)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-blue-800 text-blue-200 hover:bg-blue-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}>{getText('Edit', 'ያርቱ')}</button>}
                             {canDo('students','inactive') && <button onClick={() => handleInactive(student._id)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-orange-800 text-orange-200 hover:bg-orange-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}>{getText('Inactive', 'አይሰራ')}</button>}
                             {canDo('students','delete') && <button onClick={() => handleDelete(student._id)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-red-800 text-red-200 hover:bg-red-700' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>{getText('Delete', 'ሰርዝ')}</button>}
+                            {role === 'superadmin' && <button onClick={() => handleGenerateSingleCredential(student._id)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${theme === 'dark' ? 'bg-rose-800 text-rose-200 hover:bg-rose-700' : 'bg-rose-100 text-rose-700 hover:bg-rose-200'}`} title={getText('Generate Credential', 'ምስክርነት ፍጠር')}>🔑 {getText('Cred.', 'ምስክርነት')}</button>}
                           </div>
                         </div>
                       </div>
@@ -1672,6 +1735,92 @@ export default function StudentsPage() {
                 className="bg-violet-600 hover:bg-violet-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium transition-colors"
               >
                 {assigningSection ? getText('Assigning...', 'እየሰጠ ነው...') : getText('Assign Sections', 'ክፍሎች ስጥ')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Credentials Modal */}
+      {showCredModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                🔑 {getText('Generated Credentials', 'ተፈጥረው ምስክርነቶች')} ({credResults.length})
+              </h2>
+              <button onClick={() => setShowCredModal(false)} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className={`px-4 py-2 text-xs ${theme === 'dark' ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-50 text-yellow-800'}`}>
+              {getText('Save these credentials now — passwords cannot be recovered later.', 'እነዚህን ምስክርነቶች አሁን ያከምቱ — ሽረት በኊላ መመለስ አይቻልም።')}
+            </div>
+            <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 160px)' }}>
+              <table className="w-full text-sm">
+                <thead className={`sticky top-0 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <tr>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>#</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Name', 'ስም')}</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Username (ID)', 'መለያ (መለያ)')}</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Password', 'ሽርት')}</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-100'}`}>
+                  {credResults.map((c, i) => (
+                    <tr key={c.studentId} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                      <td className={`px-4 py-2 text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{i + 1}</td>
+                      <td className={`px-4 py-2 text-xs font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{c.name}</td>
+                      <td className="px-4 py-2">
+                        <span className={`text-xs font-mono px-2 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-600 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>{c.username}</span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className={`text-xs font-mono px-2 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-600 text-green-300' : 'bg-green-50 text-green-700'}`}>{c.password}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className={`px-6 py-3 border-t flex justify-end ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <button onClick={() => setShowCredModal(false)} className="bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+                {getText('Close', 'የረስት')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Single Credential Modal */}
+      {singleCredResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl w-full max-w-sm ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>🔑 {getText('Credential Generated', 'ምስክርነት ተፈጥሮ')}</h2>
+              <button onClick={() => setSingleCredResult(null)} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className={`text-xs px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-50 text-yellow-800'}`}>
+                {getText('Save this password — it cannot be recovered later.', 'ይህንን ሽርት አሁን ያከምቱ — በኊላ መመለስ አይቻልም።')}
+              </div>
+              <div>
+                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Student', 'ተማሪ')}</p>
+                <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{singleCredResult.name}</p>
+              </div>
+              <div>
+                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Username (Student ID)', 'መለያ (የተማሪ መለያ)')}</p>
+                <span className={`font-mono text-sm px-3 py-1.5 rounded-lg inline-block ${theme === 'dark' ? 'bg-gray-700 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>{singleCredResult.username}</span>
+              </div>
+              <div>
+                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Password', 'ሽርት')}</p>
+                <span className={`font-mono text-sm px-3 py-1.5 rounded-lg inline-block ${theme === 'dark' ? 'bg-gray-700 text-green-300' : 'bg-green-50 text-green-700'}`}>{singleCredResult.password}</span>
+              </div>
+            </div>
+            <div className={`px-6 py-3 border-t flex justify-end ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <button onClick={() => setSingleCredResult(null)} className="bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+                {getText('Close', 'የረስት')}
               </button>
             </div>
           </div>

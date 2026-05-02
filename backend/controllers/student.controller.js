@@ -1,7 +1,33 @@
 const Student = require('../models/Student.model');
 const PendingStudent = require('../models/PendingStudent.model');
+const User = require('../models/User.model');
 const cloudinary = require('../config/cloudinary.config');
 const logActivity = require('../utils/logActivity');
+
+const generateRandomPassword = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+};
+
+const upsertStudentCredential = async (student) => {
+  const username = student.studentId;
+  const plainPassword = generateRandomPassword();
+  const fullName = `${student.firstName} ${student.middleName} ${student.lastName}`;
+  const email = student.email || `${username.replace('/', '_')}@bluelight.edu`;
+
+  const existing = await User.findOne({ email });
+  if (existing) {
+    existing.password = plainPassword;
+    existing.plainPassword = plainPassword;
+    existing.name = fullName;
+    await existing.save();
+    return { studentId: student.studentId, username, password: plainPassword, name: fullName };
+  }
+
+  const user = new User({ name: fullName, email, password: plainPassword, plainPassword, role: 'student' });
+  await user.save();
+  return { studentId: student.studentId, username, password: plainPassword, name: fullName };
+};
 
 const getStudents = async (req, res) => {
   try {
@@ -326,4 +352,35 @@ const bulkAssignSections = async (req, res) => {
   }
 };
 
-module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport, bulkAssignSections };
+const generateCredentials = async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
+    const students = await Student.find({ status: 'active' });
+    if (students.length === 0) return res.status(404).json({ message: 'No active students found' });
+    const results = [];
+    for (const s of students) {
+      if (!s.studentId) continue;
+      results.push(await upsertStudentCredential(s));
+    }
+    await logActivity(req.user, 'Generated Credentials', 'Student', `Generated credentials for ${results.length} students`);
+    res.json({ message: `Credentials generated for ${results.length} students`, credentials: results });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const generateCredentialSingle = async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
+    const student = await Student.findById(req.params.id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+    if (!student.studentId) return res.status(400).json({ message: 'Student has no ID yet' });
+    const result = await upsertStudentCredential(student);
+    await logActivity(req.user, 'Generated Credential', 'Student', `Generated credential for ${student.firstName} ${student.lastName}`);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle };
