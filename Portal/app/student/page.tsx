@@ -9,7 +9,8 @@ interface StudentProfile {
   firstNameAmharic?: string; middleNameAmharic?: string; lastNameAmharic?: string
   email?: string; gender: string; dateOfBirth?: string; joinedYear: string
   class: string; section?: string; address?: string; paymentCode?: string; photo?: string
-  fatherName?: string; fatherPhone?: string; motherName?: string; motherPhone?: string
+  fatherName?: string; fatherPhone?: string; fatherPhoto?: string
+  motherName?: string; motherPhone?: string; motherPhoto?: string
   portalUsername: string
 }
 
@@ -162,15 +163,35 @@ export default function StudentDashboard() {
           {/* Parent Info */}
           <Section title="Parent Information">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase">Father</p>
-                <Info label="Name" value={profile.fatherName || '-'} />
-                <Info label="Phone" value={profile.fatherPhone || '-'} />
+                <div className="flex items-center gap-3">
+                  {profile.fatherPhoto
+                    ? <img src={profile.fatherPhoto} alt="Father" className="w-14 h-14 rounded-full object-cover border-2 border-gray-300 flex-shrink-0" />
+                    : <div className="w-14 h-14 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-7 h-7 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      </div>
+                  }
+                  <div className="space-y-1">
+                    <Info label="Name" value={profile.fatherName || '-'} />
+                    <Info label="Phone" value={profile.fatherPhone || '-'} />
+                  </div>
+                </div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase">Mother</p>
-                <Info label="Name" value={profile.motherName || '-'} />
-                <Info label="Phone" value={profile.motherPhone || '-'} />
+                <div className="flex items-center gap-3">
+                  {profile.motherPhoto
+                    ? <img src={profile.motherPhoto} alt="Mother" className="w-14 h-14 rounded-full object-cover border-2 border-gray-300 flex-shrink-0" />
+                    : <div className="w-14 h-14 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-7 h-7 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      </div>
+                  }
+                  <div className="space-y-1">
+                    <Info label="Name" value={profile.motherName || '-'} />
+                    <Info label="Phone" value={profile.motherPhone || '-'} />
+                  </div>
+                </div>
               </div>
             </div>
           </Section>

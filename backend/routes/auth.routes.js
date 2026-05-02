@@ -31,8 +31,8 @@ router.post('/portal-login', async (req, res) => {
           email: student.email, gender: student.gender, dateOfBirth: student.dateOfBirth,
           joinedYear: student.joinedYear, class: student.class, section: student.section,
           address: student.address, paymentCode: student.paymentCode, photo: student.photo,
-          fatherName: student.fatherName, fatherPhone: student.fatherPhone,
-          motherName: student.motherName, motherPhone: student.motherPhone,
+          fatherName: student.fatherName, fatherPhone: student.fatherPhone, fatherPhoto: student.fatherPhoto,
+          motherName: student.motherName, motherPhone: student.motherPhone, motherPhoto: student.motherPhoto,
           portalUsername: student.portalUsername
         }
       });
