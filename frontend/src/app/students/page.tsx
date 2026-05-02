@@ -967,8 +967,8 @@ export default function StudentsPage() {
                     {getText('Attendance', 'ሁኔታ')}
                   </button>
 
-                  {/* Generate Sections */}
-                  {canDo('students', 'edit') && (
+                  {/* Generate Sections — visible to all admin roles */}
+                  {canDo('students', 'view') && (
                     <button
                       onClick={() => { setShowSectionModal(true); setSectionPreview([]); }}
                       className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
