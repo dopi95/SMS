@@ -23,6 +23,8 @@ const studentSchema = new mongoose.Schema({
   motherName: { type: String },
   motherPhone: { type: String },
   motherPhoto: { type: String },
+  portalUsername: { type: String, default: '' },
+  portalPassword: { type: String, default: '' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   enrollmentDate: { type: Date, default: Date.now }
 }, { timestamps: true });

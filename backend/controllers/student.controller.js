@@ -21,11 +21,14 @@ const upsertStudentCredential = async (student) => {
     existing.plainPassword = plainPassword;
     existing.name = fullName;
     await existing.save();
-    return { studentId: student.studentId, username, password: plainPassword, name: fullName };
+  } else {
+    const user = new User({ name: fullName, email, password: plainPassword, plainPassword, role: 'student' });
+    await user.save();
   }
 
-  const user = new User({ name: fullName, email, password: plainPassword, plainPassword, role: 'student' });
-  await user.save();
+  // Save credentials on the student record
+  await Student.findByIdAndUpdate(student._id, { portalUsername: username, portalPassword: plainPassword });
+
   return { studentId: student.studentId, username, password: plainPassword, name: fullName };
 };
 
@@ -352,6 +355,22 @@ const bulkAssignSections = async (req, res) => {
   }
 };
 
+const getCredential = async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
+    const student = await Student.findById(req.params.id, { studentId: 1, firstName: 1, middleName: 1, lastName: 1, portalUsername: 1, portalPassword: 1 });
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+    res.json({
+      studentId: student.studentId,
+      name: `${student.firstName} ${student.middleName} ${student.lastName}`,
+      username: student.portalUsername || null,
+      password: student.portalPassword || null
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const generateCredentials = async (req, res) => {
   try {
     if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
@@ -383,4 +402,4 @@ const generateCredentialSingle = async (req, res) => {
   }
 };
 
-module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle };
+module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential };
