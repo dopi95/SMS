@@ -25,6 +25,7 @@ const allowedOrigins = [
   'https://sms-vwyd.onrender.com',
   'https://lbk-sms.vercel.app',
   'http://localhost:4500',
+  'http://localhost:3500',
   'http://localhost:3000',
 ];
 
