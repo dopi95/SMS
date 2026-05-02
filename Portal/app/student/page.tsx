@@ -21,7 +21,7 @@ export default function StudentDashboard() {
   const router = useRouter()
   const [profile, setProfile] = useState<StudentProfile | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
-  const [selectedYear, setSelectedYear] = useState(2024)
+  const [selectedYear, setSelectedYear] = useState(2019)
   const [tab, setTab] = useState<'profile'|'password'>('profile')
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
