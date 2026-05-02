@@ -97,6 +97,10 @@ export const metadata: Metadata = {
   },
 
   category: 'education',
+
+  verification: {
+    google: 'Mez5uB74FCWO-9oGF1glJUm7QwmwCRF83Fv65f_VmuE',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
