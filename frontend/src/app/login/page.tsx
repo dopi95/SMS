@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
@@ -16,8 +16,22 @@ interface LoginForm {
 export default function Login() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [serverReady, setServerReady] = useState(false)
   const router = useRouter()
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>()
+
+  // Wake up Render backend on page load (free tier cold start)
+  useEffect(() => {
+    const wake = async () => {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}/`)
+        setServerReady(true)
+      } catch {
+        setServerReady(true) // proceed anyway
+      }
+    }
+    wake()
+  }, [])
 
   const onSubmit = async (data: LoginForm) => {
     setLoading(true)
@@ -113,12 +127,21 @@ export default function Login() {
             </div>
 
             {/* Submit Button */}
+            {!serverReady && (
+              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <svg className="animate-spin h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                Server is starting up, please wait a moment...
+              </div>
+            )}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !serverReady}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Signing in...' : !serverReady ? 'Starting server...' : 'Sign In'}
             </button>
           </form>
 
