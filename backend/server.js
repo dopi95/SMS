@@ -24,6 +24,9 @@ const allowedOrigins = [
   'https://sms-rjml.vercel.app',
   'https://sms-vwyd.onrender.com',
   'https://lbk-sms.vercel.app',
+  'https://admission.bluelight.edu.et',
+  'https://portal.bluelight.edu.et',
+  'https://bluelight.edu.et',
   'http://localhost:4500',
   'http://localhost:3500',
   'http://localhost:3000',
@@ -33,8 +36,13 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (mobile apps, curl, Render health checks)
     if (!origin) return callback(null, true);
-    // Allow any vercel.app subdomain
-    if (origin.endsWith('.vercel.app') || allowedOrigins.indexOf(origin) !== -1) {
+    // Allow any vercel.app subdomain or bluelight.edu.et subdomain
+    if (
+      origin.endsWith('.vercel.app') ||
+      origin.endsWith('.bluelight.edu.et') ||
+      origin === 'https://bluelight.edu.et' ||
+      allowedOrigins.indexOf(origin) !== -1
+    ) {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));
