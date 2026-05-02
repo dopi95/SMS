@@ -5,6 +5,10 @@ import { Toaster } from 'react-hot-toast'
 export const metadata: Metadata = {
   title: 'Bluelight Academy Portal',
   description: 'Student & Teacher Portal',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
