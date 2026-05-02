@@ -95,6 +95,48 @@ router.get('/portal-payments/:studentId', async (req, res) => {
   }
 });
 
+// Portal get fresh profile by username (no password needed - already authenticated via localStorage)
+router.get('/portal-profile/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const student = await Student.findOne({ portalUsername: username, status: 'active' });
+    if (student) {
+      return res.json({
+        role: 'student',
+        profile: {
+          _id: student._id, studentId: student.studentId,
+          firstName: student.firstName, middleName: student.middleName, lastName: student.lastName,
+          firstNameAmharic: student.firstNameAmharic, middleNameAmharic: student.middleNameAmharic, lastNameAmharic: student.lastNameAmharic,
+          email: student.email, gender: student.gender, dateOfBirth: student.dateOfBirth,
+          joinedYear: student.joinedYear, class: student.class, section: student.section,
+          address: student.address, paymentCode: student.paymentCode, photo: student.photo,
+          fatherName: student.fatherName, fatherPhone: student.fatherPhone, fatherPhoto: student.fatherPhoto,
+          motherName: student.motherName, motherPhone: student.motherPhone, motherPhoto: student.motherPhoto,
+          portalUsername: student.portalUsername
+        }
+      });
+    }
+    const teacher = await Teacher.findOne({ portalUsername: username, isActive: true });
+    if (teacher) {
+      return res.json({
+        role: 'teacher',
+        profile: {
+          _id: teacher._id, teacherId: teacher.teacherId, fullName: teacher.fullName,
+          email: teacher.email, phone: teacher.phone, role: teacher.role,
+          qualification: teacher.qualification, qualificationLevel: teacher.qualificationLevel,
+          experienceYears: teacher.experienceYears, address: teacher.address,
+          sex: teacher.sex, employmentDate: teacher.employmentDate, employmentType: teacher.employmentType,
+          teachingClass: teacher.teachingClass, teachingSubject: teacher.teachingSubject,
+          photo: teacher.photo, portalUsername: teacher.portalUsername
+        }
+      });
+    }
+    res.status(404).json({ message: 'Profile not found' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.post('/register', register);
 router.post('/login', login);
 router.get('/me', auth, getMe);

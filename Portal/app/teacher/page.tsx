@@ -25,7 +25,15 @@ export default function TeacherDashboard() {
     if (!raw) { router.push('/login'); return }
     const data = JSON.parse(raw)
     if (data.role !== 'teacher') { router.push('/login'); return }
-    setProfile(data.profile)
+    const username = data.profile?.portalUsername
+    if (!username) { router.push('/login'); return }
+    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/auth/portal-profile/${encodeURIComponent(username)}`)
+      .then(res => {
+        const fresh = { role: res.data.role, profile: res.data.profile }
+        localStorage.setItem('portal_user', JSON.stringify(fresh))
+        setProfile(res.data.profile)
+      })
+      .catch(() => setProfile(data.profile))
   }, [router])
 
   const logout = () => { localStorage.removeItem('portal_user'); router.push('/login') }

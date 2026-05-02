@@ -34,8 +34,20 @@ export default function StudentDashboard() {
     if (!raw) { router.push('/login'); return }
     const data = JSON.parse(raw)
     if (data.role !== 'student') { router.push('/login'); return }
-    setProfile(data.profile)
-    fetchPayments(data.profile._id)
+    const username = data.profile?.portalUsername
+    if (!username) { router.push('/login'); return }
+    // Always fetch fresh profile so photos are up to date
+    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/auth/portal-profile/${encodeURIComponent(username)}`)
+      .then(res => {
+        const fresh = { role: res.data.role, profile: res.data.profile }
+        localStorage.setItem('portal_user', JSON.stringify(fresh))
+        setProfile(res.data.profile)
+        fetchPayments(res.data.profile._id)
+      })
+      .catch(() => {
+        setProfile(data.profile)
+        fetchPayments(data.profile._id)
+      })
   }, [router])
 
   const fetchPayments = async (id: string) => {
