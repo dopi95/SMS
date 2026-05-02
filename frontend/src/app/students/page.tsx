@@ -500,94 +500,70 @@ export default function StudentsPage() {
     }
   };
 
-  const downloadCredentialsPDF = async (list: {studentId:string;name:string;username:string;password:string}[]) => {
-    if (list.length === 0) return;
+  const downloadCredentialsPDF = async (list: {studentId:string;name:string;username:string;password:string;class?:string;section?:string}[]) => {
+    if (list.length === 0) return toast.error(getText('No credentials to download', 'ምስክርነቶች የሉም'));
     const { default: jsPDF } = await import('jspdf');
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const { default: autoTable } = await import('jspdf-autotable');
+    const doc = new (jsPDF as any)({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W = doc.internal.pageSize.getWidth();
-    const cardH = 42;
-    const cardW = (W - 30) / 2; // 2 cards per row
-    const cols = 2;
-    const marginX = 10;
-    const marginY = 18;
-    const gapX = 10;
-    const gapY = 6;
-
-    // Header
     doc.setFillColor(30, 58, 95);
-    doc.rect(0, 0, W, 12, 'F');
+    doc.rect(0, 0, W, 18, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
+    doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
-    doc.text('Bluelight Academy — Student Portal Credentials', W / 2, 8, { align: 'center' });
-
-    list.forEach((c, idx) => {
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
-      const x = marginX + col * (cardW + gapX);
-      const y = marginY + row * (cardH + gapY);
-
-      // New page if needed
-      if (y + cardH > doc.internal.pageSize.getHeight() - 10) {
-        doc.addPage();
-        doc.setFillColor(30, 58, 95);
-        doc.rect(0, 0, W, 12, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Bluelight Academy — Student Portal Credentials', W / 2, 8, { align: 'center' });
-      }
-
-      // Card background
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(x, y, cardW, cardH, 3, 3, 'F');
-      doc.setDrawColor(203, 213, 225);
-      doc.roundedRect(x, y, cardW, cardH, 3, 3, 'S');
-
-      // Top accent bar
-      doc.setFillColor(30, 58, 95);
-      doc.roundedRect(x, y, cardW, 7, 3, 3, 'F');
-      doc.rect(x, y + 4, cardW, 3, 'F');
-
-      // Name
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'bold');
-      doc.text(c.name.length > 28 ? c.name.substring(0, 26) + '..' : c.name, x + 3, y + 5.5);
-
-      // Username label + value
-      doc.setTextColor(100, 116, 139);
-      doc.setFontSize(6);
-      doc.setFont('helvetica', 'bold');
-      doc.text('USERNAME', x + 3, y + 14);
-      doc.setFillColor(239, 246, 255);
-      doc.roundedRect(x + 3, y + 15.5, cardW - 6, 8, 1.5, 1.5, 'F');
-      doc.setTextColor(29, 78, 216);
-      doc.setFontSize(8);
-      doc.setFont('courier', 'bold');
-      doc.text(c.username, x + 5, y + 21);
-
-      // Password label + value
-      doc.setTextColor(100, 116, 139);
-      doc.setFontSize(6);
-      doc.setFont('helvetica', 'bold');
-      doc.text('PASSWORD', x + 3, y + 28);
-      doc.setFillColor(240, 253, 244);
-      doc.roundedRect(x + 3, y + 29.5, cardW - 6, 8, 1.5, 1.5, 'F');
-      doc.setTextColor(21, 128, 61);
-      doc.setFontSize(8);
-      doc.setFont('courier', 'bold');
-      doc.text(c.password, x + 5, y + 35);
-
-      // Footer line
-      doc.setTextColor(148, 163, 184);
-      doc.setFontSize(5.5);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Keep confidential', x + cardW - 3, y + cardH - 2, { align: 'right' });
+    doc.text('Bluelight Academy', W / 2, 9, { align: 'center' });
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Student Portal Credentials', W / 2, 15, { align: 'center' });
+    doc.setFillColor(254, 252, 232);
+    doc.rect(10, 21, W - 20, 7, 'F');
+    doc.setTextColor(133, 77, 14);
+    doc.setFontSize(7);
+    doc.text('CONFIDENTIAL — Keep secure. Share only with the respective student.', W / 2, 26, { align: 'center' });
+    autoTable(doc, {
+      startY: 31,
+      head: [['#', 'Full Name', 'Class', 'Sec.', 'Username', 'Password']],
+      body: list.map((c, i) => [i + 1, c.name, c.class || '', c.section || '', c.username, c.password]),
+      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [239, 246, 255] },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 55 },
+        2: { cellWidth: 20, halign: 'center' },
+        3: { cellWidth: 12, halign: 'center' },
+        4: { cellWidth: 38 },
+        5: { cellWidth: 38 }
+      },
+      margin: { left: 10, right: 10 },
     });
-
-    doc.save(`credentials_all_${new Date().toISOString().split('T')[0]}.pdf`);
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Page ${i} of ${pageCount}`, W / 2, doc.internal.pageSize.getHeight() - 5, { align: 'center' });
+    }
+    doc.save(`student_credentials_${new Date().toISOString().split('T')[0]}.pdf`);
     toast.success(getText('PDF downloaded!', 'PDF ወጣ!'));
+  };
+
+  const handleDownloadCredentialsPDF = async () => {
+    const loadingToast = toast.loading(getText('Loading credentials...', 'ምስክርነቶችን እየጠበቀ ነው...'));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/students/all-credentials`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.dismiss(loadingToast);
+      if (res.data.credentials.length === 0) {
+        return toast.error(getText('No credentials found. Generate credentials first.', 'ምስክርነቶች አልተገኙም። መጀመሪያ ምስክርነቶችን ፍጠር።'));
+      }
+      await downloadCredentialsPDF(res.data.credentials);
+    } catch {
+      toast.dismiss(loadingToast);
+      toast.error(getText('Failed to load credentials', 'ምስክርነቶችን መጫን አልተሳካም'));
+    }
   };
 
   const handleGenerateSingleCredential = async (studentId: string) => {
@@ -1028,6 +1004,19 @@ export default function StudentsPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                       </svg>
                       {getText('Gen. Credentials', 'ምስክርነቶች')}
+                    </button>
+                  )}
+
+                  {/* Download Credentials PDF — superadmin only */}
+                  {role === 'superadmin' && (
+                    <button
+                      onClick={handleDownloadCredentialsPDF}
+                      className="col-span-2 sm:col-span-1 bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      {getText('Cred. PDF', 'ምስክርነት PDF')}
                     </button>
                   )}
                 </div>

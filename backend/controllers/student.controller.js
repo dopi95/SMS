@@ -371,6 +371,29 @@ const getCredential = async (req, res) => {
   }
 };
 
+const getAllCredentials = async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
+    const students = await Student.find(
+      { status: 'active', portalUsername: { $ne: '' }, portalPassword: { $ne: '' } },
+      { studentId: 1, firstName: 1, middleName: 1, lastName: 1, class: 1, section: 1, portalUsername: 1, portalPassword: 1 }
+    );
+    const credentials = students
+      .filter(s => s.portalUsername && s.portalPassword)
+      .map(s => ({
+        studentId: s.studentId,
+        name: `${s.firstName} ${s.middleName} ${s.lastName}`,
+        class: s.class,
+        section: s.section || '',
+        username: s.portalUsername,
+        password: s.portalPassword
+      }));
+    res.json({ credentials });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const generateCredentials = async (req, res) => {
   try {
     if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
@@ -402,4 +425,4 @@ const generateCredentialSingle = async (req, res) => {
   }
 };
 
-module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential };
+module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential, getAllCredentials };
