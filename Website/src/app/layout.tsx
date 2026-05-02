@@ -106,7 +106,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Force OG meta directly in head — overrides any cache */}
         <meta property="og:title" content="Bluelight Academy | Best School in Addis Ababa | ብሉላይት አካዳሚ | በአዲስ አበባ ምርጥ ትምህርት ቤት" />
         <meta property="og:description" content="Bluelight Academy — Best school in Addis Ababa. KG1, KG2, KG3 at Summit Condominium near CMC & LG College. ብሉላይት አካዳሚ — በአዲስ አበባ ምርጥ ትምህርት ቤት። ሰሚት ኮንዶሚኒየም።" />
-        <meta property="og:image" content="https://bluelightacademy.vercel.app/icons/icon-512.png" />
+        <meta property="og:image" content="https://bluelight.edu.et/icons/icon-512.png" />
         <meta property="og:image:width" content="512" />
         <meta property="og:image:height" content="512" />
         <meta property="og:image:alt" content="Bluelight Academy Logo" />
@@ -115,7 +115,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Bluelight Academy | Best School in Addis Ababa | ብሉላይት አካዳሚ" />
         <meta name="twitter:description" content="Best school in Addis Ababa. KG1–KG3 at Summit Condominium. ብሉላይት አካዳሚ — ሰሚት ኮንዶሚኒየም።" />
-        <meta name="twitter:image" content="https://bluelightacademy.vercel.app/icons/icon-512.png" />
+        <meta name="twitter:image" content="https://bluelight.edu.et/icons/icon-512.png" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
