@@ -157,7 +157,7 @@ export default function OurStoryPage() {
             {currentLang === 'en' ? 'Ready to join our family?' : 'ለቤተሰባችን ለመቀላቀል ዝግጁ ነዎት?'}
           </h2>
           <Link
-            href="https://bluelight.edu.et/registrationform"
+            href="https://admission.bluelight.edu.et/registrationform"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 sm:px-8 py-2.5 sm:py-3 bg-white text-blue-600 font-semibold rounded-full shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 text-sm"

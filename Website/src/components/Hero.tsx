@@ -203,7 +203,7 @@ export default function Hero() {
 
           <div className="flex flex-row items-center justify-center gap-3 mb-6 sm:mb-10">
             <Link
-              href="http://localhost:4500/registrationform"
+              href="https://admission.bluelight.edu.et/registrationform"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-500 hover:bg-blue-400 text-white font-semibold rounded-full active:scale-95 transition-all duration-200 shadow-lg shadow-blue-500/30 text-sm whitespace-nowrap"
