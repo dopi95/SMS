@@ -68,6 +68,12 @@ export default function StudentsPage() {
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
+  const [showSectionModal, setShowSectionModal] = useState(false);
+  const [sectionClass, setSectionClass] = useState('');
+  const [numSections, setNumSections] = useState(2);
+  const [studentsPerSection, setStudentsPerSection] = useState('');
+  const [sectionPreview, setSectionPreview] = useState<{id:string;name:string;section:string}[]>([]);
+  const [assigningSection, setAssigningSection] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -430,6 +436,46 @@ export default function StudentsPage() {
   };
 
 
+  const generateSectionPreview = () => {
+    if (!sectionClass) return toast.error(getText('Please select a class', 'ክፍል ይምረጡ'));
+    const classStudents = students.filter(s => s.class === sectionClass);
+    if (classStudents.length === 0) return toast.error(getText('No students in this class', 'በዚህ ክፍል ምንም ተማሪ የለም'));
+    const sections = ['A','B','C','D','E'];
+    const limit = studentsPerSection ? parseInt(studentsPerSection) : Math.ceil(classStudents.length / numSections);
+    const shuffled = [...classStudents].sort(() => Math.random() - 0.5);
+    const preview = shuffled.map((s, i) => ({
+      id: s._id,
+      name: language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic||''}`.trim() : `${s.firstName} ${s.middleName}`,
+      section: sections[Math.min(Math.floor(i / limit), numSections - 1)]
+    }));
+    setSectionPreview(preview);
+  };
+
+  const handleAssignSections = async () => {
+    if (!sectionClass || sectionPreview.length === 0) return;
+    setAssigningSection(true);
+    const loadingToast = toast.loading(getText('Assigning sections...', 'ክፍሎችን እየሰጠ ነው...'));
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/bulk/assign-sections`, {
+        classValue: sectionClass,
+        numSections,
+        studentsPerSection: studentsPerSection ? parseInt(studentsPerSection) : undefined
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.dismiss(loadingToast);
+      toast.success(getText(`Sections assigned for ${sectionPreview.length} students!`, `${sectionPreview.length} ተማሪዎች ክፍሎች ተሰጥቷቸዋል!`));
+      setShowSectionModal(false);
+      setSectionPreview([]);
+      setSectionClass('');
+      fetchStudents();
+    } catch {
+      toast.dismiss(loadingToast);
+      toast.error(getText('Failed to assign sections', 'ክፍሎችን መስጠት አልተሳካም'));
+    } finally {
+      setAssigningSection(false);
+    }
+  };
+
   const getAttendanceStudents = () => {
     let list = students;
     if (attendanceClass) list = list.filter(s => s.class === attendanceClass);
@@ -725,123 +771,121 @@ export default function StudentsPage() {
           <div className={`rounded-xl shadow-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             {/* Header */}
             <div className={`px-6 py-5 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div>
-                  <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Students', 'ተማሪዎች')}</h1>
-                  <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Manage and view all student information', 'የተማሪዎች ማለባ መረጃ አስተዳድር እና መመልከት')}</p>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Students', 'ተማሪዎች')}</h1>
+                    <p className={`text-sm mt-0.5 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Manage and view all student information', 'የተማሪዎች ማለባ መረጃ አስተዳድር እና መመልከት')}</p>
+                  </div>
+                  {canDo('students', 'add') && (
+                    <button
+                      onClick={() => router.push('/students/add')}
+                      className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      {getText('Add Student', 'ተማሪ ጨምር')}
+                    </button>
+                  )}
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  {/* Bulk Actions Button */}
+
+                {/* Action buttons — 2-col grid on mobile, flex-wrap on sm+ */}
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
+                  {/* Bulk Actions */}
                   {selectedStudents.length > 0 && (
                     <button
                       onClick={() => setShowBulkActions(!showBulkActions)}
-                      className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 sm:px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                      className="col-span-2 sm:col-span-1 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
-                      {getText('Bulk Actions', 'የጅምላ ተግባሮች')} ({selectedStudents.length})
+                      {getText('Bulk', 'ጅምላ')} ({selectedStudents.length})
                     </button>
                   )}
-                  
-                  {/* Export Button */}
+
+                  {/* Export */}
                   <div className="relative">
                     <button
                       onClick={() => setShowExportMenu(!showExportMenu)}
-                      className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 sm:px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                      className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      {getText('Export', 'ወደ ውጭ አውጣ')}
+                      {getText('Export', 'ወደ ውጭ')}
                     </button>
-                    
                     {showExportMenu && (
-                      <div className={`absolute left-0 right-0 sm:left-auto sm:right-0 mt-2 mx-4 sm:mx-0 sm:w-80 rounded-lg shadow-lg border z-50 ${theme === 'dark' ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
+                      <div className={`absolute left-0 mt-2 w-72 rounded-lg shadow-lg border z-50 ${theme === 'dark' ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
                         <div className="p-4">
                           <h3 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Export Students', 'ተማሪዎችን ወደ ውጭ አውጣ')}</h3>
-                          
-                          {/* File Name Input */}
-                          <div className="mb-4">
-                            <label className={`block text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                              {getText('File Name', 'የፋይል ስም')}
-                            </label>
+                          <div className="mb-3">
+                            <label className={`block text-xs font-medium mb-1.5 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{getText('File Name', 'የፋይል ስም')}</label>
                             <input
                               type="text"
                               value={fileName}
                               onChange={(e) => setFileName(e.target.value)}
-                              className={`w-full px-3 py-2 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                              className={`w-full px-3 py-2 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
                               placeholder={getText('Enter file name', 'የፋይል ስም ያስገቡ')}
                             />
                           </div>
-                          
-                          {/* Export Info */}
-                          <div className={`text-xs mb-4 p-2 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-50 text-gray-600'}`}>
-                            <p>{getText('Exporting', 'እያወጣ')}: {filteredStudents.length} {getText('students', 'ተማሪዎች')}</p>
-                            {(classFilter || sectionFilter || batchFilter || typeFilter) && (
-                              <p className="mt-1">{getText('Filters applied', 'ፈልተሮች ተተግብረዋል')}</p>
-                            )}
+                          <div className={`text-xs mb-3 p-2 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-50 text-gray-600'}`}>
+                            {getText('Exporting', 'እያወጣ')}: {filteredStudents.length} {getText('students', 'ተማሪዎች')}
                           </div>
-                          
-                          {/* Export Buttons */}
-                          <div className="flex gap-2">
-                            <button
-                              onClick={exportToExcel}
-                              disabled={filteredStudents.length === 0}
-                              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              Excel
-                            </button>
-                          </div>
-                          
                           <button
-                            onClick={() => setShowExportMenu(false)}
-                            className={`w-full mt-2 px-4 py-2 text-sm rounded-md transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                            onClick={exportToExcel}
+                            disabled={filteredStudents.length === 0}
+                            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
                           >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Excel
+                          </button>
+                          <button onClick={() => setShowExportMenu(false)} className={`w-full mt-2 px-4 py-2 text-sm rounded-md transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
                             {getText('Cancel', 'ሰርዝ')}
                           </button>
                         </div>
                       </div>
                     )}
                   </div>
-                  
-                  {/* Attendance Button */}
+
+                  {/* Attendance */}
                   <button
                     onClick={() => setShowAttendanceModal(true)}
-                    className="w-full sm:w-auto bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white px-4 sm:px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                    className="bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                     </svg>
-                    {getText('Attendance', 'ሁኔታ ዝርዝር')}
+                    {getText('Attendance', 'ሁኔታ')}
                   </button>
 
-                  {/* Import Button */}
-                  {canDo('students', 'add') && (
-                  <button
-                    onClick={() => setShowImportModal(true)}
-                    className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-4 sm:px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    {getText('Import', 'አስገባ')}
-                  </button>
+                  {/* Generate Sections */}
+                  {canDo('students', 'edit') && (
+                    <button
+                      onClick={() => { setShowSectionModal(true); setSectionPreview([]); }}
+                      className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h8m-8 4h4" />
+                      </svg>
+                      {getText('Gen. Sections', 'ክፍሎች ፍጠር')}
+                    </button>
                   )}
-                  
+
+                  {/* Import */}
                   {canDo('students', 'add') && (
-                  <button
-                    onClick={() => router.push('/students/add')}
-                    className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 sm:px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    {getText('Add New Student', 'አዲስ ተማሪ ከምር')}
-                  </button>
+                    <button
+                      onClick={() => setShowImportModal(true)}
+                      className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      {getText('Import', 'አስገባ')}
+                    </button>
                   )}
                 </div>
               </div>
@@ -1504,6 +1548,132 @@ export default function StudentsPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Generate Sections Modal */}
+      {showSectionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                {getText('Generate Sections', 'ክፍሎች ፍጠር')}
+              </h2>
+              <button onClick={() => setShowSectionModal(false)} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                    {getText('Select Class', 'ክፍል ይምረጡ')}
+                  </label>
+                  <select
+                    value={sectionClass}
+                    onChange={e => { setSectionClass(e.target.value); setSectionPreview([]); }}
+                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-violet-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="">{getText('Select Class', 'ክፍል ይምረጡ')}</option>
+                    <option value="Nursery">{getText('Nursery', 'ጀማሪ')}</option>
+                    <option value="LKG">{getText('LKG', 'ደሬጃ 1')}</option>
+                    <option value="UKG">{getText('UKG', 'ደሬጃ 2')}</option>
+                  </select>
+                  {sectionClass && (
+                    <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {students.filter(s => s.class === sectionClass).length} {getText('students in this class', 'ተማሪዎች በዚህ ክፍል')}
+                    </p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                      {getText('Number of Sections', 'የክፍሎች ብዛት')}
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={numSections}
+                      onChange={e => { setNumSections(parseInt(e.target.value) || 1); setSectionPreview([]); }}
+                      className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-violet-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                      {getText('Students per Section', 'በክፍል የተማሪ ብዛት')}
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={studentsPerSection}
+                      onChange={e => { setStudentsPerSection(e.target.value); setSectionPreview([]); }}
+                      placeholder={getText('Auto', 'ቤኖ')}
+                      className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-violet-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-300'}`}
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={generateSectionPreview}
+                  disabled={!sectionClass}
+                  className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-gray-400 text-white py-2.5 rounded-lg font-medium transition-colors"
+                >
+                  {getText('Generate Preview', 'ቅድመ እይታ ፍጠር')}
+                </button>
+
+                {sectionPreview.length > 0 && (
+                  <div>
+                    <div className={`text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                      {getText('Preview', 'ቅድመ እይታ')} — {sectionPreview.length} {getText('students', 'ተማሪዎች')}
+                    </div>
+                    <div className={`rounded-lg border overflow-hidden max-h-64 overflow-y-auto ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
+                      <table className="w-full text-xs">
+                        <thead className={`sticky top-0 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                          <tr>
+                            <th className={`px-3 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>#</th>
+                            <th className={`px-3 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Name', 'ስም')}</th>
+                            <th className={`px-3 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Section', 'ክፍል')}</th>
+                          </tr>
+                        </thead>
+                        <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-100'}`}>
+                          {sectionPreview.map((row, i) => (
+                            <tr key={row.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                              <td className={`px-3 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{i + 1}</td>
+                              <td className={`px-3 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.name}</td>
+                              <td className="px-3 py-2">
+                                <span className={`inline-block px-2 py-0.5 rounded font-semibold text-xs ${
+                                  row.section === 'A' ? 'bg-blue-100 text-blue-700' :
+                                  row.section === 'B' ? 'bg-green-100 text-green-700' :
+                                  row.section === 'C' ? 'bg-orange-100 text-orange-700' :
+                                  row.section === 'D' ? 'bg-purple-100 text-purple-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>{row.section}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className={`px-6 py-4 border-t flex justify-end gap-3 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <button
+                onClick={() => setShowSectionModal(false)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+              >
+                {getText('Cancel', 'ሰርዘ')}
+              </button>
+              <button
+                onClick={handleAssignSections}
+                disabled={sectionPreview.length === 0 || assigningSection}
+                className="bg-violet-600 hover:bg-violet-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+              >
+                {assigningSection ? getText('Assigning...', 'እየሰጠ ነው...') : getText('Assign Sections', 'ክፍሎች ስጥ')}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -292,4 +292,38 @@ const bulkImport = async (req, res) => {
   }
 };
 
-module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport };
+const bulkAssignSections = async (req, res) => {
+  try {
+    const { classValue, numSections, studentsPerSection } = req.body;
+    if (!classValue || !numSections || numSections < 1)
+      return res.status(400).json({ message: 'classValue and numSections are required' });
+
+    const students = await Student.find({ status: 'active', class: classValue }, { _id: 1 });
+    if (students.length === 0)
+      return res.status(404).json({ message: 'No active students found for this class' });
+
+    // Shuffle students randomly
+    const shuffled = students.map(s => s._id.toString()).sort(() => Math.random() - 0.5);
+    const sections = ['A', 'B', 'C', 'D', 'E'];
+    const limit = studentsPerSection ? parseInt(studentsPerSection) : Math.ceil(shuffled.length / numSections);
+
+    const assignments = [];
+    for (let i = 0; i < shuffled.length; i++) {
+      const sectionIndex = Math.min(Math.floor(i / limit), numSections - 1);
+      assignments.push({ id: shuffled[i], section: sections[sectionIndex] });
+    }
+
+    // Bulk write
+    const bulkOps = assignments.map(a => ({
+      updateOne: { filter: { _id: a.id }, update: { $set: { section: a.section } } }
+    }));
+    await Student.bulkWrite(bulkOps);
+
+    await logActivity(req.user, 'Assigned Sections', 'Student', `Randomly assigned sections for ${assignments.length} students in ${classValue}`);
+    res.json({ message: `Sections assigned for ${assignments.length} students`, assignments });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport, bulkAssignSections };
