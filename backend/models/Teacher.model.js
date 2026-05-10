@@ -19,6 +19,7 @@ const teacherSchema = new mongoose.Schema({
   employmentDate: { type: String, required: true },
   employmentType: { type: String, required: true },
   teachingClass: { type: String },
+  teachingSection: { type: String },
   teachingSubject: { type: String },
   photo: { type: String },
   isActive: { type: Boolean, default: true },

@@ -26,6 +26,7 @@ export default function EditEmployeePage() {
     employmentDate: '',
     employmentType: '',
     teachingClass: '',
+    teachingSection: '',
     teachingSubject: ''
   });
   const [photo, setPhoto] = useState<File | null>(null);
@@ -60,6 +61,7 @@ export default function EditEmployeePage() {
           employmentDate: t.employmentDate ? t.employmentDate.split('T')[0] : '',
           employmentType: t.employmentType || '',
           teachingClass: t.teachingClass || '',
+          teachingSection: t.teachingSection || '',
           teachingSubject: t.teachingSubject || ''
         });
         if (t.photo) {
@@ -145,6 +147,7 @@ export default function EditEmployeePage() {
       if (formData.experienceYears) fd.append('experienceYears', formData.experienceYears);
       if (formData.address) fd.append('address', formData.address);
       if (formData.teachingClass) fd.append('teachingClass', formData.teachingClass);
+      if (formData.teachingSection) fd.append('teachingSection', formData.teachingSection);
       if (formData.teachingSubject) fd.append('teachingSubject', formData.teachingSubject);
       if (salaries.length > 0) {
         fd.append('salaries', JSON.stringify(salaries.map(s => ({ year: s.year, monthlySalary: parseFloat(s.monthlySalary) }))));
@@ -309,6 +312,16 @@ export default function EditEmployeePage() {
                           <option value="Nursery">{getText('Nursery', 'ነርሰሪ')}</option>
                           <option value="LKG">{getText('LKG', 'ኤልኬጂ')}</option>
                           <option value="UKG">{getText('UKG', 'ዩኬጂ')}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>{getText('Teaching Section', 'የሚያስተምር ክፍለ ጊዜ')}</label>
+                        <select name="teachingSection" value={formData.teachingSection} onChange={handleInputChange} className={inputCls}>
+                          <option value="">{getText('Select Section', 'ክፍለ ጊዜ ይምረጡ')}</option>
+                          <option value="A">A</option>
+                          <option value="B">B</option>
+                          <option value="C">C</option>
+                          <option value="D">D</option>
                         </select>
                       </div>
                       <div>

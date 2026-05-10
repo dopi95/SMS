@@ -22,6 +22,7 @@ export default function AddEmployeePage() {
     employmentDate: '',
     employmentType: '',
     teachingClass: '',
+    teachingSection: '',
     teachingSubject: ''
   });
   const [photo, setPhoto] = useState<File | null>(null);
@@ -142,6 +143,7 @@ export default function AddEmployeePage() {
       if (formData.experienceYears) formDataToSend.append('experienceYears', formData.experienceYears);
       if (formData.address) formDataToSend.append('address', formData.address);
       if (formData.teachingClass) formDataToSend.append('teachingClass', formData.teachingClass);
+      if (formData.teachingSection) formDataToSend.append('teachingSection', formData.teachingSection);
       if (formData.teachingSubject) formDataToSend.append('teachingSubject', formData.teachingSubject);
       
       if (salaries.length > 0) {
@@ -417,6 +419,24 @@ export default function AddEmployeePage() {
                           <option value="Nursery">{getText('Nursery', 'ነርሰሪ')}</option>
                           <option value="LKG">{getText('LKG', 'ኤልኬጂ')}</option>
                           <option value="UKG">{getText('UKG', 'ዩኬጂ')}</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {getText('Teaching Section', 'የሚያስተምር ክፍለ ጊዜ')}
+                        </label>
+                        <select
+                          name="teachingSection"
+                          value={formData.teachingSection}
+                          onChange={handleInputChange}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                        >
+                          <option value="">{getText('Select Section', 'ክፍለ ጊዜ ይምረጡ')}</option>
+                          <option value="A">A</option>
+                          <option value="B">B</option>
+                          <option value="C">C</option>
+                          <option value="D">D</option>
                         </select>
                       </div>
 
