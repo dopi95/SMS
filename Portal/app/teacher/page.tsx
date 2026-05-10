@@ -284,7 +284,7 @@ export default function TeacherDashboard() {
 
               {(profile.teachingClass || profile.teachingSubject) && (
                 <Section title="Teaching Information">
-                  <Grid cols={3}>
+                  <Grid cols={2}>
                     <Info label="Teaching Class" value={profile.teachingClass || '-'} />
                     <Info label="Teaching Section" value={profile.teachingSection || '-'} />
                     <Info label="Teaching Subject" value={profile.teachingSubject || '-'} />
@@ -318,7 +318,7 @@ export default function TeacherDashboard() {
 
                   {/* Summary */}
                   {records.length > 0 && (
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <div className="bg-white rounded-xl shadow p-3 text-center">
                         <p className="text-xl font-bold text-gray-800">{records.length}</p>
                         <p className="text-xs text-gray-400 mt-0.5">Total</p>
@@ -347,25 +347,27 @@ export default function TeacherDashboard() {
                     </div>
                   ) : (
                     <div className="bg-white rounded-xl shadow overflow-hidden">
-                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-700">Students — {attDate}</p>
-                        <div className="flex flex-wrap gap-2 text-xs text-gray-400">
-                          <span className="flex items-center gap-1"><span className="w-5 h-5 rounded bg-green-500 flex items-center justify-center text-white font-bold">✓</span> Present</span>
-                          <span className="flex items-center gap-1"><span className="w-5 h-5 rounded bg-red-500 flex items-center justify-center text-white font-bold">✗</span> Absent</span>
-                          <span className="flex items-center gap-1"><span className="w-5 h-5 rounded bg-blue-500 flex items-center justify-center text-white font-bold text-xs">P</span> Permission</span>
+                      <div className="px-3 py-3 border-b border-gray-100">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <p className="text-sm font-semibold text-gray-700">Students — {attDate}</p>
+                          <div className="flex gap-2 text-xs text-gray-400">
+                            <span className="flex items-center gap-1"><span className="w-5 h-5 rounded bg-green-500 flex items-center justify-center text-white font-bold text-xs">✓</span> Present</span>
+                            <span className="flex items-center gap-1"><span className="w-5 h-5 rounded bg-red-500 flex items-center justify-center text-white font-bold text-xs">✗</span> Absent</span>
+                            <span className="flex items-center gap-1"><span className="w-5 h-5 rounded bg-blue-500 flex items-center justify-center text-white font-bold text-xs">P</span> Perm</span>
+                          </div>
                         </div>
                       </div>
                       <div className="divide-y divide-gray-50">
                         {records.map((r, i) => (
-                          <div key={r.studentId} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs text-gray-400 w-6">{i + 1}</span>
-                              <div>
-                                <p className="text-sm font-medium text-gray-800">{r.studentName}</p>
+                          <div key={r.studentId} className="flex items-center justify-between px-3 py-3 hover:bg-gray-50 transition gap-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className="text-xs text-gray-400 w-5 flex-shrink-0">{i + 1}</span>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{r.studentName}</p>
                                 <p className="text-xs text-gray-400">{r.studentId}</p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1 flex-shrink-0">
                               {r.status === '' ? (
                                 <>
                                   <button onClick={() => markStatus(r.studentId, 'P')} disabled={savingId === r.studentId}

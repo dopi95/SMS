@@ -76,21 +76,21 @@ export default function EthiopianDatePicker({ value, onChange }: Props) {
   }
 
   return (
-    <div className="flex gap-2 items-center">
+    <div className="flex gap-2 items-center flex-wrap">
       <select value={ed} onChange={e => update(ey, em, Number(e.target.value))}
-        className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16">
+        className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-14 min-w-0">
         {Array.from({length: daysInMonth},(_,i)=>i+1).map(d=>(
           <option key={d} value={d}>{d}</option>
         ))}
       </select>
       <select value={em} onChange={e => update(ey, Number(e.target.value), ed)}
-        className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1">
+        className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 min-w-0">
         {ET_MONTHS.map((name,i)=>(
           <option key={i+1} value={i+1}>{name}</option>
         ))}
       </select>
       <select value={ey} onChange={e => update(Number(e.target.value), em, ed)}
-        className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-24">
+        className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20 min-w-0">
         {Array.from({length:10},(_,i)=>currentEY-i).map(y=>(
           <option key={y} value={y}>{y}</option>
         ))}
