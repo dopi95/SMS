@@ -299,7 +299,7 @@ export default function EmployeesPage() {
 
   const ActionButtons = ({ teacher, mobile = false }: { teacher: Teacher; mobile?: boolean }) => {
     const cls = mobile
-      ? 'text-xs px-3 py-1.5 rounded-md font-medium transition-colors'
+      ? 'text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors'
       : 'text-xs px-2 py-1 rounded transition-colors';
     return (
       <>
@@ -343,35 +343,35 @@ export default function EmployeesPage() {
       <div className={`min-h-screen p-4 sm:p-6 lg:p-8 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="max-w-7xl mx-auto">
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className={`rounded-lg shadow-sm border p-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <div className={`rounded-lg shadow-sm border p-4 sm:p-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
-                <div className="ml-4">
-                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Total Employees', 'ጠቅላላ ሰራተኞች')}</p>
-                  <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teachers.filter(t => t.isActive !== false).length}</p>
+                <div className="min-w-0">
+                  <p className={`text-xs sm:text-sm font-medium truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Total Employees', 'ጠቅላላ ሰራተኞች')}</p>
+                  <p className={`text-xl sm:text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teachers.filter(t => t.isActive !== false).length}</p>
                 </div>
               </div>
             </div>
-            <div className={`rounded-lg shadow-sm border p-6 ${canDo('employees', 'inactive') ? 'cursor-pointer hover:shadow-md transition-shadow' : ''} ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`} onClick={() => canDo('employees', 'inactive') && router.push('/employees/inactive')}>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className={`rounded-lg shadow-sm border p-4 sm:p-6 ${canDo('employees', 'inactive') ? 'cursor-pointer hover:shadow-md transition-shadow' : ''} ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`} onClick={() => canDo('employees', 'inactive') && router.push('/employees/inactive')}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                   </svg>
                 </div>
-                <div className="ml-4 flex-1">
-                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Inactive Employees', 'ንቁ ያልሆኑ ሰራተኞች')}</p>
-                  <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{inactiveCount}</p>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-xs sm:text-sm font-medium truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Inactive Employees', 'ንቁ ያልሆኑ ሰራተኞች')}</p>
+                  <p className={`text-xl sm:text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{inactiveCount}</p>
                 </div>
                 {canDo('employees', 'inactive') && (
-                  <div className="flex flex-col items-center gap-1">
+                  <div className="flex flex-col items-center gap-1 flex-shrink-0">
                     <span className="text-xs font-medium text-red-600">{getText('Show', 'አሳይ')}</span>
-                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
@@ -528,39 +528,43 @@ export default function EmployeesPage() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3 p-4">
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {activeTeachers.map(teacher => (
-                    <div key={teacher._id} className={`rounded-lg border p-4 shadow-sm ${theme === 'dark' ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
-                      <div className="flex items-start space-x-3">
+                    <div key={teacher._id} className={`p-4 ${theme === 'dark' ? 'hover:bg-gray-750' : 'hover:bg-gray-50'}`}>
+                      {/* Top row: avatar + name + id */}
+                      <div className="flex items-center gap-3 mb-3">
                         {teacher.photo
-                          ? <img src={teacher.photo} alt={teacher.fullName} className="h-12 w-12 rounded-full object-cover flex-shrink-0" />
-                          : <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                              <span className="text-sm font-medium text-white">{teacher.fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}</span>
+                          ? <img src={teacher.photo} alt={teacher.fullName} className="h-11 w-11 rounded-full object-cover flex-shrink-0" />
+                          : <div className="h-11 w-11 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                              <span className="text-sm font-bold text-white">{teacher.fullName.split(' ').map((n:string) => n[0]).join('').slice(0,2)}</span>
                             </div>
                         }
-                        <div className="flex-1 min-w-0">
-                          <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teacher.fullName}</h3>
-                          <p className="text-sm font-medium text-blue-600 mb-2">{teacher.teacherId}</p>
-                          <div className="grid grid-cols-2 gap-3 mb-3">
-                            <div>
-                              <p className={`text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Role', 'ሚና')}</p>
-                              <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teacher.role}</p>
-                            </div>
-                            <div>
-                              <p className={`text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Phone', 'ስልክ')}</p>
-                              <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teacher.phone}</p>
-                            </div>
-                            {teacher.teachingClass && (
-                              <div>
-                                <p className={`text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Class', 'ክፍል')}</p>
-                                <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teacher.teachingClass}</p>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex gap-2 mt-3">
-                            <ActionButtons teacher={teacher} mobile />
-                          </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`font-semibold text-sm truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teacher.fullName}</p>
+                          <p className="text-xs text-blue-600 font-medium">{teacher.teacherId}</p>
                         </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                          theme === 'dark' ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-700'
+                        }`}>{teacher.role}</span>
+                      </div>
+
+                      {/* Info row */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-3 pl-14">
+                        <div>
+                          <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Phone', 'ስልክ')}</p>
+                          <p className={`text-xs font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>{teacher.phone}</p>
+                        </div>
+                        {teacher.teachingClass && (
+                          <div>
+                            <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Class', 'ክፍል')}</p>
+                            <p className={`text-xs font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>{teacher.teachingClass}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex flex-wrap gap-1.5 pl-14">
+                        <ActionButtons teacher={teacher} mobile />
                       </div>
                     </div>
                   ))}
