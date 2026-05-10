@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import toast, { Toaster } from 'react-hot-toast'
 import EthiopianDatePicker from '../components/EthiopianDatePicker'
+import InstallApp from '../components/InstallApp'
 
 interface TeacherProfile {
   _id: string; teacherId: string; fullName: string; email?: string; phone: string
@@ -201,7 +202,9 @@ export default function TeacherDashboard() {
         ))}
       </nav>
 
-      <div className="px-3 py-4 border-t border-gray-200">
+      {/* Install + Logout */}
+      <div className="px-3 py-4 border-t border-gray-200 space-y-1">
+        <InstallApp />
         <button onClick={logout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
           Logout
@@ -349,7 +352,10 @@ export default function TeacherDashboard() {
                     <div className="bg-white rounded-xl shadow overflow-hidden">
                       <div className="px-3 py-3 border-b border-gray-100">
                         <div className="flex items-center justify-between flex-wrap gap-2">
-                          <p className="text-sm font-semibold text-gray-700">Students — {attDate}</p>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-700">Students</p>
+                            <p className="text-xs text-blue-500 font-medium mt-0.5">{toEthiopianLabel(attDate)}</p>
+                          </div>
                           <div className="flex gap-2 text-xs text-gray-400">
                             <span className="flex items-center gap-1"><span className="w-5 h-5 rounded bg-green-500 flex items-center justify-center text-white font-bold text-xs">✓</span> Present</span>
                             <span className="flex items-center gap-1"><span className="w-5 h-5 rounded bg-red-500 flex items-center justify-center text-white font-bold text-xs">✗</span> Absent</span>
@@ -456,6 +462,28 @@ export default function TeacherDashboard() {
       </div>
     </div>
   )
+}
+
+function toEthiopianLabel(isoDate: string): string {
+  const ET_MONTHS = ['መስከረም','ጥቅምት','ህዳር','ታህሳስ','ጥር','የካቲት','መጋቢት','ሚያዚያ','ግንቦት','ሰኔ','ሐምሌ','ነሐሴ','ጳጉሜ']
+  const [gy, gm, gd] = isoDate.split('-').map(Number)
+  const gM = [0,31,28,31,30,31,30,31,31,30,31,30,31]
+  if ((gy%4===0&&gy%100!==0)||gy%400===0) gM[2]=29
+  let ey = gy-8
+  const eM = [0,30,30,30,30,30,30,30,30,30,5,30,30,30,30]
+  if (ey%4===3) eM[10]=6
+  const nyd = Math.floor(gy/100)-Math.floor(gy/400)-4+((gy-9)%4===3?1:0)
+  let until = 0
+  for (let i=1;i<gm;i++) until+=gM[i]
+  until+=gd
+  let tahissas = (ey%4)===0?26:25
+  if (until<=277&&gy===1582){eM[1]=0;eM[2]=tahissas}else{tahissas=nyd-3;eM[1]=tahissas}
+  let mo=1, ed=1
+  for (mo=1;mo<eM.length;mo++){if(until<=eM[mo]){ed=(mo===1||eM[mo]===0)?until+(30-tahissas):until;break}else until-=eM[mo]}
+  if (mo>10) ey+=1
+  const order=[0,4,5,6,7,8,9,10,11,12,13,1,2,3,4]
+  const em = order[mo]
+  return `${ed} ${ET_MONTHS[em-1]} ${ey} E.C`
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

@@ -82,6 +82,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="am-ET">
+      <head>
+        {/* Capture install prompt before React hydrates */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          window.__installPrompt = null;
+          window.addEventListener('beforeinstallprompt', function(e) {
+            e.preventDefault();
+            window.__installPrompt = e;
+          });
+        `}} />
+      </head>
       <body className="bg-gray-50 min-h-screen">
         <Providers>{children}</Providers>
       </body>

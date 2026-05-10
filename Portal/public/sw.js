@@ -1,8 +1,12 @@
-const CACHE_NAME = 'bluelight-portal-v1';
+const CACHE_NAME = 'bluelight-portal-v2';
 const STATIC_ASSETS = [
   '/login',
   '/logo.png',
+  '/lo.png',
   '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/favicon.ico',
 ];
 
 self.addEventListener('install', (event) => {
@@ -22,8 +26,24 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network first, fallback to cache
+  // Only handle GET requests
+  if (event.request.method !== 'GET') return;
+
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request)
+      .then((res) => {
+        // Cache successful responses
+        if (res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return res;
+      })
+      .catch(() =>
+        caches.match(event.request).then((cached) => {
+          // Return cached version or a fallback response
+          return cached || new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+        })
+      )
   );
 });
