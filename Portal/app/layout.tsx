@@ -42,7 +42,7 @@ export const metadata: Metadata = {
       'Access your Bluelight Academy student or teacher portal. | ብሉላይት አካዳሚ ፖርታልዎን ይድረሱ።',
     images: [
       {
-        url: '/logo.png',
+        url: '/icon-512.png',
         width: 512,
         height: 512,
         alt: 'Bluelight Academy Logo',
@@ -56,14 +56,15 @@ export const metadata: Metadata = {
     title: 'Bluelight Academy Portal',
     description:
       'Student & Teacher Portal for Bluelight Academy | ብሉላይት አካዳሚ ፖርታል',
-    images: ['/logo.png'],
+    images: ['/icon-512.png'],
   },
   icons: {
     icon: [
-      { url: '/favicon.ico', sizes: 'any' },
-      { url: '/logo.png', type: 'image/png', sizes: '512x512' },
+      { url: '/favicon.ico', type: 'image/x-icon' },
+      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/icon-512.png', type: 'image/png', sizes: '512x512' },
     ],
-    apple: [{ url: '/logo.png', sizes: '512x512', type: 'image/png' }],
+    apple: [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
     shortcut: '/favicon.ico',
   },
   manifest: '/manifest.json',
