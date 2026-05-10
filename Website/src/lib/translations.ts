@@ -152,6 +152,12 @@ export const translations = {
     contactFormSend: 'Send Message',
     contactFormSuccess: 'Thank you! We will be in touch soon.',
 
+    // Portal
+    portalBannerTitle: 'Already enrolled? Access your Portal',
+    portalBannerDesc: 'Students and teachers can log in to view grades, attendance, schedules and more.',
+    portalBannerBtn: 'Go to Portal',
+    footerPortal: 'Student Portal',
+
     // Home page
     welcomeSubtitle: 'Your journey to excellence starts here'
   },
@@ -311,6 +317,12 @@ export const translations = {
     contactFormMessage: 'መልዕክትዎ',
     contactFormSend: 'መልዕክት ላክ',
     contactFormSuccess: 'አመሰግናለሁ! በቅርቡ እናገኝዎታለን።',
+
+    // Portal
+    portalBannerTitle: 'ተመዝግበዋል? ፖርታልዎን ይድረሱ',
+    portalBannerDesc: 'ተማሪዎች እና አስተማሪዎች ውጤቶችን፣ መገኘትን፣ የጊዜ ሰሌዳ እና ሌሎችን ለማየት መግባት ይችላሉ።',
+    portalBannerBtn: 'ወደ ፖርታል ሂድ',
+    footerPortal: 'የተማሪ ፖርታል',
 
     // Home page
     welcomeTitle: 'እንኳን ወደ ብሉላይት አካዳሚ በደህና መጡ',

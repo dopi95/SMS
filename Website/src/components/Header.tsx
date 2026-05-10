@@ -71,6 +71,9 @@ export default function Header() {
               <Link href="/facilities" className="text-gray-700 hover:text-primary-600 transition-colors">
                 {t.facilities}
               </Link>
+              <Link href="/contact" className="text-gray-700 hover:text-primary-600 transition-colors">
+                {t.contact}
+              </Link>
             </nav>
 
             {/* Mobile Menu Button */}
@@ -170,8 +173,13 @@ export default function Header() {
             >
               {t.facilities}
             </Link>
-
-
+            <Link 
+              href="/contact" 
+              className="block px-4 py-3 text-gray-700 hover:bg-primary-50 hover:text-primary-600 rounded-xl transition-colors font-medium"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              {t.contact}
+            </Link>
           </nav>
         </div>
       </div>

@@ -100,11 +100,14 @@ export default function Footer() {
                 { label: t.about,       href: '/#about' },
                 { label: t.facilities,  href: '/facilities' },
                 { label: t.schoolFees,  href: '/about/school-fees' },
-                { label: t.getStarted,  href: 'http://localhost:4500/registrationform' },
-              ].map(({ label, href }) => (
+                { label: t.getStarted,  href: 'https://admission.bluelight.edu.et/registrationform', external: true },
+                { label: t.footerPortal, href: 'https://portal.bluelight.edu.et', external: true },
+              ].map(({ label, href, external }) => (
                 <li key={label}>
                   <Link
                     href={href}
+                    target={external ? '_blank' : undefined}
+                    rel={external ? 'noopener noreferrer' : undefined}
                     className="text-gray-400 hover:text-white text-sm transition-colors duration-200 flex items-center gap-2 group"
                   >
                     <span className="w-1 h-1 rounded-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />

@@ -108,6 +108,24 @@ export default function FAQ() {
           ))}
         </div>
 
+        {/* Portal Banner */}
+        <div className="max-w-3xl mx-auto mt-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-5 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-600 shadow-lg shadow-blue-200/50">
+            <div className="text-center sm:text-left">
+              <p className="text-white font-semibold text-base">{t.portalBannerTitle}</p>
+              <p className="text-blue-100 text-sm mt-0.5">{t.portalBannerDesc}</p>
+            </div>
+            <a
+              href="https://portal.bluelight.edu.et"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0 px-5 py-2.5 bg-white text-blue-600 font-semibold text-sm rounded-xl hover:bg-blue-50 transition-colors duration-200 whitespace-nowrap"
+            >
+              {t.portalBannerBtn} →
+            </a>
+          </div>
+        </div>
+
       </div>
     </section>
   )
