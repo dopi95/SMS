@@ -50,7 +50,7 @@ router.post('/portal-login', async (req, res) => {
           qualification: teacher.qualification, qualificationLevel: teacher.qualificationLevel,
           experienceYears: teacher.experienceYears, address: teacher.address,
           sex: teacher.sex, employmentDate: teacher.employmentDate, employmentType: teacher.employmentType,
-          teachingClass: teacher.teachingClass, teachingSubject: teacher.teachingSubject,
+          teachingClass: teacher.teachingClass, teachingSection: teacher.teachingSection, teachingSubject: teacher.teachingSubject,
           photo: teacher.photo, portalUsername: teacher.portalUsername
         }
       });
@@ -126,7 +126,7 @@ router.get('/portal-profile/:username', async (req, res) => {
           qualification: teacher.qualification, qualificationLevel: teacher.qualificationLevel,
           experienceYears: teacher.experienceYears, address: teacher.address,
           sex: teacher.sex, employmentDate: teacher.employmentDate, employmentType: teacher.employmentType,
-          teachingClass: teacher.teachingClass, teachingSubject: teacher.teachingSubject,
+          teachingClass: teacher.teachingClass, teachingSection: teacher.teachingSection, teachingSubject: teacher.teachingSubject,
           photo: teacher.photo, portalUsername: teacher.portalUsername
         }
       });
@@ -135,6 +135,41 @@ router.get('/portal-profile/:username', async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// Portal: get students by class and section for attendance
+router.get('/portal-students/:class/:section', async (req, res) => {
+  try {
+    const query = { class: req.params.class, status: 'active' };
+    if (req.params.section && req.params.section !== 'none') query.section = req.params.section;
+    const students = await Student.find(query, 'studentId firstName middleName lastName').sort({ firstName: 1 });
+    res.json(students);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// Portal: save/update attendance
+router.post('/portal-attendance', async (req, res) => {
+  try {
+    const Attendance = require('../models/Attendance.model');
+    const { date, year, teacherId, class: cls, section, records } = req.body;
+    const existing = await Attendance.findOne({ date, teacherId });
+    if (existing) {
+      existing.records = records;
+      await existing.save();
+      return res.json(existing);
+    }
+    const att = await Attendance.create({ date, year, teacherId, class: cls, section, records });
+    res.status(201).json(att);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// Portal: get attendance by date and teacher
+router.get('/portal-attendance/:teacherId/:date', async (req, res) => {
+  try {
+    const Attendance = require('../models/Attendance.model');
+    const att = await Attendance.findOne({ teacherId: req.params.teacherId, date: req.params.date });
+    res.json(att || null);
+  } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 // Public portal notices endpoint
