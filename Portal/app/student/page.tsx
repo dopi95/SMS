@@ -129,7 +129,7 @@ export default function StudentDashboard() {
             : <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">{initials}</div>
           }
           <div className="min-w-0">
-            <p className="text-gray-800 font-semibold text-sm truncate">{profile.firstName} {profile.lastName}</p>
+            <p className="text-gray-800 font-semibold text-sm truncate">{profile.firstName} {profile.middleName}</p>
             <p className="text-gray-400 text-xs">{profile.studentId}</p>
           </div>
         </div>
