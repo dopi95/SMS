@@ -137,6 +137,17 @@ router.get('/portal-profile/:username', async (req, res) => {
   }
 });
 
+// Public portal notices endpoint
+router.get('/portal-notices', async (req, res) => {
+  try {
+    const NotificationHistory = require('../models/NotificationHistory.model');
+    const notices = await NotificationHistory.find().sort({ createdAt: -1 }).limit(20);
+    res.json(notices);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.post('/register', register);
 router.post('/login', login);
 router.get('/me', auth, getMe);

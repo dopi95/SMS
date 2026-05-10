@@ -28,7 +28,6 @@ export default function LoginPage() {
     try {
       const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/portal-login`, { username: username.trim(), password })
       localStorage.setItem('portal_user', JSON.stringify(res.data))
-      toast.success('Login successful!')
       router.push(res.data.role === 'student' ? '/student' : '/teacher')
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Invalid credentials')
