@@ -102,29 +102,35 @@ export default function StudentDashboard() {
 
   const Sidebar = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-blue-800/40">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow flex-shrink-0">
-            <span className="text-blue-700 font-bold text-sm">B</span>
+      {/* Logo + X button on mobile */}
+      <div className="px-5 py-5 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src="/lo.png" alt="Bluelight Academy" className="w-9 h-9 rounded-full object-contain flex-shrink-0" />
+            <div>
+              <p className="font-bold text-gray-800 text-sm leading-tight">Bluelight Academy</p>
+              <p className="text-gray-400 text-xs">Student Portal</p>
+            </div>
           </div>
-          <div>
-            <p className="font-bold text-white text-sm leading-tight">Bluelight Academy</p>
-            <p className="text-blue-300 text-xs">Student Portal</p>
-          </div>
+          <button onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 flex-shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       </div>
 
       {/* Profile mini */}
-      <div className="px-5 py-4 border-b border-blue-800/40">
+      <div className="px-5 py-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
           {profile.photo
             ? <img src={profile.photo} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-blue-400 flex-shrink-0" />
-            : <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">{initials}</div>
+            : <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">{initials}</div>
           }
           <div className="min-w-0">
-            <p className="text-white font-semibold text-sm truncate">{profile.firstName} {profile.lastName}</p>
-            <p className="text-blue-300 text-xs">{profile.studentId}</p>
+            <p className="text-gray-800 font-semibold text-sm truncate">{profile.firstName} {profile.lastName}</p>
+            <p className="text-gray-400 text-xs">{profile.studentId}</p>
           </div>
         </div>
       </div>
@@ -134,7 +140,7 @@ export default function StudentDashboard() {
         {navItems.map(item => (
           <button key={item.key} onClick={() => { setPage(item.key); setSidebarOpen(false) }}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-              page === item.key ? 'bg-white text-blue-700 shadow' : 'text-blue-100 hover:bg-blue-700/50'
+              page === item.key ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-gray-600 hover:bg-gray-100'
             }`}>
             {item.icon}
             {item.label}
@@ -143,9 +149,9 @@ export default function StudentDashboard() {
       </nav>
 
       {/* Logout */}
-      <div className="px-3 py-4 border-t border-blue-800/40">
+      <div className="px-3 py-4 border-t border-gray-200">
         <button onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-blue-200 hover:bg-red-500/20 hover:text-red-300 transition-all">
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
           Logout
         </button>
@@ -158,7 +164,7 @@ export default function StudentDashboard() {
       <Toaster />
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-blue-700 fixed inset-y-0 left-0 z-30">
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 fixed inset-y-0 left-0 z-30">
         <Sidebar />
       </aside>
 
@@ -166,7 +172,7 @@ export default function StudentDashboard() {
       {sidebarOpen && (
         <div className="md:hidden fixed inset-0 z-40 flex">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <div className="relative w-64 bg-blue-700 h-full z-50">
+          <div className="relative w-64 bg-white border-r border-gray-200 h-full z-50">
             <Sidebar />
           </div>
         </div>
@@ -175,15 +181,11 @@ export default function StudentDashboard() {
       {/* Main */}
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
         {/* Mobile Header */}
-        <header className="md:hidden bg-blue-700 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-20 shadow">
-          <button onClick={() => setSidebarOpen(p => !p)} className="p-1.5 rounded-lg hover:bg-blue-600">
-            {sidebarOpen ? (
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-            ) : (
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-            )}
+        <header className="md:hidden bg-white border-b border-gray-200 text-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-700">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
-          <span className="font-semibold text-sm">{navItems.find(n => n.key === page)?.label}</span>
+          <span className="font-semibold text-sm text-gray-800">{navItems.find(n => n.key === page)?.label}</span>
           <div className="w-8" />
         </header>
 
