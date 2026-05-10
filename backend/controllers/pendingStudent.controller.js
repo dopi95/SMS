@@ -7,16 +7,25 @@ const submitPending = async (req, res) => {
   try {
     const uploadPhoto = async (fileArr, folder) => {
       if (!fileArr?.[0]) return '';
-      const result = await cloudinary.uploader.upload(fileArr[0].path, {
-        folder,
-        transformation: [{ width: 400, height: 400, crop: 'fill' }]
-      });
+      const file = fileArr[0];
+      const uploadOptions = { folder, transformation: [{ width: 400, height: 400, crop: 'fill', quality: 'auto:low', fetch_format: 'auto' }] };
+      let result;
+      if (file.buffer) {
+        result = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(uploadOptions, (err, res) => err ? reject(err) : resolve(res));
+          stream.end(file.buffer);
+        });
+      } else {
+        result = await cloudinary.uploader.upload(file.path, uploadOptions);
+      }
       return result.secure_url;
     };
     const files = req.files || {};
-    const photoUrl = await uploadPhoto(files.photo, 'pending_students');
-    const fatherPhotoUrl = await uploadPhoto(files.fatherPhoto, 'pending_students/parents');
-    const motherPhotoUrl = await uploadPhoto(files.motherPhoto, 'pending_students/parents');
+    const [photoUrl, fatherPhotoUrl, motherPhotoUrl] = await Promise.all([
+      uploadPhoto(files.photo, 'pending_students'),
+      uploadPhoto(files.fatherPhoto, 'pending_students/parents'),
+      uploadPhoto(files.motherPhoto, 'pending_students/parents'),
+    ]);
     const pending = new PendingStudent({ ...req.body, photo: photoUrl, fatherPhoto: fatherPhotoUrl, motherPhoto: motherPhotoUrl });
     await pending.save();
     res.status(201).json(pending);
