@@ -176,8 +176,12 @@ export default function StudentDashboard() {
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
         {/* Mobile Header */}
         <header className="md:hidden bg-blue-700 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-20 shadow">
-          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-lg hover:bg-blue-600">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+          <button onClick={() => setSidebarOpen(p => !p)} className="p-1.5 rounded-lg hover:bg-blue-600">
+            {sidebarOpen ? (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            ) : (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            )}
           </button>
           <span className="font-semibold text-sm">{navItems.find(n => n.key === page)?.label}</span>
           <div className="w-8" />
