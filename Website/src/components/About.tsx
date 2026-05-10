@@ -159,6 +159,12 @@ export default function About() {
           <p className="relative text-sm sm:text-base lg:text-lg text-blue-50 leading-7 sm:leading-8">
             {t.programsText}
           </p>
+          <p className="relative text-sm text-blue-200 mt-3">
+            {currentLang === 'en'
+              ? <>Enrolled? Access grades, attendance & more on our <a href="https://portal.bluelight.edu.et" target="_blank" rel="noopener noreferrer" className="text-white underline font-medium hover:text-blue-100">student portal</a>.</>
+              : <>ተመዘግበዋል? ውጤቶችን፣ መገኘትን እና ሌሎችን በ<a href="https://portal.bluelight.edu.et" target="_blank" rel="noopener noreferrer" className="text-white underline font-medium hover:text-blue-100">የተማሪ ፖርታል</a> ይድረሱ።</>
+            }
+          </p>
         </div>
 
       </div>

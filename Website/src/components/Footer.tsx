@@ -181,7 +181,6 @@ export default function Footer() {
       <div className="border-t border-white/5">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-gray-500 text-xs">{t.footerRights}</p>
-          <p className="text-gray-600 text-xs">{t.footerMadeWith}</p>
         </div>
       </div>
 
