@@ -1,24 +1,37 @@
 {
   "name": "Bluelight Academy Portal",
   "short_name": "BL Portal",
-  "description": "Student & Teacher Portal for Bluelight Academy",
+  "description": "Student & Teacher Portal for Bluelight Academy | ብሉላይት አካዳሚ የተማሪዎች እና አስተማሪዎች ፖርታል",
   "start_url": "/login",
   "display": "standalone",
   "background_color": "#eff6ff",
   "theme_color": "#1d4ed8",
   "orientation": "portrait-primary",
+  "lang": "am-ET",
+  "categories": ["education"],
   "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    },
     {
       "src": "/logo.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/logo.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
