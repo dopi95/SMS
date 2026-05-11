@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: '%s | Bluelight Academy Portal',
   },
   description:
-    'Bluelight Academy student and teacher portal — access grades, attendance, schedules and more. | ብሉላይት አካዳሚ የተማሪዎች እና አስተማሪዎች ፖርታል — ውጤቶችን፣ መገኘትን እና ሌሎችን ይድረሱ።',
+    'Bluelight Academy Portal — a secure online platform for students and teachers to access academic records, attendance, schedules, and school updates. | ብሉላይት አካዳሚ ፖርታል — ለተማሪዎች እና አስተማሪዎች ውጤቶችን፣ መገኘትን፣ የጊዜ ሰሌዳ እና ሌሎችን ለማግኘት።',
   keywords: [
     'Bluelight Academy',
     'Bluelight Academy Portal',
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     siteName: 'Bluelight Academy Portal',
     title: 'Bluelight Academy Portal | Student & Teacher Login',
     description:
-      'Access your Bluelight Academy student or teacher portal. | ብሉላይት አካዳሚ ፖርታልዎን ይድረሱ።',
+      'Bluelight Academy Portal — a secure online platform for students and teachers to access academic records, attendance, schedules, and school updates. | ብሉላይት አካዳሚ ፖርታል — ለተማሪዎች እና አስተማሪዎች።',
     images: [
       {
         url: '/icon-512.png',
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     card: 'summary',
     title: 'Bluelight Academy Portal',
     description:
-      'Student & Teacher Portal for Bluelight Academy | ብሉላይት አካዳሚ ፖርታል',
+      'Bluelight Academy Portal — secure access for students and teachers to academic records, attendance, and school updates. | ብሉላይት አካዳሚ ፖርታል',
     images: ['/icon-512.png'],
   },
   icons: {
