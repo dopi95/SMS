@@ -28,10 +28,8 @@ export const metadata: Metadata = {
   creator: 'Bluelight Academy',
   publisher: 'Bluelight Academy',
   applicationName: 'Bluelight Academy Portal',
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true },
+  verification: {
+    google: 'Mez5uB74FCWO-9oGF1glJUm7QwmwCRF83Fv65f_VmuE',
   },
   openGraph: {
     type: 'website',
