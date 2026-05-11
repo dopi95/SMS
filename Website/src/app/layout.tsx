@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   },
 
   description:
-    'Bluelight Academy — the best school in Addis Ababa, Ethiopia. KG1, KG2, KG3 programs at Summit Condominium near CMC & LG College. ብሉላይት አካዳሚ — በአዲስ አበባ ምርጥ ትምህርት ቤት። KG1፣ KG2፣ KG3 ፕሮግራሞች። ሰሚት ኮንዶሚኒየም።',
+    'Bluelight Academy — one of the leading schools in Addis Ababa, Ethiopia, dedicated to academic excellence, creativity, and holistic student development in a modern learning environment, located at Summit Condominium near CMC & LG College. ብሉላይት አካዳሚ — በአዲስ አበባ ምርጥ ትምህርት ቤት። ሰሚት ኮንዶሚኒየም።',
 
   keywords: [
     'Bluelight Academy', 'Bluelight', 'Blue light Academy',
@@ -67,7 +67,7 @@ export const metadata: Metadata = {
     url:         BASE_URL,
     siteName:    'Bluelight Academy',
     title:       'Bluelight Academy | Best School in Addis Ababa | ብሉላይት አካዳሚ | በአዲስ አበባ ምርጥ ትምህርት ቤት',
-    description: 'Bluelight Academy — the best school in Addis Ababa. KG1–KG3 at Summit Condominium near CMC. ብሉላይት አካዳሚ — በአዲስ አበባ ምርጥ ትምህርት ቤት። ሰሚት ኮንዶሚኒየም።',
+    description: 'Bluelight Academy — one of the leading schools in Addis Ababa, Ethiopia, dedicated to academic excellence, creativity, and holistic student development in a modern learning environment, located at Summit Condominium near CMC & LG College. ብሉላይት አካዳሚ — በአዲስ አበባ ምርጥ ትምህርት ቤት። ሰሚት ኮንዶሚኒየም።',
     images: [
       {
         url:    `${BASE_URL}/icons/icon-512.png`,
@@ -81,7 +81,7 @@ export const metadata: Metadata = {
   twitter: {
     card:        'summary_large_image',
     title:       'Bluelight Academy | Best School in Addis Ababa | ብሉላይት አካዳሚ',
-    description: 'Best school in Addis Ababa. KG1–KG3 at Summit Condominium near CMC & LG College. ብሉላይት አካዳሚ — ሰሚት ኮንዶሚኒየም።',
+    description: 'Bluelight Academy — one of the leading schools in Addis Ababa, dedicated to academic excellence, creativity, and holistic student development, located at Summit Condominium near CMC & LG College.',
     images:      [`${BASE_URL}/icons/icon-512.png`],
   },
 
@@ -109,7 +109,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Force OG meta directly in head — overrides any cache */}
         <meta property="og:title" content="Bluelight Academy | Best School in Addis Ababa | ብሉላይት አካዳሚ | በአዲስ አበባ ምርጥ ትምህርት ቤት" />
-        <meta property="og:description" content="Bluelight Academy — Best school in Addis Ababa. KG1, KG2, KG3 at Summit Condominium near CMC & LG College. ብሉላይት አካዳሚ — በአዲስ አበባ ምርጥ ትምህርት ቤት። ሰሚት ኮንዶሚኒየም።" />
+        <meta property="og:description" content="Bluelight Academy — one of the leading schools in Addis Ababa, Ethiopia, dedicated to academic excellence, creativity, and holistic student development in a modern learning environment, located at Summit Condominium near CMC &amp; LG College." />
         <meta property="og:image" content="https://bluelight.edu.et/icons/icon-512.png" />
         <meta property="og:image:width" content="512" />
         <meta property="og:image:height" content="512" />
@@ -118,7 +118,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta property="og:site_name" content="Bluelight Academy" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Bluelight Academy | Best School in Addis Ababa | ብሉላይት አካዳሚ" />
-        <meta name="twitter:description" content="Best school in Addis Ababa. KG1–KG3 at Summit Condominium. ብሉላይት አካዳሚ — ሰሚት ኮንዶሚኒየም።" />
+        <meta name="twitter:description" content="One of the leading schools in Addis Ababa, dedicated to academic excellence, creativity, and holistic student development at Summit Condominium near CMC & LG College." />
         <meta name="twitter:image" content="https://bluelight.edu.et/icons/icon-512.png" />
         <script
           type="application/ld+json"
@@ -131,7 +131,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               url: BASE_URL,
               logo: `${BASE_URL}/icons/icon-512.png`,
               image: `${BASE_URL}/icons/icon-512.png`,
-              description: 'Best school in Addis Ababa offering KG1, KG2, KG3 programs at Summit Condominium near CMC and LG College.',
+              description: 'Bluelight Academy — one of the leading schools in Addis Ababa, Ethiopia, dedicated to academic excellence, creativity, and holistic student development in a modern learning environment, located at Summit Condominium 3rd Gate near LG College 100 meters infront.',
               telephone: '+251945409940',
               email: 'info@bluelight.edu.et',
               foundingDate: '2024',
