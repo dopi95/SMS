@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const BOT_TOKEN = '7622120987:AAECTaQR0ZoWfOAxLbW6SeKtWJjeiuf2Afk'
-const CHAT_ID   = '2120123278'
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!
+const CHAT_ID   = process.env.TELEGRAM_CHAT_ID!
 
 export async function POST(req: NextRequest) {
   try {
