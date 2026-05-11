@@ -162,7 +162,7 @@ export default function MessagePage() {
             <div style={{ display:'flex', flexDirection:'column', gap:8, alignItems:'flex-start', flexShrink:0 }}>
               {[
                 { icon: 'M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.58.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.29 21 3 13.71 3 4.5c0-.55.45-1 1-1H7.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.23 1.01L6.6 10.8z', label: '+251945409940', sub: 'Phone' },
-                { icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z', label: 'bluelight.edu.et', sub: 'Website' },
+                { icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z', label: 'www.bluelight.edu.et', sub: 'Website' },
                 { icon: 'M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z', label: 'contact@bluelight.edu.et', sub: 'Email' },
               ].map(c => (
                 <div key={c.sub} style={{ display:'flex', alignItems:'center', gap:9 }}>
@@ -213,7 +213,7 @@ export default function MessagePage() {
         <div style={{ display:'flex', alignItems:'stretch', height:88, background:'#fff', overflow:'hidden' }}>
           <div style={{ display:'flex', alignItems:'center', padding:'10px 18px 10px 22px', flexShrink:0, background:'#fff', zIndex:2 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icons/icon.png" alt="Logo" style={{ width:50, height:50, borderRadius:'50%', objectFit:'contain' }} />
+            <img src="/img/logo.png" alt="Logo" style={{ width:62, height:62, borderRadius:'50%', objectFit:'contain' }} />
             <span style={{ marginLeft:12, fontSize:12, fontStyle:'italic', fontWeight:600, color:'#1e40af', whiteSpace:'nowrap' }}>&ldquo;Be the light, Lead the way!&rdquo;</span>
           </div>
           <div style={{ flex:1, position:'relative', overflow:'hidden' }}>
@@ -225,6 +225,9 @@ export default function MessagePage() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/img/qrcode.png" alt="QR" style={{ width:58, height:58, borderRadius:6, border:'2px solid rgba(255,255,255,.9)', background:'#fff' }} />
               <span style={{ fontSize:8.5, fontWeight:700, color:'#fff', letterSpacing:.4, textAlign:'center', textShadow:'0 1px 3px rgba(0,0,0,.4)', whiteSpace:'nowrap' }}>Scan to visit website</span>
+            </div>
+            <div style={{ position:'absolute', left:16, bottom:10, zIndex:3 }}>
+              <span style={{ fontSize:9, fontWeight:700, color:'rgba(255,255,255,.75)', letterSpacing:.5, textShadow:'0 1px 3px rgba(0,0,0,.4)' }}>portal.bluelight.edu.et</span>
             </div>
           </div>
         </div>
