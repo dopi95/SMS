@@ -42,7 +42,7 @@ export const metadata: Metadata = {
       'Bluelight Academy Portal — a secure online platform for students and teachers to access academic records, attendance, schedules, and school updates. | ብሉላይት አካዳሚ ፖርታል — ለተማሪዎች እና አስተማሪዎች።',
     images: [
       {
-        url: '/icon-512.png',
+        url: 'https://portal.bluelight.edu.et/icon-512.png',
         width: 512,
         height: 512,
         alt: 'Bluelight Academy Logo',
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     title: 'Bluelight Academy Portal',
     description:
       'Bluelight Academy Portal — secure access for students and teachers to academic records, attendance, and school updates. | ብሉላይት አካዳሚ ፖርታል',
-    images: ['/icon-512.png'],
+    images: ['https://portal.bluelight.edu.et/icon-512.png'],
   },
   icons: {
     icon: [
@@ -83,6 +83,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="am-ET">
       <head>
+        <meta property="og:image" content="https://portal.bluelight.edu.et/icon-512.png" />
+        <meta property="og:image:width" content="512" />
+        <meta property="og:image:height" content="512" />
+        <meta property="og:image:alt" content="Bluelight Academy Portal" />
+        <meta name="twitter:image" content="https://portal.bluelight.edu.et/icon-512.png" />
         {/* Capture install prompt before React hydrates */}
         <script dangerouslySetInnerHTML={{ __html: `
           window.__installPrompt = null;
@@ -91,6 +96,28 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             window.__installPrompt = e;
           });
         `}} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'WebApplication',
+              name: 'Bluelight Academy Portal',
+              url: 'https://portal.bluelight.edu.et',
+              logo: 'https://portal.bluelight.edu.et/icon-512.png',
+              image: 'https://portal.bluelight.edu.et/icon-512.png',
+              description: 'Bluelight Academy Portal — a secure online platform for students and teachers to access academic records, attendance, schedules, and school updates.',
+              applicationCategory: 'EducationApplication',
+              operatingSystem: 'All',
+              publisher: {
+                '@type': 'Organization',
+                name: 'Bluelight Academy',
+                url: 'https://bluelight.edu.et',
+                logo: 'https://bluelight.edu.et/icons/icon-512.png',
+              },
+            }),
+          }}
+        />
       </head>
       <body className="bg-gray-50 min-h-screen">
         <Providers>{children}</Providers>
