@@ -172,11 +172,11 @@ router.get('/portal-attendance/:teacherId/:date', async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// Public portal notices endpoint
+// Public portal notices endpoint — uses new Notice model
 router.get('/portal-notices', async (req, res) => {
   try {
-    const NotificationHistory = require('../models/NotificationHistory.model');
-    const notices = await NotificationHistory.find().sort({ createdAt: -1 }).limit(20);
+    const Notice = require('../models/Notice.model');
+    const notices = await Notice.find({ isActive: true }).sort({ createdAt: -1 }).limit(50);
     res.json(notices);
   } catch (err) {
     res.status(500).json({ message: err.message });

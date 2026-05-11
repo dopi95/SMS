@@ -10,6 +10,7 @@ const ALL_PAGES = [
   { page: 'custom-payment',   actions: ['view','add','edit','delete'] },
   { page: 'pending-students', actions: ['view','approve','reject','delete'] },
   { page: 'notifications',    actions: ['view','send'] },
+  { page: 'notice',           actions: ['view','send','delete'] },
   { page: 'admins',           actions: ['view','add','edit','delete'] },
   { page: 'activity-logs',    actions: ['view'] },
   { page: 'profile',          actions: ['view','edit'] },

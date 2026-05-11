@@ -226,50 +226,50 @@ export default function PendingStudentsPage() {
 
   return (
     <DashboardLayout pageTitle="Pending Students" hideBell>
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-        <div className="max-w-7xl mx-auto space-y-4">
+      <div className="min-h-screen bg-gray-50 p-3 sm:p-6">
+        <div className="max-w-7xl mx-auto space-y-3 sm:space-y-4">
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white rounded-2xl shadow border border-gray-100 px-6 py-5 flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow border border-gray-100 px-3 py-3 sm:px-6 sm:py-5 flex items-center gap-2 sm:gap-4">
+              <div className="w-9 h-9 sm:w-12 sm:h-12 bg-blue-100 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Total Registered</p>
-                <p className="text-3xl font-extrabold text-gray-900">{students.length}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide leading-tight">Total</p>
+                <p className="text-xl sm:text-3xl font-extrabold text-gray-900">{students.length}</p>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow border border-gray-100 px-6 py-5 flex items-center gap-4">
-              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow border border-gray-100 px-3 py-3 sm:px-6 sm:py-5 flex items-center gap-2 sm:gap-4">
+              <div className="w-9 h-9 sm:w-12 sm:h-12 bg-yellow-100 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Pending</p>
-                <p className="text-3xl font-extrabold text-yellow-600">{pendingCount}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide leading-tight">Pending</p>
+                <p className="text-xl sm:text-3xl font-extrabold text-yellow-600">{pendingCount}</p>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow border border-gray-100 px-6 py-5 flex items-center gap-4">
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow border border-gray-100 px-3 py-3 sm:px-6 sm:py-5 flex items-center gap-2 sm:gap-4">
+              <div className="w-9 h-9 sm:w-12 sm:h-12 bg-green-100 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 sm:w-6 sm:h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Registered Today</p>
-                <p className="text-3xl font-extrabold text-green-600">{students.filter(s => new Date(s.createdAt).toDateString() === todayStr).length}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide leading-tight">Today</p>
+                <p className="text-xl sm:text-3xl font-extrabold text-green-600">{students.filter(s => new Date(s.createdAt).toDateString() === todayStr).length}</p>
               </div>
             </div>
           </div>
 
           {/* Search & Filters */}
-          <div className="bg-white rounded-2xl shadow border border-gray-100 px-4 py-4 space-y-3">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow border border-gray-100 p-3 sm:p-4 space-y-2.5">
             {/* Search */}
             <div className="relative">
               <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -277,10 +277,10 @@ export default function PendingStudentsPage() {
               </svg>
               <input
                 type="text"
-                placeholder="Search by student name, father/mother name or phone..."
+                placeholder="Search name, phone..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-9 pr-9 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               {search && (
                 <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -289,52 +289,50 @@ export default function PendingStudentsPage() {
               )}
             </div>
 
-            {/* Filter Row */}
-            <div className="flex flex-wrap gap-2 items-center">
+            {/* Filters: 2-col grid on mobile */}
+            <div className="grid grid-cols-2 gap-2">
               <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={selCls}>
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
               </select>
-
               <select value={filterType} onChange={e => setFilterType(e.target.value)} className={selCls}>
                 <option value="all">All Types</option>
                 <option value="new">New</option>
                 <option value="existing">Existing</option>
               </select>
-
               <select value={filterClass} onChange={e => setFilterClass(e.target.value)} className={selCls}>
                 <option value="all">All Classes</option>
                 <option value="Nursery">Nursery</option>
                 <option value="LKG">LKG</option>
                 <option value="UKG">UKG</option>
               </select>
-
               <button
                 onClick={() => setFilterToday(p => !p)}
-                className={`px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${filterToday ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}
+                className={`px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${filterToday ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}
               >
                 Today Only
               </button>
+            </div>
 
+            {/* Bottom row: count + clear + export */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 flex-1">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
               {(search || filterType !== 'all' || filterClass !== 'all' || filterStatus !== 'pending' || filterToday) && (
                 <button
                   onClick={() => { setSearch(''); setFilterType('all'); setFilterClass('all'); setFilterStatus('pending'); setFilterToday(false) }}
-                  className="px-3 py-2 rounded-xl text-sm font-medium text-red-500 border border-red-200 hover:bg-red-50 transition-colors"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 border border-red-200 hover:bg-red-50 transition-colors"
                 >
-                  Clear Filters
+                  Clear
                 </button>
               )}
-
-              <span className="ml-auto text-sm text-gray-400">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
-
               <button
                 onClick={exportPDF}
                 disabled={filtered.length === 0}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white transition-colors"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h4a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
                 </svg>
                 Export PDF
@@ -447,38 +445,62 @@ export default function PendingStudentsPage() {
                 {/* ── MOBILE CARDS ── */}
                 <div className="md:hidden divide-y divide-gray-100">
                   {filtered.map((s, i) => (
-                    <div key={s._id} className="p-4">
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className="text-xs text-gray-400 font-medium w-5 flex-shrink-0">{i + 1}</span>
-                        {s.photo ? (
-                          <img src={s.photo} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-blue-100" />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 border-2 border-blue-200">
-                            <span className="text-blue-700 font-bold text-lg">{s.firstName?.[0]}</span>
-                          </div>
-                        )}
+                    <div key={s._id} className="px-3 py-3">
+
+                      {/* Row 1: number + avatar + name + badges */}
+                      <div className="flex items-start gap-2 mb-2">
+                        <span className="text-[11px] text-gray-400 font-medium pt-1 w-5 flex-shrink-0">{i + 1}</span>
+                        {s.photo
+                          ? <img src={s.photo} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0 border border-blue-100" />
+                          : <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0"><span className="text-blue-700 font-bold text-sm">{s.firstName?.[0]}</span></div>
+                        }
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-gray-900 truncate">{s.firstName} {s.middleName} {s.lastName}</p>
-                          <p className="text-xs text-gray-400 truncate">{s.firstNameAmharic} {s.middleNameAmharic} {s.lastNameAmharic}</p>
+                          <p className="text-sm font-bold text-gray-900 leading-tight truncate">{s.firstName} {s.middleName} {s.lastName}</p>
+                          {(s.firstNameAmharic) && <p className="text-[11px] text-gray-400 leading-tight truncate">{s.firstNameAmharic} {s.middleNameAmharic}</p>}
                         </div>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${s.studentType === 'new' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {s.studentType === 'new' ? 'New' : 'Existing'}
-                        </span>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0 pt-0.5">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full leading-tight ${s.studentType === 'new' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {s.studentType === 'new' ? 'New' : 'Exist'}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize leading-tight ${STATUS_BADGE[s.status] || 'bg-gray-100 text-gray-600'}`}>
+                            {s.status}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-3 bg-gray-50 rounded-xl px-3 py-2.5">
-                        <MobileRow label="Class" value={s.class} />
-                        <MobileRow label="Status" value={s.status} statusColor={STATUS_BADGE[s.status]} />
-                        <MobileRow label="Father Phone" value={s.fatherPhone || '—'} />
-                        <MobileRow label="Registered" value={new Date(s.createdAt).toLocaleDateString()} />
+                      {/* Row 2: info pills */}
+                      <div className="flex items-center gap-2 mb-2.5 ml-7">
+                        <span className="text-[11px] text-gray-500 bg-gray-100 rounded-md px-2 py-0.5 font-medium">{s.class.replace(/\s*\(.*?\)/, '').trim()}</span>
+                        {s.fatherPhone && <span className="text-[11px] text-gray-500 bg-gray-100 rounded-md px-2 py-0.5 font-medium truncate max-w-[120px]">{s.fatherPhone}</span>}
+                        <span className="text-[11px] text-gray-400 ml-auto">{new Date(s.createdAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</span>
                       </div>
 
-                      <div className="flex gap-2">
-                        <button onClick={() => setDetail(s)} className="flex-1 py-2 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl border border-blue-200 transition-colors">Detail</button>
-                        {!isExecutive && s.status !== 'approved' && canDo('pending-students','approve') && <button onClick={() => approve(s._id)} disabled={actionId === s._id} className="flex-1 py-2 text-xs font-semibold bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl transition-colors">{actionId === s._id ? '...' : 'Approve'}</button>}
-                        {!isExecutive && s.status !== 'rejected' && canDo('pending-students','reject') && <button onClick={() => confirmReject(s._id)} disabled={actionId === s._id} className="flex-1 py-2 text-xs font-semibold bg-orange-50 hover:bg-orange-100 disabled:opacity-50 text-orange-600 rounded-xl border border-orange-200 transition-colors">Reject</button>}
-                        {!isExecutive && canDo('pending-students','delete') && <button onClick={() => confirmDelete(s._id)} disabled={actionId === s._id} className="flex-1 py-2 text-xs font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl transition-colors">Delete</button>}
+                      {/* Row 3: action buttons */}
+                      <div className="flex gap-1.5 ml-7">
+                        <button onClick={() => setDetail(s)}
+                          className="flex-1 py-1.5 text-xs font-semibold bg-blue-50 text-blue-700 rounded-lg border border-blue-200 active:bg-blue-100">
+                          View
+                        </button>
+                        {!isExecutive && s.status !== 'approved' && canDo('pending-students','approve') && (
+                          <button onClick={() => approve(s._id)} disabled={actionId === s._id}
+                            className="flex-1 py-1.5 text-xs font-semibold bg-green-600 text-white rounded-lg disabled:opacity-50 active:bg-green-700">
+                            {actionId === s._id ? '...' : 'Approve'}
+                          </button>
+                        )}
+                        {!isExecutive && s.status !== 'rejected' && canDo('pending-students','reject') && (
+                          <button onClick={() => confirmReject(s._id)} disabled={actionId === s._id}
+                            className="flex-1 py-1.5 text-xs font-semibold bg-orange-100 text-orange-600 rounded-lg border border-orange-200 disabled:opacity-50 active:bg-orange-200">
+                            Reject
+                          </button>
+                        )}
+                        {!isExecutive && canDo('pending-students','delete') && (
+                          <button onClick={() => confirmDelete(s._id)} disabled={actionId === s._id}
+                            className="px-3 py-1.5 text-xs font-semibold bg-red-600 text-white rounded-lg disabled:opacity-50 active:bg-red-700 flex-shrink-0">
+                            Del
+                          </button>
+                        )}
                       </div>
+
                     </div>
                   ))}
                 </div>
@@ -695,10 +717,10 @@ export default function PendingStudentsPage() {
 function MobileRow({ label, value, statusColor }: { label: string; value: string; statusColor?: string }) {
   return (
     <div className="flex flex-col">
-      <span className="text-xs text-gray-400">{label}</span>
+      <span className="text-[10px] text-gray-400 leading-tight">{label}</span>
       {statusColor
-        ? <span className={`text-xs font-semibold px-2 py-0.5 rounded-full w-fit mt-0.5 capitalize ${statusColor}`}>{value}</span>
-        : <span className="text-xs font-semibold text-gray-700">{value}</span>
+        ? <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full w-fit mt-0.5 capitalize ${statusColor}`}>{value}</span>
+        : <span className="text-xs font-semibold text-gray-700 truncate">{value}</span>
       }
     </div>
   )

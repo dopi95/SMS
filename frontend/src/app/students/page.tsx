@@ -606,120 +606,121 @@ export default function StudentsPage() {
   const downloadAttendanceExcel = () => {
     const list = getAttendanceStudents();
     const isAm = attendanceLang === 'am';
-    const days = Array.from({ length: 22 }, (_, i) => String(i + 1));
     const totalCols = 4 + 22;
 
-    const titleStyle: any = { font: { bold: true, sz: 14, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E3A5F' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } };
-    const metaLabelStyle: any = { font: { bold: true, sz: 10, color: { rgb: '1E3A5F' } }, fill: { fgColor: { rgb: 'EBF5FB' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'BDC3C7' } }, bottom: { style: 'thin', color: { rgb: 'BDC3C7' } }, left: { style: 'thin', color: { rgb: 'BDC3C7' } }, right: { style: 'thin', color: { rgb: 'BDC3C7' } } } };
-    const metaValueStyle: any = { font: { sz: 10, color: { rgb: '2C3E50' } }, fill: { fgColor: { rgb: 'FDFEFE' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'BDC3C7' } }, bottom: { style: 'thin', color: { rgb: 'BDC3C7' } }, left: { style: 'thin', color: { rgb: 'BDC3C7' } }, right: { style: 'thin', color: { rgb: 'BDC3C7' } } } };
-    const headerStyle: any = { font: { bold: true, sz: 9, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E40AF' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { top: { style: 'medium', color: { rgb: '1E3A5F' } }, bottom: { style: 'medium', color: { rgb: '1E3A5F' } }, left: { style: 'thin', color: { rgb: '3B82F6' } }, right: { style: 'thin', color: { rgb: '3B82F6' } } } };
-    const nameHeaderStyle: any = { ...headerStyle, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } };
-    const rowEvenStyle: any = { font: { sz: 9, color: { rgb: '1A1A2E' } }, fill: { fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'BFDBFE' } }, bottom: { style: 'thin', color: { rgb: 'BFDBFE' } }, left: { style: 'thin', color: { rgb: 'BFDBFE' } }, right: { style: 'thin', color: { rgb: 'BFDBFE' } } } };
-    const rowOddStyle: any = { font: { sz: 9, color: { rgb: '1A1A2E' } }, fill: { fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'BFDBFE' } }, bottom: { style: 'thin', color: { rgb: 'BFDBFE' } }, left: { style: 'thin', color: { rgb: 'BFDBFE' } }, right: { style: 'thin', color: { rgb: 'BFDBFE' } } } };
-    const nameStyle = (even: boolean): any => ({ ...(even ? rowEvenStyle : rowOddStyle), alignment: { horizontal: 'left', vertical: 'center' } });
-    const legendTitleStyle: any = { font: { bold: true, sz: 9, color: { rgb: '1E3A5F' } }, fill: { fgColor: { rgb: 'DBEAFE' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: { top: { style: 'medium', color: { rgb: '1E40AF' } } } };
-    const legendStyle: any = { font: { sz: 9, color: { rgb: '374151' } }, fill: { fgColor: { rgb: 'F0F9FF' } }, alignment: { horizontal: 'left', vertical: 'center' } };
+    const thin = { style: 'thin', color: { rgb: '000000' } };
+    const border = { top: thin, bottom: thin, left: thin, right: thin };
+    const boldFont = { bold: true, sz: 11 };
+    const normalFont = { sz: 10 };
+    const centerAlign = { horizontal: 'center', vertical: 'center' };
+    const leftAlign = { horizontal: 'left', vertical: 'center' };
 
     const ws: any = {};
     const merges: any[] = [];
     let R = 0;
-    const setCell = (r: number, col: number, v: any, s: any) => {
-      const addr = XLSXStyle.utils.encode_cell({ r, c: col });
-      ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s };
+
+    const sc = (r: number, c: number, v: any, s: any = {}) => {
+      ws[XLSXStyle.utils.encode_cell({ r, c })] = { v: v ?? '', t: typeof v === 'number' ? 'n' : 's', s };
+    };
+    const fillRow = (r: number, fromC: number, toC: number, s: any = {}) => {
+      for (let c = fromC; c <= toC; c++) sc(r, c, '', s);
     };
 
-    const titleText = isAm
-      ? 'የብሉ ላይት አካዳሚ  የተማሪዎች ስም መቆጣጠሪያ'
+    // Row 0 - Title
+    const title = isAm
+      ? '\u12e8\u1265\u1209 \u120b\u12ed\u1275 \u12a0\u12ab\u12f3\u121a \u12e8\u1270\u121b\u122a\u12ce\u127d \u1235\u121d \u1218\u1246\u1323\u1320\u122a\u12eb'
       : 'Bluelight Academy - Student Attendance Sheet';
-    setCell(R, 0, titleText, titleStyle);
-    for (let col = 1; col < totalCols; col++) setCell(R, col, '', titleStyle);
+    sc(R, 0, title, { font: { bold: true, sz: 13 }, alignment: { horizontal: 'center', vertical: 'center' } });
+    fillRow(R, 1, totalCols - 1);
     merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
     R++;
+
+    // Row 1 - blank
     R++;
 
-    const metaPairs: [string, string][] = isAm
-      ? [
-          ['የመምህሩ ስም', ''],
-          ['ክፍል', attendanceClass || ''],
-          ['ክፍል ቅፅ', attendanceSection || ''],
-          ['ወር', ''],
-          ['የትምህርት አይነት', ''],
-        ]
-      : [
-          ['Teacher Name', ''],
-          ['Class', attendanceClass || ''],
-          ['Section', attendanceSection || ''],
-          ['Month', ''],
-          ['Subject', ''],
-        ];
-
-    const blankBorder: any = { fill: { fgColor: { rgb: 'FDFEFE' } }, border: { top: { style: 'thin', color: { rgb: 'BDC3C7' } }, bottom: { style: 'thin', color: { rgb: 'BDC3C7' } } } };
-    metaPairs.forEach(([label, val]) => {
-      setCell(R, 0, label, metaLabelStyle);
-      setCell(R, 1, val, metaValueStyle);
-      for (let col = 2; col < totalCols; col++) setCell(R, col, '', blankBorder);
-      merges.push({ s: { r: R, c: 1 }, e: { r: R, c: totalCols - 1 } });
-      R++;
-    });
+    // Row 2 - Teacher + Date
+    const teacherLabel = isAm ? '\u12e8\u1218\u121d\u1205\u1229 \u1235\u121d............' : 'Teacher Name............';
+    const dateLabel    = isAm ? '\u1240\u1295............' : 'Date............';
+    sc(R, 0, teacherLabel, { font: normalFont, alignment: leftAlign });
+    fillRow(R, 1, 5);
+    merges.push({ s: { r: R, c: 0 }, e: { r: R, c: 5 } });
+    sc(R, 6, dateLabel, { font: normalFont, alignment: leftAlign });
+    fillRow(R, 7, totalCols - 1);
+    merges.push({ s: { r: R, c: 6 }, e: { r: R, c: totalCols - 1 } });
     R++;
 
-    const headerRowIdx = R;
+    // Row 3 - Class/Section + Subject
+    const classVal   = attendanceClass || '';
+    const sectionVal = attendanceSection || '';
+    const classLabel   = isAm
+      ? '\u12ad\u134d\u120d......' + classVal + '......\u12ad\u134d\u120d \u1245\u1345......' + sectionVal + '......'
+      : 'Class......' + classVal + '......Section......' + sectionVal + '......';
+    const subjectLabel = isAm ? '\u12e8\u1275\u121d\u1205\u122d\u1275 \u12a0\u12ed\u1290\u1275............' : 'Subject............';
+    sc(R, 0, classLabel, { font: normalFont, alignment: leftAlign });
+    fillRow(R, 1, 5);
+    merges.push({ s: { r: R, c: 0 }, e: { r: R, c: 5 } });
+    sc(R, 6, subjectLabel, { font: normalFont, alignment: leftAlign });
+    fillRow(R, 7, totalCols - 1);
+    merges.push({ s: { r: R, c: 6 }, e: { r: R, c: totalCols - 1 } });
+    R++;
+
+    // Rows 4-5 blank
+    R++;
+    R++;
+
+    // Row 6 - Headers with borders + light green fill
     const headers = isAm
-      ? ['ተ.ቁ', 'የተማሪው ስም', 'ዕድሜ', 'ጾታ', ...days]
-      : ['No.', 'Student Name', 'Age', 'Gender', ...days];
-    headers.forEach((h, col) => setCell(R, col, h, col === 1 ? nameHeaderStyle : headerStyle));
+      ? ['\u1270.\u1241', '\u12e8\u1270\u121b\u122a\u12cd \u1235\u121d', '\u12d5\u12f5\u121c', '\u133e\u1273']
+      : ['No.', 'Student Name', 'Age', 'Gender'];
+    const days = Array.from({ length: 22 }, (_, i) => String(i + 1));
+    [...headers, ...days].forEach((h, c) => {
+      sc(R, c, h, {
+        font: boldFont,
+        alignment: c === 1 ? leftAlign : centerAlign,
+        border,
+        fill: { fgColor: { rgb: 'D9EAD3' } },
+      });
+    });
     R++;
 
+    // Student rows
     list.forEach((s, i) => {
-      const even = i % 2 === 0;
-      const base = even ? rowEvenStyle : rowOddStyle;
-      setCell(R, 0, i + 1, base);
-      setCell(R, 1, getStudentName(s, attendanceLang), nameStyle(even));
-      setCell(R, 2, getAge(s.dateOfBirth), base);
-      const genderVal = isAm
-        ? (s.gender === 'Male' ? 'ወንድ' : s.gender === 'Female' ? 'ሴት' : s.gender)
+      const name   = getStudentName(s, attendanceLang);
+      const age    = getAge(s.dateOfBirth);
+      const gender = isAm
+        ? (s.gender === 'Male' ? '\u12c8\u1295\u12f5' : s.gender === 'Female' ? '\u1234\u1275' : s.gender)
         : (s.gender === 'Male' ? 'M' : s.gender === 'Female' ? 'F' : s.gender);
-      setCell(R, 3, genderVal, base);
-      for (let col = 4; col < totalCols; col++) setCell(R, col, '', base);
+      sc(R, 0, i + 1,  { font: normalFont, alignment: centerAlign, border });
+      sc(R, 1, name,   { font: normalFont, alignment: leftAlign,   border });
+      sc(R, 2, age,    { font: normalFont, alignment: centerAlign, border });
+      sc(R, 3, gender, { font: normalFont, alignment: centerAlign, border });
+      for (let c = 4; c < totalCols; c++) sc(R, c, '', { border });
       R++;
     });
+
+    R++;
     R++;
 
-    const legendTitle = isAm ? 'ማስታወሻ፡' : 'Legend:';
-    setCell(R, 0, legendTitle, legendTitleStyle);
-    for (let col = 1; col < totalCols; col++) setCell(R, col, '', legendTitleStyle);
+    // Legend
+    const legend = isAm
+      ? '\u121b\u1235\u1273\u12c8\u123b\u1361  \u2713 = \u12e8\u1270\u1308\u1298   \u2718 = \u12eb\u120d\u1270\u1308\u1298   P = \u1348\u1243\u12f5'
+      : 'Legend:  \u2713 = Present   \u2718 = Absent   P = Permission';
+    sc(R, 0, legend, { font: normalFont, alignment: leftAlign });
     merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
-    R++;
+    fillRow(R, 1, totalCols - 1);
 
-    const legendItems = isAm
-      ? ['✓ :- የተገኘ', '✘ :- ያልተገኘ', 'P :- ፈቃድ']
-      : ['\u2713 = Present', '\u2718 = Absent', 'P = Permission'];
-    legendItems.forEach(item => {
-      setCell(R, 0, item, legendStyle);
-      for (let col = 1; col < totalCols; col++) setCell(R, col, '', legendStyle);
-      merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
-      R++;
-    });
-
-    ws['!cols'] = [{ wch: 6 }, { wch: 32 }, { wch: 7 }, { wch: 9 }, ...Array(22).fill({ wch: 4.5 })];
-    const rowHeights: any[] = [];
-    rowHeights[0] = { hpt: 28 };
-    for (let r = 2; r < 2 + metaPairs.length; r++) rowHeights[r] = { hpt: 18 };
-    rowHeights[headerRowIdx] = { hpt: 22 };
-    for (let r = headerRowIdx + 1; r < headerRowIdx + 1 + list.length; r++) rowHeights[r] = { hpt: 18 };
-    ws['!rows'] = rowHeights;
+    ws['!cols'] = [{ wch: 5 }, { wch: 30 }, { wch: 6 }, { wch: 7 }, ...Array(22).fill({ wch: 3.5 })];
     ws['!merges'] = merges;
-    ws['!ref'] = XLSXStyle.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: R - 1, c: totalCols - 1 } });
+    ws['!ref'] = XLSXStyle.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: R, c: totalCols - 1 } });
 
     const wb = XLSXStyle.utils.book_new();
-    const sheetName = isAm ? 'ሁኔታ' : 'Attendance';
-    XLSXStyle.utils.book_append_sheet(wb, ws, sheetName);
+    XLSXStyle.utils.book_append_sheet(wb, ws, isAm ? '\u1201\u1294\u1273' : 'Attendance');
     const buf = XLSXStyle.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const cls = attendanceClass ? '_' + attendanceClass : '';
     const sec = attendanceSection ? '_' + attendanceSection : '';
     saveAs(blob, 'Attendance' + cls + sec + '_' + new Date().toISOString().split('T')[0] + '.xlsx');
-    toast.success(getText('Attendance Excel downloaded!', 'የሁኔታ Excel ወጣ!'));
+    toast.success(getText('Attendance Excel downloaded!', '\u12e8\u1201\u1294\u1273 Excel \u12c8\u1323!'));
   };
 
   const exportToExcel = () => {

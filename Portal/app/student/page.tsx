@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import toast, { Toaster } from 'react-hot-toast'
 import InstallApp from '../components/InstallApp'
+import { formatDateWithBothCalendars } from '../utils/dateUtils'
 
 interface StudentProfile {
   _id: string; studentId: string; firstName: string; middleName: string; lastName: string
@@ -15,8 +16,53 @@ interface StudentProfile {
   portalUsername: string
 }
 
-interface Payment { _id: string; month: string; year: number; amount: number }
-interface Notice { _id: string; title: string; message: string; sentBy: string; createdAt: string }
+interface Payment { _id: string; month: string; year: number; amount: number; paymentDate: string }
+interface Notice { _id: string; title: string; message: string; type: string; targetClass: string; scheduledAt: string | null; sentBy: string; createdAt: string }
+
+const TYPE_META: Record<string, { label: string; color: string; icon: string; border: string }> = {
+  notice:   { label: 'Notice',   color: 'bg-blue-100 text-blue-700',   icon: '📢', border: 'border-blue-500' },
+  exam:     { label: 'Exam',     color: 'bg-red-100 text-red-700',     icon: '📝', border: 'border-red-500' },
+  event:    { label: 'Event',    color: 'bg-purple-100 text-purple-700', icon: '🎉', border: 'border-purple-500' },
+  schedule: { label: 'Schedule', color: 'bg-green-100 text-green-700', icon: '📅', border: 'border-green-500' },
+}
+
+// Ethiopian calendar conversion
+function toEthiopian(gy: number, gm: number, gd: number): [number, number, number] {
+  const gMonths = [0,31,28,31,30,31,30,31,31,30,31,30,31]
+  if ((gy%4===0&&gy%100!==0)||gy%400===0) gMonths[2]=29
+  let ey = gy - 8
+  const eMonths = [0,30,30,30,30,30,30,30,30,30,5,30,30,30,30]
+  if (ey%4===3) eMonths[10]=6
+  const nyd = Math.floor(gy/100)-Math.floor(gy/400)-4+((gy-9)%4===3?1:0)
+  let until=0
+  for(let i=1;i<gm;i++) until+=gMonths[i]
+  until+=gd
+  let tahissas=(ey%4)===0?26:25
+  if(until<=277&&gy===1582){eMonths[1]=0;eMonths[2]=tahissas}
+  else{tahissas=nyd-3;eMonths[1]=tahissas}
+  let m=1,ed=1
+  for(m=1;m<eMonths.length;m++){
+    if(until<=eMonths[m]){ed=(m===1||eMonths[m]===0)?until+(30-tahissas):until;break}
+    else until-=eMonths[m]
+  }
+  if(m>10) ey+=1
+  const order=[0,4,5,6,7,8,9,10,11,12,13,1,2,3,4]
+  return [ey, order[m], ed]
+}
+const ET_MONTHS = ['መስከረም','ጥቅምት','ህዳር','ታህሳስ','ጥር','የካቲት','መጋቢት','ሚያዜያ','ግንቦት','ሰኔ','ሐምሌ','ነቀሴ','ጳጉሜ']
+
+function fmtBoth(iso: string, withTime = false): string {
+  try {
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return iso
+    const gy = d.getFullYear(), gm = d.getMonth()+1, gd = d.getDate()
+    const [ey, em, ed] = toEthiopian(gy, gm, gd)
+    const gcStr = withTime
+      ? d.toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' })
+      : d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+    return `${gcStr}  ·  ${ed} ${ET_MONTHS[em-1]} ${ey} E.C`
+  } catch { return iso }
+}
 
 const MONTHS = ['September','October','November','December','January','February','March','April','May','June']
 
@@ -26,7 +72,7 @@ export default function StudentDashboard() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [notices, setNotices] = useState<Notice[]>([])
   const [selectedYear, setSelectedYear] = useState(2019)
-  const [page, setPage] = useState<'overview' | 'profile' | 'password'>('overview')
+  const [page, setPage] = useState<'overview' | 'profile' | 'payments' | 'password'>('overview')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
@@ -95,6 +141,9 @@ export default function StudentDashboard() {
     )},
     { key: 'profile' as const, label: 'My Profile', icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+    )},
+    { key: 'payments' as const, label: 'Payment Status', icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" /></svg>
     )},
     { key: 'password' as const, label: 'Change Password', icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
@@ -198,8 +247,36 @@ export default function StudentDashboard() {
             <div className="space-y-5">
               <div>
                 <h1 className="text-xl font-bold text-gray-800">Welcome back, {profile.firstName} 👋</h1>
-                <p className="text-gray-500 text-sm mt-0.5">Here are the latest notices from Bluelight Academy.</p>
+                <p className="text-gray-500 text-sm mt-0.5">Here are the latest notices and schedules from Bluelight Academy.</p>
               </div>
+
+              {/* Upcoming exams/events highlight */}
+              {notices.filter(n => (n.type === 'exam' || n.type === 'schedule' || n.type === 'event') && n.scheduledAt && new Date(n.scheduledAt) >= new Date()).length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3">📅 Upcoming</p>
+                  <div className="space-y-2">
+                    {notices
+                      .filter(n => (n.type === 'exam' || n.type === 'schedule' || n.type === 'event') && n.scheduledAt && new Date(n.scheduledAt) >= new Date())
+                      .slice(0, 3)
+                      .map(n => {
+                        const meta = TYPE_META[n.type] || TYPE_META.notice
+                        return (
+                          <div key={n._id} className="flex items-center gap-3">
+                            <span className="text-lg">{meta.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 truncate">{n.title}</p>
+                              <p className="text-xs text-amber-600 font-medium">
+                                {new Date(n.scheduledAt!).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${meta.color}`}>{meta.label}</span>
+                          </div>
+                        )
+                      })
+                    }
+                  </div>
+                </div>
+              )}
 
               {notices.length === 0 ? (
                 <div className="bg-white rounded-xl shadow p-10 text-center">
@@ -208,24 +285,37 @@ export default function StudentDashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {notices.map((n, i) => (
-                    <div key={n._id} className="bg-white rounded-xl shadow p-5 border-l-4 border-blue-500">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {i === 0 && <span className="text-xs bg-blue-100 text-blue-600 font-semibold px-2 py-0.5 rounded-full">New</span>}
+                  {notices.map((n, i) => {
+                    const meta = TYPE_META[n.type] || TYPE_META.notice
+                    return (
+                      <div key={n._id} className={`bg-white rounded-xl shadow p-4 border-l-4 ${meta.border}`}>
+                        <div className="flex items-start gap-3">
+                          <span className="text-xl flex-shrink-0 mt-0.5">{meta.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              {i === 0 && <span className="text-[10px] bg-blue-100 text-blue-600 font-bold px-2 py-0.5 rounded-full">New</span>}
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${meta.color}`}>{meta.label}</span>
+                              {n.targetClass && n.targetClass !== 'all' && (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{n.targetClass}</span>
+                              )}
+                            </div>
                             <h3 className="font-semibold text-gray-800 text-sm">{n.title}</h3>
-                          </div>
-                          <p className="text-gray-600 text-sm leading-relaxed">{n.message}</p>
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className="text-xs text-gray-400">By {n.sentBy}</span>
-                            <span className="text-xs text-gray-300">•</span>
-                            <span className="text-xs text-gray-400">{new Date(n.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                            <p className="text-gray-600 text-sm leading-relaxed mt-0.5">{n.message}</p>
+                            {n.scheduledAt && (
+                              <p className="text-xs font-semibold text-blue-600 mt-1.5">
+                                📅 {new Date(n.scheduledAt).toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className="text-xs text-gray-400">By {n.sentBy}</span>
+                              <span className="text-xs text-gray-300">•</span>
+                              <span className="text-xs text-gray-400">{new Date(n.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -309,35 +399,108 @@ export default function StudentDashboard() {
                   <p className="text-gray-800 text-sm bg-gray-50 rounded-lg p-3">{profile.address}</p>
                 </Section>
               )}
+            </div>
+          )}
 
-              <Section title="Payment Status">
+          {/* Payment Status */}
+          {page === 'payments' && (
+            <div className="space-y-5">
+              <div>
+                <h1 className="text-xl font-bold text-gray-800">Payment Status</h1>
+                <p className="text-gray-500 text-sm mt-0.5">Track your monthly payment status for each academic year.</p>
+              </div>
+
+              {/* Year Selector */}
+              <div className="bg-white rounded-xl shadow p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm text-gray-500">Academic Year</p>
+                  <h3 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">Academic Year</h3>
                   <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}
-                    className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    className="border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                     {[2018,2019,2020,2021,2022,2023,2024,2025,2026].map(y => (
                       <option key={y} value={y}>{y} E.C</option>
                     ))}
                   </select>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+
+                {/* Payment Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   {MONTHS.map(month => {
                     const paid = isPaid(month)
                     return (
-                      <div key={month} className={`p-3 rounded-lg border-2 ${paid ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm font-medium ${paid ? 'text-green-700' : 'text-gray-600'}`}>{month.slice(0,3)}</span>
+                      <div key={month} className={`p-4 rounded-xl border-2 transition-all hover:shadow-md ${
+                        paid ? 'border-green-500 bg-green-50 hover:bg-green-100' : 'border-red-200 bg-red-50 hover:bg-red-100'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-sm font-bold ${paid ? 'text-green-700' : 'text-red-600'}`}>
+                            {month.slice(0,3)}
+                          </span>
                           {paid
-                            ? <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
-                            : <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/></svg>
+                            ? <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                              </svg>
+                            : <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+                              </svg>
                           }
                         </div>
-                        <p className={`text-xs mt-1 ${paid ? 'text-green-600' : 'text-red-500'}`}>{paid ? 'Paid' : 'Unpaid'}</p>
+                        <p className={`text-xs font-semibold ${paid ? 'text-green-700' : 'text-red-600'}`}>
+                          {paid ? '✓ Paid' : '✗ Unpaid'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">{month}</p>
                       </div>
                     )
                   })}
                 </div>
-              </Section>
+
+                {/* Summary */}
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="bg-green-50 rounded-lg p-3">
+                      <p className="text-2xl font-bold text-green-600">{payments.filter(p => p.year === selectedYear).length}</p>
+                      <p className="text-xs text-green-700 font-medium">Paid Months</p>
+                    </div>
+                    <div className="bg-red-50 rounded-lg p-3">
+                      <p className="text-2xl font-bold text-red-600">{10 - payments.filter(p => p.year === selectedYear).length}</p>
+                      <p className="text-xs text-red-700 font-medium">Unpaid Months</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-3">
+                      <p className="text-2xl font-bold text-blue-600">{Math.round((payments.filter(p => p.year === selectedYear).length / 10) * 100)}%</p>
+                      <p className="text-xs text-blue-700 font-medium">Completion</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment History */}
+              {payments.filter(p => p.year === selectedYear).length > 0 && (
+                <div className="bg-white rounded-xl shadow p-5">
+                  <h3 className="font-semibold text-gray-700 text-sm uppercase tracking-wide border-b pb-2 mb-4">Payment History - {selectedYear} E.C</h3>
+                  <div className="space-y-3">
+                    {payments
+                      .filter(p => p.year === selectedYear)
+                      .sort((a, b) => MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month))
+                      .map(payment => (
+                        <div key={payment._id} className="p-4 rounded-lg border border-green-200 bg-green-50">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                              <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                              </svg>
+                              <div>
+                                <span className="text-sm font-semibold text-green-700">{payment.month} {payment.year}</span>
+                                <div className="text-xs text-green-600 mt-1">
+                                  {formatDateWithBothCalendars(payment.paymentDate)}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-sm font-bold text-green-600">{payment.amount} ETB</span>
+                          </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

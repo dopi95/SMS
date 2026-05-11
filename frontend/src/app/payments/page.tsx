@@ -8,6 +8,7 @@ import axios from 'axios'
 import toast from 'react-hot-toast'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { formatDateWithBothCalendars } from '@/utils/dateUtils'
 
 interface Student {
   _id: string
@@ -367,19 +368,20 @@ export default function PaymentsPage() {
             student.class,
             student.section || '-',
             payment?.amount ? `${payment.amount} ETB` : '-',
-            payment?.paymentDate ? new Date(payment.paymentDate).toLocaleDateString() : '-',
+            payment?.paymentDate ? formatDateWithBothCalendars(payment.paymentDate) : '-',
             payment?.description || '-'
           ]
         })
         
         autoTable(doc, {
           startY: yPosition + 5,
-          head: [['Student ID', 'Name', 'Class', 'Section', 'Amount', 'Payment Date', 'Description']],
+          head: [['Student ID', 'Name', 'Class', 'Section', 'Amount', 'Payment Date (G.C / E.C)', 'Description']],
           body: paidData,
           theme: 'grid',
           headStyles: { fillColor: [34, 197, 94] },
           margin: { left: 14, right: 14 },
           columnStyles: {
+            5: { cellWidth: 50 },
             6: { cellWidth: 40 }
           }
         })
@@ -1301,10 +1303,12 @@ export default function PaymentsPage() {
                         {payment.amount} ETB
                       </span>
                     </div>
-                    <div className={`grid grid-cols-2 gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <div className={`grid grid-cols-1 gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                       <div>
                         <span className="font-medium">{getText('Payment Date', 'የክፍያ ቀን')}:</span>
-                        <span className="ml-2">{new Date(payment.paymentDate).toLocaleDateString()}</span>
+                        <div className="ml-2 mt-1">
+                          <div>{formatDateWithBothCalendars(payment.paymentDate)}</div>
+                        </div>
                       </div>
                       <div>
                         <span className="font-medium">{getText('Status', 'ሁኔታ')}:</span>
