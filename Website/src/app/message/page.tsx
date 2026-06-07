@@ -49,12 +49,13 @@ export default function MessagePage() {
       const canvas = await window.html2canvas(card, {
         scale: 2, useCORS: true, allowTaint: true,
         backgroundColor: null, logging: false,
-        width: card.offsetWidth, height: card.offsetHeight,
+        width: card.offsetWidth, height: card.scrollHeight,
       })
       const radius = 44
-      const w = canvas.width, h = canvas.height
+      const w = canvas.width
       const rounded = document.createElement('canvas')
-      rounded.width = w; rounded.height = h
+      rounded.width = w; rounded.height = canvas.height
+      const h = canvas.height
       const ctx = rounded.getContext('2d')!
       ctx.beginPath()
       ctx.moveTo(radius, 0); ctx.lineTo(w - radius, 0)
@@ -131,10 +132,10 @@ export default function MessagePage() {
       </div>
 
       {/* Card */}
-      <div ref={cardRef} style={{ width: 720, background: '#fff', borderRadius: 22, overflow: 'hidden', boxShadow: '0 30px 70px rgba(0,0,0,.55)', fontFamily: font }}>
+      <div ref={cardRef} style={{ width: 720, background: '#fff', borderRadius: 22, overflow: 'visible', boxShadow: '0 30px 70px rgba(0,0,0,.55)', fontFamily: font }}>
 
         {/* Header */}
-        <div style={{ background: 'linear-gradient(135deg,#1e40af 0%,#2563eb 35%,#3b82f6 65%,#60a5fa 100%)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ background: 'linear-gradient(135deg,#1e40af 0%,#2563eb 35%,#3b82f6 65%,#60a5fa 100%)', position: 'relative', overflow: 'hidden', borderRadius: '22px 22px 0 0' }}>
           {/* Orbs */}
           <div style={{ position:'absolute', width:300, height:300, borderRadius:'50%', background:'radial-gradient(circle,rgba(255,255,255,.18) 0%,transparent 70%)', top:-80, left:-60, pointerEvents:'none' }} />
           <div style={{ position:'absolute', width:200, height:200, borderRadius:'50%', background:'radial-gradient(circle,rgba(255,255,255,.12) 0%,transparent 70%)', bottom:-60, right:80, pointerEvents:'none' }} />
@@ -149,11 +150,11 @@ export default function MessagePage() {
 
             {/* Brand */}
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:26, fontWeight:900, color:'#fff', letterSpacing:.4, lineHeight:1.1, textShadow:'0 2px 10px rgba(0,0,0,.25)' }}>
+              <div style={{ fontSize:30, fontWeight:900, color:'#fff', letterSpacing:.4, lineHeight:1.1, textShadow:'0 2px 10px rgba(0,0,0,.25)' }}>
                 Bluelight <span style={{ color:'#fde68a' }}>Academy</span>
               </div>
               <div style={{ width:48, height:3, borderRadius:2, background:'linear-gradient(90deg,#fde68a,#f59e0b)', margin:'7px 0 8px' }} />
-              <div style={{ fontSize:12, color:'rgba(255,255,255,.85)', fontStyle:'italic', fontWeight:500, letterSpacing:.4 }}>
+              <div style={{ fontSize:14, color:'rgba(255,255,255,.85)', fontStyle:'italic', fontWeight:500, letterSpacing:.4 }}>
                 &ldquo;Be the light, Lead the way!&rdquo;
               </div>
             </div>
@@ -170,8 +171,8 @@ export default function MessagePage() {
                     <svg viewBox="0 0 24 24" style={{ width:13, height:13, fill:'#fde68a' }}><path d={c.icon}/></svg>
                   </div>
                   <div style={{ display:'flex', flexDirection:'column' }}>
-                    <span style={{ fontSize:11.5, color:'#fff', fontWeight:600, lineHeight:1.3 }}>{c.label}</span>
-                    <span style={{ fontSize:9.5, color:'rgba(255,255,255,.55)', fontWeight:400 }}>{c.sub}</span>
+                    <span style={{ fontSize:13, color:'#fff', fontWeight:600, lineHeight:1.3 }}>{c.label}</span>
+                    <span style={{ fontSize:11, color:'rgba(255,255,255,.55)', fontWeight:400 }}>{c.sub}</span>
                   </div>
                 </div>
               ))}
@@ -185,36 +186,44 @@ export default function MessagePage() {
         </svg>
 
         {/* Date bar */}
-        <div style={{ background:'#fff', borderBottom:'1px solid #e2e8f0', padding:'9px 32px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span style={{ fontSize:13, fontWeight:600, color:'#0f172a', letterSpacing:.2 }}>{dateType}: {dateVal}</span>
-          <span style={{ background:'#fff', border:'1.5px solid #2563eb', color:'#1d4ed8', borderRadius:20, padding:'4px 16px', fontSize:11, fontWeight:800, letterSpacing:1.5, textTransform:'uppercase' }}>{tag}</span>
+        <div style={{ background:'#fff', padding:'9px 32px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:15, fontWeight:600, color:'#0f172a', letterSpacing:.2 }}>{dateType}: {dateVal}</span>
+          <span style={{ fontSize:13, fontWeight:800, color:'#1d4ed8', letterSpacing:1.5, textTransform:'uppercase' }}>{tag}</span>
         </div>
 
         {/* Body */}
         <div style={{ padding:'28px 36px 24px', background:'#fff' }}>
-          <input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            style={{ fontSize:21, fontWeight:800, color:titleColor, fontFamily:font, border:'none', outline:'none', width:'100%', background:'transparent', borderBottom:'2px solid #e2e8f0', paddingBottom:9, marginBottom:16 }}
-            placeholder="Message Title / Subject…"
-            suppressHydrationWarning
-          />
-          <textarea
-            value={body}
-            onChange={e => setBody(e.target.value)}
-            rows={8}
-            style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:10, padding:'16px 18px', fontFamily:font, fontSize:bodySize, lineHeight:1.8, color:bodyColor, resize:'vertical', outline:'none', background:'#fafcff' }}
-            placeholder="Type your message here…"
-          />
-          <div style={{ height:1, background:'linear-gradient(90deg,transparent,#bfdbfe 30%,#bfdbfe 70%,transparent)', margin:'22px 0' }} />
+          <div style={{ position:'relative', marginBottom:16 }}>
+            <div style={{ fontSize:21, fontWeight:800, color:titleColor, fontFamily:font, paddingBottom:9, whiteSpace:'pre-wrap', wordBreak:'break-word', minHeight:32 }}>{title || <span style={{ color:'#94a3b8', fontWeight:400 }}>Message Title / Subject…</span>}</div>
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              style={{ position:'absolute', inset:0, width:'100%', fontSize:21, fontWeight:800, color:'transparent', caretColor:titleColor, fontFamily:font, border:'none', outline:'none', background:'transparent', paddingBottom:9 }}
+              placeholder="Message Title / Subject…"
+              suppressHydrationWarning
+            />
+          </div>
+          <div style={{ position:'relative' }}>
+            <div
+              style={{ width:'100%', padding:'4px 0', fontFamily:font, fontSize:bodySize, lineHeight:1.8, color:bodyColor, background:'transparent', whiteSpace:'pre-wrap', wordBreak:'break-word', minHeight: 8 * bodySize * 1.8 + 32 }}
+            >{body}</div>
+            <textarea
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              rows={8}
+              style={{ position:'absolute', inset:0, width:'100%', height:'100%', border:'none', padding:'4px 0', fontFamily:font, fontSize:bodySize, lineHeight:1.8, color:'transparent', caretColor:bodyColor, resize:'vertical', outline:'none', background:'transparent', zIndex:1 }}
+              placeholder="Type your message here…"
+            />
+          </div>
+
         </div>
 
         {/* Footer */}
-        <div style={{ display:'flex', alignItems:'stretch', height:88, background:'#fff', overflow:'hidden' }}>
+        <div style={{ display:'flex', alignItems:'stretch', height:88, background:'#fff', overflow:'hidden', borderRadius:'0 0 22px 22px' }}>
           <div style={{ display:'flex', alignItems:'center', padding:'10px 18px 10px 22px', flexShrink:0, background:'#fff', zIndex:2 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/img/logo.png" alt="Logo" style={{ width:62, height:62, borderRadius:'50%', objectFit:'contain' }} />
-            <span style={{ marginLeft:12, fontSize:12, fontStyle:'italic', fontWeight:600, color:'#1e40af', whiteSpace:'nowrap' }}>&ldquo;Be the light, Lead the way!&rdquo;</span>
+            <span style={{ marginLeft:12, fontSize:14, fontStyle:'italic', fontWeight:600, color:'#1e40af', whiteSpace:'nowrap' }}>&ldquo;Be the light, Lead the way!&rdquo;</span>
           </div>
           <div style={{ flex:1, position:'relative', overflow:'hidden' }}>
             <svg viewBox="0 0 600 88" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{ position:'absolute', inset:0, width:'100%', height:'100%' }}>
@@ -224,10 +233,10 @@ export default function MessagePage() {
             <div style={{ position:'absolute', right:22, top:'50%', transform:'translateY(-50%)', display:'flex', flexDirection:'column', alignItems:'center', gap:3, zIndex:3 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/img/qrcode.png" alt="QR" style={{ width:58, height:58, borderRadius:6, border:'2px solid rgba(255,255,255,.9)', background:'#fff' }} />
-              <span style={{ fontSize:8.5, fontWeight:700, color:'#fff', letterSpacing:.4, textAlign:'center', textShadow:'0 1px 3px rgba(0,0,0,.4)', whiteSpace:'nowrap' }}>Scan to visit website</span>
+              <span style={{ fontSize:10, fontWeight:700, color:'#fff', letterSpacing:.4, textAlign:'center', textShadow:'0 1px 3px rgba(0,0,0,.4)', whiteSpace:'nowrap' }}>Scan to visit website</span>
             </div>
             <div style={{ position:'absolute', left:16, bottom:10, zIndex:3 }}>
-              <span style={{ fontSize:9, fontWeight:700, color:'rgba(255,255,255,.75)', letterSpacing:.5, textShadow:'0 1px 3px rgba(0,0,0,.4)' }}>portal.bluelight.edu.et</span>
+              <span style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,.75)', letterSpacing:.5, textShadow:'0 1px 3px rgba(0,0,0,.4)' }}>portal.bluelight.edu.et</span>
             </div>
           </div>
         </div>
