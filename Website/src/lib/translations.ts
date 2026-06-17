@@ -107,7 +107,7 @@ export const translations = {
     ],
     feesPageHero: 'School Fees',
     feesPageHeroSub: 'Transparent, fair, and straightforward pricing for every family.',
-    feesPageYear: '2018 E.C',
+    feesPageYear: '2019 E.C',
     feesPageNote: 'Monthly fee applies to all levels. Registration is a one-time payment per child.',
     feesPageMonthlyLabel: 'Monthly Fee',
     feesPageRegLabel: 'Registration',
@@ -115,9 +115,9 @@ export const translations = {
     feesPageContact: 'Have questions about fees? Contact us directly.',
     feesPageContactBtn: 'Get in Touch',
     feesPagePrograms: [
-      { level: 'KG 1', age: 'Age 3 – 4', registration: '675 ETB', monthly: '2,700 ETB', color: 'from-blue-500 to-cyan-500' },
-      { level: 'KG 2', age: 'Age 4 – 5', registration: '675 ETB', monthly: '2,700 ETB', color: 'from-violet-500 to-purple-600' },
-      { level: 'KG 3', age: 'Age 5 – 6', registration: '675 ETB', monthly: '2,700 ETB', color: 'from-amber-400 to-orange-500' },
+      { level: 'KG 1', age: 'Age 3 – 4', registration: '1,012 ETB', monthly: '4,050 ETB', color: 'from-blue-500 to-cyan-500' },
+      { level: 'KG 2', age: 'Age 4 – 5', registration: '1,012 ETB', monthly: '4,050 ETB', color: 'from-violet-500 to-purple-600' },
+      { level: 'KG 3', age: 'Age 5 – 6', registration: '1,012 ETB', monthly: '4,050 ETB', color: 'from-amber-400 to-orange-500' },
     ],
     feesIncluded: 'What is Included',
     feesIncludedItems: [
@@ -273,7 +273,7 @@ export const translations = {
     ],
     feesPageHero: 'የትምህርት ክፍያ',
     feesPageHeroSub: 'ለእያንዳንዱ ቤተሰብ ግልጽ፣ ፍትሃዊ እና ቀጥተኛ ዋጋ።',
-    feesPageYear: '2018 ዓ.ም',
+    feesPageYear: '2019 ዓ.ም',
     feesPageNote: 'የወር ክፍያ ለሁሉም ደረጃዎች ተመሳሳይ ነው። የምዝገባ ክፍያ አንድ ጊዜ ብቻ ነው።',
     feesPageMonthlyLabel: 'የወር ክፍያ',
     feesPageRegLabel: 'ምዝገባ',
@@ -281,9 +281,9 @@ export const translations = {
     feesPageContact: 'ስለ ክፍያ ጥያቄ አለዎት? በቀጥታ ያግኙን።',
     feesPageContactBtn: 'ያግኙን',
     feesPagePrograms: [
-      { level: 'KG 1', age: 'ዕድሜ 3 – 4', registration: '675 ብር', monthly: '2,700 ብር', color: 'from-blue-500 to-cyan-500' },
-      { level: 'KG 2', age: 'ዕድሜ 4 – 5', registration: '675 ብር', monthly: '2,700 ብር', color: 'from-violet-500 to-purple-600' },
-      { level: 'KG 3', age: 'ዕድሜ 5 – 6', registration: '675 ብር', monthly: '2,700 ብር', color: 'from-amber-400 to-orange-500' },
+      { level: 'KG 1', age: 'ዕድሜ 3 – 4', registration: '1,012 ብር', monthly: '4,050 ብር', color: 'from-blue-500 to-cyan-500' },
+      { level: 'KG 2', age: 'ዕድሜ 4 – 5', registration: '1,012 ብር', monthly: '4,050 ብር', color: 'from-violet-500 to-purple-600' },
+      { level: 'KG 3', age: 'ዕድሜ 5 – 6', registration: '1,012 ብር', monthly: '4,050 ብር', color: 'from-amber-400 to-orange-500' },
     ],
     feesIncluded: 'የሚካተተው ምንድን ነው',
     feesIncludedItems: [

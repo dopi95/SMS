@@ -56,7 +56,7 @@ export default function SchoolFeesPage() {
             <div className="absolute -top-8 -right-8 w-40 h-40 bg-white/10 rounded-full pointer-events-none" />
             <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-white/10 rounded-full pointer-events-none" />
             <p className="text-white/70 text-xs sm:text-sm uppercase tracking-widest mb-2 relative">{t.feesPageMonthlyLabel}</p>
-            <div className="text-5xl sm:text-6xl lg:text-7xl font-bold relative mb-1">2,700</div>
+            <div className="text-5xl sm:text-6xl lg:text-7xl font-bold relative mb-1">4,050</div>
             <div className="text-white/80 text-lg sm:text-xl font-medium relative mb-4">ETB / month</div>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/15 border border-white/20 text-white/90 text-xs sm:text-sm relative">
               All Levels · KG1 – KG3
@@ -109,7 +109,7 @@ export default function SchoolFeesPage() {
                 </div>
                 <p className="text-white/90 text-xs sm:text-sm leading-6">
                   {currentLang === 'en'
-                    ? '2 or more students from the same family enrolled at Bluelight Academy receive a 10% discount on monthly fees for each child.'
+                    ? '2 or more students from the same family enrolled at Bluelight Academy receive a 10% discount on monthly fees.'
                     : 'ከአንድ ቤተሰብ 2 ወይም ከዚያ በላይ ተማሪዎች ሲመዘገቡ፣ ለእያንዳንዱ ልጅ 10% የወር ክፍያ ቅናሽ ያገኛሉ።'}
                 </p>
               </div>
