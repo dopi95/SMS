@@ -72,7 +72,7 @@ const approvePending = async (req, res) => {
       lastNameAmharic: pending.lastNameAmharic,
       gender: pending.gender === 'male' ? 'Male' : 'Female',
       email: pending.email,
-      dateOfBirth: pending.dateOfBirth ? new Date(pending.dateOfBirth) : undefined,
+      dateOfBirth: pending.dateOfBirth || undefined,
       joinedYear: pending.joinedYear,
       class: classMap[pending.class] || pending.class,
       address: pending.address,

@@ -46,6 +46,8 @@ export default function StudentsPage() {
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [bulkClass, setBulkClass] = useState('');
   const [bulkSection, setBulkSection] = useState('');
+  const [bulkPaymentCode, setBulkPaymentCode] = useState('');
+  const [bulkPaymentAction, setBulkPaymentAction] = useState<'set'|'remove'>('set');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [classFilter, setClassFilter] = useState('');
@@ -243,18 +245,55 @@ export default function StudentsPage() {
     setConfirmDialog({ isOpen: false, type: 'inactive', studentId: '', studentName: '' });
   };
 
+  const toggleSelectStudent = (id: string) => {
+    setSelectedStudents(prev => {
+      const next = prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id];
+      if (next.length > 0) setShowBulkActions(true);
+      return next;
+    });
+  };
+
   const toggleSelectAll = () => {
     if (selectedStudents.length === filteredStudents.length) {
       setSelectedStudents([]);
+      setShowBulkActions(false);
     } else {
       setSelectedStudents(filteredStudents.map(s => s._id));
+      setShowBulkActions(true);
     }
   };
 
-  const toggleSelectStudent = (id: string) => {
-    setSelectedStudents(prev => 
-      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
-    );
+  const handleBulkUpdatePaymentCode = async () => {
+    const code = bulkPaymentAction === 'remove' ? '' : bulkPaymentCode.trim();
+    if (bulkPaymentAction === 'set' && !code) {
+      toast.error(getText('Please enter a payment code', 'የክፍያ ኮድ ያስገቡ'));
+      return;
+    }
+    const count = selectedStudents.length;
+    const ids = [...selectedStudents];
+    const action = bulkPaymentAction;
+    const loadingToast = toast.loading(getText('Updating payment codes...', 'የክፍያ ኮዶችን እያዘመነ ነው...'));
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/bulk/update-payment-code`, {
+        studentIds: ids,
+        paymentCode: code
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.dismiss(loadingToast);
+      // Update locally — no refetch, no page jump
+      setStudents(prev => prev.map(s => ids.includes(s._id) ? { ...s, paymentCode: code } : s));
+      setSelectedStudents([]);
+      setShowBulkActions(false);
+      setBulkPaymentCode('');
+      setBulkPaymentAction('set');
+      const msg = action === 'remove'
+        ? getText(`Payment code removed from ${count} students successfully!`, `${count} ተማሪዎች የክፍያ ኮድ በተሳካ ሁኔታ ተወግዷል!`)
+        : getText(`Payment code set for ${count} students successfully!`, `${count} ተማሪዎች የክፍያ ኮድ በተሳካ ሁኔታ ተቀናብሯል!`);
+      toast.success(msg);
+    } catch {
+      toast.dismiss(loadingToast);
+      toast.error(getText('Failed to update payment codes', 'የክፍያ ኮዶችን ማዘመን አልተሳካም'));
+    }
   };
 
   const handleBulkUpdateClass = async () => {
@@ -1033,7 +1072,7 @@ export default function StudentsPage() {
                     {getText('Bulk Actions', 'የጅምላ ተግባሮች')} - {selectedStudents.length} {getText('selected', 'ተመርጠዋል')}
                   </h3>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* Update Class Section */}
                     <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
                       <h4 className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1071,6 +1110,54 @@ export default function StudentsPage() {
                       </button>
                     </div>
                     
+                    {/* Payment Code */}
+                    <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <h4 className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {getText('Payment Code', 'የክፍያ ኮድ')}
+                      </h4>
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          onClick={() => setBulkPaymentAction('set')}
+                          className={`flex-1 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                            bulkPaymentAction === 'set'
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : theme === 'dark' ? 'bg-gray-600 text-gray-300 border-gray-500' : 'bg-white text-gray-600 border-gray-300'
+                          }`}
+                        >
+                          {getText('Set Code', 'ኮድ አድርግ')}
+                        </button>
+                        <button
+                          onClick={() => setBulkPaymentAction('remove')}
+                          className={`flex-1 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                            bulkPaymentAction === 'remove'
+                              ? 'bg-red-600 text-white border-red-600'
+                              : theme === 'dark' ? 'bg-gray-600 text-gray-300 border-gray-500' : 'bg-white text-gray-600 border-gray-300'
+                          }`}
+                        >
+                          {getText('Remove Code', 'ኮድ አስወግድ')}
+                        </button>
+                      </div>
+                      {bulkPaymentAction === 'set' && (
+                        <input
+                          type="text"
+                          value={bulkPaymentCode}
+                          onChange={e => setBulkPaymentCode(e.target.value)}
+                          placeholder={getText('Enter payment code', 'የክፍያ ኮድ ያስገቡ')}
+                          className={`w-full px-3 py-2 text-sm border rounded-md mb-2 ${
+                            theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'
+                          }`}
+                        />
+                      )}
+                      <button
+                        onClick={handleBulkUpdatePaymentCode}
+                        className={`w-full py-2 rounded-md text-sm font-medium text-white transition-colors ${
+                          bulkPaymentAction === 'remove' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
+                      >
+                        {bulkPaymentAction === 'remove' ? getText('Remove Payment Code', 'የክፍያ ኮድ አስወግድ') : getText('Set Payment Code', 'የክፍያ ኮድ አድርግ')}
+                      </button>
+                    </div>
+
                     {/* Other Actions */}
                     <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
                       <h4 className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>

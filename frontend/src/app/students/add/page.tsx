@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 
 import { useSettings } from '@/contexts/SettingsContext';
+import { calcAgeFromECString } from '@/utils/dateUtils';
 
 interface Class {
   _id: string;
@@ -129,11 +130,8 @@ export default function AddStudentPage() {
       });
       
       toast.dismiss(loadingToast);
-      toast.success(getText('✅ Student added successfully! Redirecting...', '✅ ተማሪ በተሳካ ሁኔታ ተጨምሯል! እየተዛወረ ነው...'));
-      
-      setTimeout(() => {
-        router.push('/students');
-      }, 1500);
+      toast.success(getText('✅ Student added successfully!', '✅ ተማሪ በተሳካ ሁኔታ ተጨምሯል!'));
+      router.push('/students');
     } catch (error: any) {
       toast.dismiss(loadingToast);
       const errorMessage = error.response?.data?.message || getText('Failed to add student', 'ተማሪን ማከል አልተሳካም');
@@ -348,7 +346,7 @@ export default function AddStudentPage() {
 
                   <div>
                     <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {getText('Date of Birth', 'የተወለዱበት ቀን')} *
+                      {getText('Date of Birth', 'የተወለዱበት ቀን')} (E.C)
                     </label>
                     <input
                       type="text"
@@ -357,6 +355,19 @@ export default function AddStudentPage() {
                       onChange={handleInputChange}
                       placeholder="dd/mm/yyyy"
                       className={`w-full px-3 py-2.5 sm:py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {getText('Age', 'ዕድሜ')} <span className="text-xs font-normal text-gray-400">({getText('Auto-calculated', 'ራሱ ይሰላል')})</span>
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={calcAgeFromECString(formData.dateOfBirth) !== null ? `${calcAgeFromECString(formData.dateOfBirth)} yrs` : ''}
+                      placeholder="—"
+                      className={`w-full px-3 py-2.5 sm:py-2 border rounded-lg ${theme === 'dark' ? 'bg-gray-600 border-gray-600 text-gray-300' : 'bg-gray-100 border-gray-300 text-gray-600'} cursor-not-allowed`}
                     />
                   </div>
 

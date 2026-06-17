@@ -177,6 +177,18 @@ const activateStudent = async (req, res) => {
   }
 };
 
+const bulkUpdatePaymentCode = async (req, res) => {
+  try {
+    const { studentIds, paymentCode } = req.body;
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0)
+      return res.status(400).json({ message: 'Student IDs are required' });
+    await Student.updateMany({ _id: { $in: studentIds } }, { $set: { paymentCode: paymentCode ?? '' } });
+    res.json({ message: `${studentIds.length} students updated successfully` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const bulkUpdateClass = async (req, res) => {
   try {
     const { studentIds, classValue, section } = req.body;
@@ -425,4 +437,4 @@ const generateCredentialSingle = async (req, res) => {
   }
 };
 
-module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential, getAllCredentials };
+module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkUpdatePaymentCode, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential, getAllCredentials };

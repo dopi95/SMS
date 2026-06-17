@@ -6,6 +6,7 @@ import axios from 'axios'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { usePermissions } from '@/contexts/PermissionsContext'
+import { calcAgeFromECString } from '@/utils/dateUtils'
 
 interface PendingStudent {
   _id: string
@@ -535,6 +536,7 @@ export default function PendingStudentsPage() {
               <Section title="Student Information">
                 <DetailRow label="Gender" value={detail.gender} />
                 <DetailRow label="Date of Birth" value={detail.dateOfBirth} />
+                <DetailRow label="Age (ዕድሜ)" value={calcAgeFromECString(detail.dateOfBirth || '') !== null ? `${calcAgeFromECString(detail.dateOfBirth || '')} yrs` : '—'} />
                 <DetailRow label="Class" value={detail.class} />
                 <DetailRow label="Joined Year" value={`${detail.joinedYear} E.C`} />
                 <DetailRow label="Student Type" value={detail.studentType === 'new' ? 'New · አዲስ' : 'Existing · ነባር'} />

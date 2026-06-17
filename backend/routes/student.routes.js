@@ -1,5 +1,5 @@
 const express = require('express');
-const { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential, getAllCredentials } = require('../controllers/student.controller');
+const { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkUpdatePaymentCode, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential, getAllCredentials } = require('../controllers/student.controller');
 const auth = require('../middleware/auth.middleware');
 const upload = require('../middleware/upload.middleware');
 
@@ -9,6 +9,7 @@ const photoFields = upload.fields([{ name: 'photo', maxCount: 1 }, { name: 'fath
 
 // Bulk operations — must be before /:id wildcard routes
 router.post('/bulk/update-class', auth, bulkUpdateClass);
+router.post('/bulk/update-payment-code', auth, bulkUpdatePaymentCode);
 router.post('/bulk/inactive', auth, bulkInactive);
 router.post('/bulk/delete', auth, bulkDelete);
 router.post('/bulk/import', auth, bulkImport);

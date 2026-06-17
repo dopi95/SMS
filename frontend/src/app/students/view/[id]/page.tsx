@@ -8,6 +8,7 @@ import DashboardLayout from '@/components/DashboardLayout';
 
 import { useSettings } from '@/contexts/SettingsContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { calcAgeFromECString } from '@/utils/dateUtils';
 
 interface Student {
   _id: string;
@@ -326,8 +327,16 @@ export default function ViewStudentPage() {
                       <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.email || '-'}</p>
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Date of Birth', 'የተወልድ ቀን')}</label>
-                      <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : '-'}</p>
+                      <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Date of Birth (E.C)', 'የተወልድ ቀን')}</label>
+                      <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.dateOfBirth || '-'}</p>
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Age', 'ዕድሜ')}</label>
+                      <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>
+                        {student.dateOfBirth && calcAgeFromECString(student.dateOfBirth) !== null
+                          ? `${calcAgeFromECString(student.dateOfBirth)} yrs`
+                          : '-'}
+                      </p>
                     </div>
                   </div>
                 </div>

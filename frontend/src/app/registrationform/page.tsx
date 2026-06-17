@@ -104,27 +104,61 @@ export default function RegistrationFormPage() {
   const [emailError, setEmailError] = useState('')
   const [dob, setDob] = useState('')
   const [dobError, setDobError] = useState('')
+  const [age, setAge] = useState<number | null>(null)
+
+  function calcAgeFromEC(birthDay: number, birthMonth: number, birthYear: number): number {
+    // Get today in Ethiopian Calendar
+    // EC new year (Enkutatash) is ~Sep 11 GC. EC year = GC year - 8 before Sep 11, GC year - 7 after.
+    const today = new Date()
+    const gcYear = today.getFullYear()
+    const gcMonth = today.getMonth() + 1 // 1-12
+    const gcDay = today.getDate()
+    // Enkutatash is Sep 11 (or 12 in leap year eve), approximate as Sep 11
+    const afterEnkutatash = gcMonth > 9 || (gcMonth === 9 && gcDay >= 11)
+    const todayECYear = afterEnkutatash ? gcYear - 7 : gcYear - 8
+    // EC month: EC months align ~8 months behind GC. Meskerem(1)=Sep, Tikimt(2)=Oct... Nehase(12)=Aug, Pagume(13)=~Sep1-10
+    // Map GC month+day to EC month roughly:
+    // Sep 11+ => Meskerem(1), Oct => Tikimt(2), Nov => Hidar(3), Dec => Tahisas(4),
+    // Jan => Tir(5), Feb => Yekatit(6), Mar => Megabit(7), Apr => Miyazia(8),
+    // May => Ginbot(9), Jun => Sene(10), Jul => Hamle(11), Aug => Nehase(12), Sep 1-10 => Pagume(13)
+    const gcToECMonth = [5,6,7,8,9,10,11,12,13,1,2,3,4] // index 0=Jan...11=Dec, 13=Pagume
+    let todayECMonth: number
+    let todayECDay: number
+    if (gcMonth === 9 && gcDay < 11) {
+      todayECMonth = 13
+      todayECDay = gcDay
+    } else {
+      todayECMonth = gcToECMonth[gcMonth - 1]
+      // EC day approximately same as GC day (months are 30 days each)
+      todayECDay = gcDay
+    }
+    // Calculate age in EC
+    let age = todayECYear - birthYear
+    if (todayECMonth < birthMonth || (todayECMonth === birthMonth && todayECDay < birthDay)) age--
+    return age
+  }
 
   function handleDob(value: string) {
     const parts = value.split('/')
     if (parts[2] !== undefined && parts[2].trim().length > 4) return
     setDob(value)
-    if (!value.trim()) { setDobError(''); return }
+    if (!value.trim()) { setDobError(''); setAge(null); return }
     const dd = parseInt(parts[0]?.trim())
     const mm = parseInt(parts[1]?.trim())
     const yyyy = parts[2]?.trim()
     if (parts.length !== 3 || isNaN(dd) || isNaN(mm) || !yyyy) {
-      setDobError('Please enter a valid date (dd / mm / yyyy)')
+      setDobError('Please enter a valid date (dd / mm / yyyy)'); setAge(null)
       return
     }
-    if (String(parts[0].trim()).length > 2) { setDobError('Day must be 1 or 2 digits'); return }
-    if (dd < 0 || dd > 30) { setDobError('Day must be between 0 and 30'); return }
-    if (String(parts[1].trim()).length > 2) { setDobError('Month must be 1 or 2 digits'); return }
-    if (mm < 0 || mm > 12) { setDobError('Month must be between 0 and 12'); return }
-    if (yyyy.length !== 4) { setDobError('Year must be exactly 4 digits'); return }
+    if (String(parts[0].trim()).length > 2) { setDobError('Day must be 1 or 2 digits'); setAge(null); return }
+    if (dd < 0 || dd > 30) { setDobError('Day must be between 0 and 30'); setAge(null); return }
+    if (String(parts[1].trim()).length > 2) { setDobError('Month must be 1 or 2 digits'); setAge(null); return }
+    if (mm < 0 || mm > 12) { setDobError('Month must be between 0 and 12'); setAge(null); return }
+    if (yyyy.length !== 4) { setDobError('Year must be exactly 4 digits'); setAge(null); return }
     const yy = parseInt(yyyy)
-    if (isNaN(yy) || yy < 2000 || yy > 2019) { setDobError('Year must be between 2000 and 2019'); return }
+    if (isNaN(yy) || yy < 2000 || yy > 2019) { setDobError('Year must be between 2000 and 2019'); setAge(null); return }
     setDobError('')
+    setAge(calcAgeFromEC(dd, mm, yy))
   }
 
   function handleEmail(value: string) {
@@ -384,6 +418,21 @@ export default function RegistrationFormPage() {
                       dobError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-500 focus:border-transparent'
                     }`} />
                   {dobError && <p className="text-red-500 text-xs mt-1">{dobError}</p>}
+                </div>
+
+                {/* Age — auto-calculated */}
+                <div className="flex flex-col">
+                  <div className="h-10 flex flex-col justify-end mb-1.5">
+                    <span className="text-sm font-semibold text-gray-700 leading-tight">Age (ዕድሜ)</span>
+                    <span className="text-xs text-gray-400 leading-tight mt-0.5">Auto-calculated · ራሱ ይሰላል</span>
+                  </div>
+                  <input
+                    type="text"
+                    readOnly
+                    value={age !== null ? `${age} yrs` : ''}
+                    placeholder="—"
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-100 cursor-not-allowed select-none"
+                  />
                 </div>
               </div>
 

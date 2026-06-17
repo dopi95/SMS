@@ -10,7 +10,7 @@ const studentSchema = new mongoose.Schema({
   lastNameAmharic: { type: String },
   email: { type: String },
   gender: { type: String, required: true, enum: ['Male', 'Female'] },
-  dateOfBirth: { type: Date },
+  dateOfBirth: { type: String },
   joinedYear: { type: String, required: true },
   class: { type: String, required: true, enum: ['Nursery', 'LKG', 'UKG'] },
   section: { type: String, enum: ['A', 'B', 'C', 'D'], default: undefined },

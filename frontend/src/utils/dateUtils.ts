@@ -26,6 +26,92 @@ function toEthiopian(gy: number, gm: number, gd: number): [number, number, numbe
   return [ey, order[m], ed]
 }
 
+export function calcAgeFromECString(dob: string): number | null {
+  // dob format: dd/mm/yyyy (Ethiopian Calendar)
+  const parts = dob.split('/')
+  if (parts.length !== 3) return null
+  const dd = parseInt(parts[0].trim())
+  const mm = parseInt(parts[1].trim())
+  const yyyy = parseInt(parts[2].trim())
+  if (isNaN(dd) || isNaN(mm) || isNaN(yyyy)) return null
+  return calcAgeFromEC(dd, mm, yyyy)
+}
+
+// Accepts either "dd/mm/yyyy" EC string or ISO date string, returns age in EC years
+export function calcAgeFromDOB(dob: string): number | null {
+  if (!dob) return null
+  if (dob.includes('/')) return calcAgeFromECString(dob)
+  const date = parseDOB(dob)
+  if (!date) return null
+  const [ey, em, ed] = toEthiopian(date.getFullYear(), date.getMonth() + 1, date.getDate())
+  return calcAgeFromEC(ed, em, ey)
+}
+
+// Accepts either "dd/mm/yyyy" EC string or ISO date string, returns "dd/mm/yyyy" EC
+// Returns "DD MonthName YYYY E.C" e.g. "07 ነሐሴ 2007 E.C"
+export function formatDOBAsECFull(dob: string): string {
+  if (!dob) return '-'
+  let dd: number, mm: number, yyyy: number
+  if (dob.includes('/')) {
+    const parts = dob.split('/')
+    if (parts.length !== 3) return dob
+    dd = parseInt(parts[0].trim())
+    mm = parseInt(parts[1].trim())
+    yyyy = parseInt(parts[2].trim())
+  } else {
+    const date = new Date(dob)
+    if (isNaN(date.getTime())) return dob
+    ;[yyyy, mm, dd] = toEthiopian(date.getFullYear(), date.getMonth() + 1, date.getDate())
+  }
+  if (isNaN(dd) || isNaN(mm) || isNaN(yyyy) || mm < 1 || mm > 13) return dob
+  return `${String(dd).padStart(2, '0')} ${ET_MONTHS[mm - 1]} ${yyyy} E.C`
+}
+
+function parseDOB(dob: string): Date | null {
+  if (!dob) return null
+  const d = new Date(dob)
+  return isNaN(d.getTime()) ? null : d
+}
+
+export function formatDOBAsEC(dob: string): string {
+  if (!dob) return '-'
+  if (dob.includes('/')) {
+    const parts = dob.split('/')
+    if (parts.length === 3) {
+      const dd = parts[0].trim().padStart(2, '0')
+      const mm = parts[1].trim().padStart(2, '0')
+      const yyyy = parts[2].trim()
+      return `${dd}/${mm}/${yyyy}`
+    }
+    return dob
+  }
+  const date = parseDOB(dob)
+  if (!date) return dob
+  const [ey, em, ed] = toEthiopian(date.getFullYear(), date.getMonth() + 1, date.getDate())
+  return `${String(ed).padStart(2, '0')}/${String(em).padStart(2, '0')}/${ey}`
+}
+
+function calcAgeFromEC(dd: number, mm: number, yyyy: number): number | null {
+  if (isNaN(dd) || isNaN(mm) || isNaN(yyyy)) return null
+  const today = new Date()
+  const gcYear = today.getFullYear()
+  const gcMonth = today.getMonth() + 1
+  const gcDay = today.getDate()
+  const afterEnkutatash = gcMonth > 9 || (gcMonth === 9 && gcDay >= 11)
+  const todayECYear = afterEnkutatash ? gcYear - 7 : gcYear - 8
+  const gcToECMonth = [5,6,7,8,9,10,11,12,13,1,2,3,4]
+  let todayECMonth: number
+  let todayECDay: number
+  if (gcMonth === 9 && gcDay < 11) {
+    todayECMonth = 13; todayECDay = gcDay
+  } else {
+    todayECMonth = gcToECMonth[gcMonth - 1]; todayECDay = gcDay
+  }
+  let age = todayECYear - yyyy
+  if (todayECMonth < mm || (todayECMonth === mm && todayECDay < dd)) age--
+  return age >= 0 ? age : null
+}
+
 export function formatDateWithBothCalendars(dateString: string): string {
   const date = new Date(dateString)
   const gy = date.getFullYear()
