@@ -1,38 +1,26 @@
-const CACHE_NAME = 'bluelight-sms-v6'
-const ESSENTIAL_RESOURCES = [
-  '/',
-  '/login',
-  '/dashboard',
-  '/profile',
-  '/settings',
+const CACHE_NAME = 'bluelight-sms-v7'
+const PRECACHE_URLS = [
+  '/offline.html',
   '/manifest.json'
 ]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        return Promise.allSettled(
-          ESSENTIAL_RESOURCES.map(url => 
-            cache.add(url).catch(() => {})
-          )
-        )
-      })
+      .then((cache) => cache.addAll(PRECACHE_URLS))
       .then(() => self.skipWaiting())
   )
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName)
-          }
-        })
+    caches.keys().then((cacheNames) =>
+      Promise.all(
+        cacheNames
+          .filter((name) => name !== CACHE_NAME)
+          .map((name) => caches.delete(name))
       )
-    }).then(() => self.clients.claim())
+    ).then(() => self.clients.claim())
   )
 })
 
@@ -40,54 +28,47 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
-  // Skip non-GET requests
-  if (request.method !== 'GET') {
+  // Only handle same-origin GET requests
+  if (request.method !== 'GET' || url.origin !== self.location.origin) {
     return
   }
 
-  // Always fetch API requests from network (no caching for data)
-  if (url.pathname.startsWith('/api/')) {
+  // Skip Next.js internal requests, API routes, and HMR
+  if (
+    url.pathname.startsWith('/_next/') ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.includes('__nextjs') ||
+    url.pathname.includes('_rsc')
+  ) {
+    return
+  }
+
+  // For page navigations: network first, fallback to offline.html
+  if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => {
-        return new Response(JSON.stringify({ 
-          error: 'Network Error', 
-          message: 'Please check your internet connection'
-        }), {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' }
-        })
-      })
+      fetch(request).catch(() =>
+        caches.match('/offline.html')
+      )
     )
     return
   }
 
-  // For pages and static assets: network first, cache fallback
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        // Only cache successful responses that are not partial (status 200)
-        if (response.ok && response.status === 200) {
-          const responseToCache = response.clone()
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseToCache).catch(() => {
-              // Silently fail if caching fails
-            })
-          })
-        }
-        return response
-      })
-      .catch(() => {
-        return caches.match(request).then(cachedResponse => {
-          if (cachedResponse) {
-            return cachedResponse
+  // For static assets (images, fonts, icons): cache first, then network
+  if (
+    url.pathname.startsWith('/static/') ||
+    /\.(png|jpg|jpeg|svg|gif|ico|woff2?|ttf)$/.test(url.pathname)
+  ) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
           }
-          // Return a basic response if nothing is cached
-          return new Response('Offline - Resource not available', {
-            status: 503,
-            statusText: 'Service Unavailable',
-            headers: { 'Content-Type': 'text/plain' }
-          })
-        })
+          return response
+        }).catch(() => new Response('', { status: 404 }))
       })
-  )
+    )
+  }
 })
