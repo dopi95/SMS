@@ -1,8 +1,5 @@
-const CACHE_NAME = 'bluelight-sms-v7'
-const PRECACHE_URLS = [
-  '/offline.html',
-  '/manifest.json'
-]
+const CACHE_NAME = 'bluelight-sms-v8'
+const PRECACHE_URLS = ['/offline.html', '/manifest.json']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -33,31 +30,39 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Skip Next.js internal requests, API routes, and HMR
+  // Skip ALL Next.js internals, API routes, and data fetching paths
   if (
     url.pathname.startsWith('/_next/') ||
     url.pathname.startsWith('/api/') ||
     url.pathname.includes('__nextjs') ||
-    url.pathname.includes('_rsc')
+    url.pathname.includes('_rsc') ||
+    url.pathname.includes('.json')
   ) {
     return
   }
 
-  // For page navigations: network first, fallback to offline.html
+  // For page navigations: network first, only fall back to offline.html when truly offline
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() =>
-        caches.match('/offline.html')
-      )
+      fetch(request)
+        .then((response) => {
+          // If we got a valid response, return it
+          if (response.ok || response.status === 304) {
+            return response
+          }
+          // For server errors (5xx), still return the response (don't show offline)
+          return response
+        })
+        .catch(() =>
+          // Only show offline page when there's a genuine network failure
+          caches.match('/offline.html')
+        )
     )
     return
   }
 
-  // For static assets (images, fonts, icons): cache first, then network
-  if (
-    url.pathname.startsWith('/static/') ||
-    /\.(png|jpg|jpeg|svg|gif|ico|woff2?|ttf)$/.test(url.pathname)
-  ) {
+  // For static assets (images, icons): cache first, network fallback
+  if (/\.(png|jpg|jpeg|svg|gif|ico|woff2?|ttf)$/.test(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached
