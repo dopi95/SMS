@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/DashboardLayout'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import { useSettings } from '@/contexts/SettingsContext'
 import { usePermissions } from '@/contexts/PermissionsContext'
 import axios from 'axios'
@@ -29,6 +30,8 @@ export default function CustomPaymentsPage() {
   const [editingFile, setEditingFile] = useState<PaymentFile | null>(null)
   const [title, setTitle] = useState('')
   const [year, setYear] = useState(2019)
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetchFiles()
@@ -79,20 +82,22 @@ export default function CustomPaymentsPage() {
     }
   }
 
-  const handleDeleteFile = async (id: string) => {
-    if (!confirm(getText('Are you sure you want to delete this file?', 'እርግጠኛ ነዎት ይህን ፋይል መሰረዝ ይፈልጋሉ?'))) {
-      return
-    }
-
+  const handleDeleteFile = async () => {
+    if (!deletingFileId) return
+    setDeleting(true)
     try {
       const token = localStorage.getItem('token')
-      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/custom-payments/files/${id}`, {
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/custom-payments/files/${deletingFileId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       toast.success(getText('File deleted successfully', 'ፋይል በተሳካ ሁኔታ ተሰርዟል'))
+      setDeletingFileId(null)
       fetchFiles()
-    } catch (error) {
-      toast.error(getText('Failed to delete file', 'ፋይል መሰረዝ አልተሳካም'))
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || getText('Failed to delete file', 'ፋይል መሰረዝ አልተሳካም'))
+      setDeletingFileId(null)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -197,7 +202,7 @@ export default function CustomPaymentsPage() {
                         )}
                         {canDo('custom-payment', 'delete') && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteFile(file._id) }}
+                          onClick={(e) => { e.stopPropagation(); setDeletingFileId(file._id) }}
                           className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-500'}`}
                           title={getText('Delete File', 'ፋይል ሰርዝ')}
                         >
@@ -290,6 +295,16 @@ export default function CustomPaymentsPage() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={!!deletingFileId}
+        onClose={() => setDeletingFileId(null)}
+        onConfirm={handleDeleteFile}
+        title={getText('Delete File', 'ፋይል ሰርዝ')}
+        message={getText('Are you sure you want to delete this file? All entries will be lost.', 'እርግጠኛ ነዎት ይህን ፋይል መሰረዝ ይፈልጋሉ? ሁሉም ግቤቶች ይጠፋሉ።')}
+        confirmText={deleting ? getText('Deleting...', 'እየሰረዘ...') : getText('Delete', 'ሰርዝ')}
+        confirmColor="red"
+        icon={<svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+      />
     </DashboardLayout>
   )
 }

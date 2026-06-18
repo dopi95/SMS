@@ -8,7 +8,8 @@ const logActivity = require('../utils/logActivity');
 exports.createFile = asyncHandler(async (req, res) => {
   const { title, year } = req.body;
   
-  const file = await CustomPaymentFile.create({ title, year, createdBy: req.user._id });
+  const created = await CustomPaymentFile.create({ title, year, createdBy: req.user._id });
+  const file = await CustomPaymentFile.findById(created._id).populate('createdBy', 'name email');
   await logActivity(req.user, 'Created File', 'Custom Payment', `Created custom payment file "${title}" (${year})`);
   res.status(201).json(file);
 });
@@ -46,7 +47,7 @@ exports.deleteFile = asyncHandler(async (req, res) => {
   }
   
   await CustomPaymentEntry.deleteMany({ fileId: file._id });
-  await file.deleteOne();
+  await CustomPaymentFile.findByIdAndDelete(file._id);
   await logActivity(req.user, 'Deleted File', 'Custom Payment', `Deleted custom payment file "${file.title}" (${file.year})`);
   res.json({ message: 'File deleted successfully' });
 });
