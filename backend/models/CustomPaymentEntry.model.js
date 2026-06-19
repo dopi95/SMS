@@ -30,6 +30,11 @@ const customPaymentEntrySchema = new mongoose.Schema({
     enum: ['cash', 'bank'],
     required: true,
     default: 'cash'
+  },
+  description: {
+    type: String,
+    trim: true,
+    default: ''
   }
 }, {
   timestamps: true

@@ -25,13 +25,10 @@ interface PaymentEntry {
   amount: number
   paymentDate: string
   paymentMethod: 'cash' | 'bank'
+  description?: string
 }
 
-const CLASS_OPTIONS = [
-  'Nursery A', 'Nursery B', 'Nursery C', 'Nursery D',
-  'LKG A', 'LKG B', 'LKG C', 'LKG D',
-  'UKG A', 'UKG B', 'UKG C', 'UKG D'
-]
+const CLASS_OPTIONS = ['Nursery', 'LKG', 'UKG']
 
 export default function PaymentFilePage() {
   const { theme, getText } = useSettings()
@@ -51,6 +48,7 @@ export default function PaymentFilePage() {
   const [amount, setAmount] = useState('')
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank'>('cash')
+  const [description, setDescription] = useState('')
 
   useEffect(() => {
     fetchFileData()
@@ -79,14 +77,14 @@ export default function PaymentFilePage() {
       if (editingEntry) {
         await axios.put(
           `${process.env.NEXT_PUBLIC_API_URL}/custom-payments/entries/${editingEntry._id}`,
-          { studentName, class: studentClass, amount: Number(amount), paymentDate, paymentMethod },
+          { studentName, class: studentClass, amount: Number(amount), paymentDate, paymentMethod, description },
           { headers: { Authorization: `Bearer ${token}` } }
         )
         toast.success(getText('Entry updated successfully', 'ግቤት በተሳካ ሁኔታ ተዘምኗል'))
       } else {
         await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL}/custom-payments/entries`,
-          { fileId, studentName, class: studentClass, amount: Number(amount), paymentDate, paymentMethod },
+          { fileId, studentName, class: studentClass, amount: Number(amount), paymentDate, paymentMethod, description },
           { headers: { Authorization: `Bearer ${token}` } }
         )
         toast.success(getText('Entry added successfully', 'ግቤት በተሳካ ሁኔታ ታክሏል'))
@@ -106,6 +104,7 @@ export default function PaymentFilePage() {
     setAmount(entry.amount.toString())
     setPaymentDate(new Date(entry.paymentDate).toISOString().split('T')[0])
     setPaymentMethod(entry.paymentMethod)
+    setDescription(entry.description || '')
     setShowModal(true)
   }
 
@@ -134,6 +133,7 @@ export default function PaymentFilePage() {
     setAmount('')
     setPaymentDate(new Date().toISOString().split('T')[0])
     setPaymentMethod('cash')
+    setDescription('')
   }
 
   const totalAmount = entries.reduce((sum, entry) => sum + entry.amount, 0)
@@ -258,6 +258,9 @@ export default function PaymentFilePage() {
                             {getText('Class', 'ክፍል')}
                           </th>
                           <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {getText('Description', 'መግለጫ')}
+                          </th>
+                          <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                             {getText('Amount', 'መጠን')}
                           </th>
                           <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -279,6 +282,9 @@ export default function PaymentFilePage() {
                             </td>
                             <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                               {entry.class}
+                            </td>
+                            <td className={`px-6 py-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {entry.description || '—'}
                             </td>
                             <td className={`px-6 py-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-600'} font-semibold`}>
                               {entry.amount.toLocaleString()} ETB
@@ -333,6 +339,11 @@ export default function PaymentFilePage() {
                             <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                               {getText('Class', 'ክፍል')}: {entry.class}
                             </p>
+                            {entry.description && (
+                              <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {entry.description}
+                              </p>
+                            )}
                           </div>
                           <div className="flex gap-2">
                             {canDo('custom-payment', 'edit') && (
@@ -430,6 +441,18 @@ export default function PaymentFilePage() {
                       <option key={cls} value={cls}>{cls}</option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {getText('Description', 'መግለጫ')}
+                  </label>
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    placeholder={getText('Optional note...', 'አማራጭ ማስታወሻ...')}
+                  />
                 </div>
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>

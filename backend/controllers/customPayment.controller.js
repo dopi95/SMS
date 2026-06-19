@@ -72,21 +72,21 @@ exports.updateFile = asyncHandler(async (req, res) => {
 
 // Add entry to file
 exports.addEntry = asyncHandler(async (req, res) => {
-  const { fileId, studentName, class: studentClass, amount, paymentDate, paymentMethod } = req.body;
+  const { fileId, studentName, class: studentClass, amount, paymentDate, paymentMethod, description } = req.body;
   
   const file = await CustomPaymentFile.findById(fileId);
   if (!file) {
     return res.status(404).json({ message: 'File not found' });
   }
   
-  const entry = await CustomPaymentEntry.create({ fileId, studentName, class: studentClass, amount, paymentDate, paymentMethod });
+  const entry = await CustomPaymentEntry.create({ fileId, studentName, class: studentClass, amount, paymentDate, paymentMethod, description });
   await logActivity(req.user, 'Added Entry', 'Custom Payment', `Added "${studentName}" to "${file.title}" — ${amount} ETB (${file.year} E.C)`);
   res.status(201).json(entry);
 });
 
 // Update entry
 exports.updateEntry = asyncHandler(async (req, res) => {
-  const { studentName, class: studentClass, amount, paymentDate, paymentMethod } = req.body;
+  const { studentName, class: studentClass, amount, paymentDate, paymentMethod, description } = req.body;
   
   const entry = await CustomPaymentEntry.findById(req.params.id);
   if (!entry) {
@@ -98,6 +98,7 @@ exports.updateEntry = asyncHandler(async (req, res) => {
   entry.amount = amount || entry.amount;
   entry.paymentDate = paymentDate || entry.paymentDate;
   entry.paymentMethod = paymentMethod || entry.paymentMethod;
+  entry.description = description !== undefined ? description : entry.description;
   
   await entry.save();
   await logActivity(req.user, 'Edited Entry', 'Custom Payment', `Updated "${entry.studentName}" in file — ${entry.amount} ETB`);
