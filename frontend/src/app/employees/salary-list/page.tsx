@@ -111,7 +111,7 @@ export default function SalaryListPage() {
     setHasChanges(true);
     const newCells = columns.map((_, ci) => ci === 0 ? String(rows.length + 1) : '');
     setRows(prev => [...prev, { id: nextId, cells: newCells }]);
-    setNextId(n => n + 1);
+    setNextId((n: number) => n + 1);
   };
 
   const updateCell = (rowId: number, colIdx: number, value: string) => {
