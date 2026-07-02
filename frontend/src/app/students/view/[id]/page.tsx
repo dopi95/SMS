@@ -34,6 +34,7 @@ interface Student {
   motherName?: string;
   motherPhone?: string;
   motherPhoto?: string;
+  createdAt?: string;
 }
 
 interface Payment {
@@ -383,6 +384,12 @@ export default function ViewStudentPage() {
                   <div>
                     <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Joined Year', 'የተገባ ዓመት')}</label>
                     <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.joinedYear}</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Registration Date', 'የምዝገባ ቀን')}</label>
+                    <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>
+                      {student.createdAt ? new Date(student.createdAt).toLocaleString() : '-'}
+                    </p>
                   </div>
                 </div>
               </div>

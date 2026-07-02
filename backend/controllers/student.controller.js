@@ -339,12 +339,12 @@ const bulkAssignSections = async (req, res) => {
     if (!classValue || !numSections || numSections < 1)
       return res.status(400).json({ message: 'classValue and numSections are required' });
 
-    const students = await Student.find({ status: 'active', class: classValue }, { _id: 1 });
+    const students = await Student.find({ status: 'active', class: classValue }, { _id: 1, createdAt: 1 }).sort({ createdAt: 1 });
     if (students.length === 0)
       return res.status(404).json({ message: 'No active students found for this class' });
 
-    // Shuffle students randomly
-    const shuffled = students.map(s => s._id.toString()).sort(() => Math.random() - 0.5);
+    // Sort by registration date (earliest = Section A)
+    const shuffled = students.map(s => s._id.toString());
     const sections = ['A', 'B', 'C', 'D', 'E'];
     const limit = studentsPerSection ? parseInt(studentsPerSection) : Math.ceil(shuffled.length / numSections);
 

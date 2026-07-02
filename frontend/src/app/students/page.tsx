@@ -11,6 +11,7 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import * as XLSX from 'xlsx';
 import XLSXStyle from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
+import { calcAgeFromDOB } from '@/utils/dateUtils';
 
 interface Student {
   _id: string;
@@ -34,6 +35,7 @@ interface Student {
   fatherPhone?: string;
   motherName?: string;
   motherPhone?: string;
+  createdAt?: string;
 }
 
 export default function StudentsPage() {
@@ -485,8 +487,8 @@ export default function StudentsPage() {
     if (classStudents.length === 0) return toast.error(getText('No students in this class', 'በዚህ ክፍል ምንም ተማሪ የለም'));
     const sections = ['A','B','C','D','E'];
     const limit = studentsPerSection ? parseInt(studentsPerSection) : Math.ceil(classStudents.length / numSections);
-    const shuffled = [...classStudents].sort(() => Math.random() - 0.5);
-    const preview = shuffled.map((s, i) => ({
+    const sorted = [...classStudents].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+    const preview = sorted.map((s, i) => ({
       id: s._id,
       name: language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic||''}`.trim() : `${s.firstName} ${s.middleName}`,
       section: sections[Math.min(Math.floor(i / limit), numSections - 1)]
@@ -624,7 +626,15 @@ export default function StudentsPage() {
     let list = students;
     if (attendanceClass) list = list.filter(s => s.class === attendanceClass);
     if (attendanceSection) list = list.filter(s => s.section === attendanceSection);
-    return list;
+    return [...list].sort((a, b) => {
+      const nameA = attendanceLang === 'am' && a.firstNameAmharic
+        ? `${a.firstNameAmharic} ${a.middleNameAmharic || ''}`.trim()
+        : `${a.firstName} ${a.middleName}`;
+      const nameB = attendanceLang === 'am' && b.firstNameAmharic
+        ? `${b.firstNameAmharic} ${b.middleNameAmharic || ''}`.trim()
+        : `${b.firstName} ${b.middleName}`;
+      return nameA.localeCompare(nameB);
+    });
   };
 
   const getStudentName = (s: Student, lang: 'am' | 'en') =>
@@ -634,10 +644,8 @@ export default function StudentsPage() {
 
   const getAge = (dob?: string) => {
     if (!dob) return '-';
-    const parts = dob.includes('/') ? dob.split('/') : null;
-    const birth = parts ? new Date(+parts[2], +parts[1] - 1, +parts[0]) : new Date(dob);
-    if (isNaN(birth.getTime())) return '-';
-    return String(new Date().getFullYear() - birth.getFullYear());
+    const age = calcAgeFromDOB(dob);
+    return age !== null ? String(age) : '-';
   };
 
 
@@ -647,12 +655,15 @@ export default function StudentsPage() {
     const isAm = attendanceLang === 'am';
     const totalCols = 4 + 22;
 
-    const thin = { style: 'thin', color: { rgb: '000000' } };
-    const border = { top: thin, bottom: thin, left: thin, right: thin };
-    const boldFont = { bold: true, sz: 11 };
-    const normalFont = { sz: 10 };
-    const centerAlign = { horizontal: 'center', vertical: 'center' };
-    const leftAlign = { horizontal: 'left', vertical: 'center' };
+    // ── Style helpers ──────────────────────────────────────────────
+    const thinBlack  = { style: 'thin',   color: { rgb: '000000' } };
+    const thinGray   = { style: 'thin',   color: { rgb: 'CCCCCC' } };
+    const medBlack   = { style: 'medium', color: { rgb: '000000' } };
+    const border     = { top: thinBlack, bottom: thinBlack, left: thinBlack, right: thinBlack };
+    const borderMed  = { top: medBlack,  bottom: medBlack,  left: medBlack,  right: medBlack  };
+    const borderInfo = { top: thinGray,  bottom: thinGray,  left: thinGray,  right: thinGray  };
+    const center     = { horizontal: 'center', vertical: 'center', wrapText: true };
+    const left       = { horizontal: 'left',   vertical: 'center', wrapText: true };
 
     const ws: any = {};
     const merges: any[] = [];
@@ -661,94 +672,146 @@ export default function StudentsPage() {
     const sc = (r: number, c: number, v: any, s: any = {}) => {
       ws[XLSXStyle.utils.encode_cell({ r, c })] = { v: v ?? '', t: typeof v === 'number' ? 'n' : 's', s };
     };
-    const fillRow = (r: number, fromC: number, toC: number, s: any = {}) => {
+    const fillMerge = (r: number, fromC: number, toC: number, s: any = {}) => {
       for (let c = fromC; c <= toC; c++) sc(r, c, '', s);
     };
 
-    // Row 0 - Title
+    // ── Row 0: School title bar ────────────────────────────────────
+    const titleStyle = {
+      font:      { bold: true, sz: isAm ? 14 : 15, color: { rgb: '000000' } },
+      fill:      { fgColor: { rgb: 'FFFFFF' } },
+      alignment: center,
+      border:    borderMed,
+    };
     const title = isAm
-      ? '\u12e8\u1265\u1209 \u120b\u12ed\u1275 \u12a0\u12ab\u12f3\u121a \u12e8\u1270\u121b\u122a\u12ce\u127d \u1235\u121d \u1218\u1246\u1323\u1320\u122a\u12eb'
-      : 'Bluelight Academy - Student Attendance Sheet';
-    sc(R, 0, title, { font: { bold: true, sz: 13 }, alignment: { horizontal: 'center', vertical: 'center' } });
-    fillRow(R, 1, totalCols - 1);
+      ? '\u12e8\u1265\u1209 \u120b\u12ed\u1275 \u12a0\u12ab\u12f3\u121a  —  \u12e8\u1270\u121b\u122a\u12ce\u127d \u1201\u1294\u1273 \u1218\u1246\u1323\u1320\u122a\u12eb'
+      : 'Bluelight Academy  —  Student Attendance Sheet';
+    sc(R, 0, title, titleStyle);
+    fillMerge(R, 1, totalCols - 1, titleStyle);
     merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
     R++;
 
-    // Row 1 - blank
+    // ── Row 1: blank spacer ────────────────────────────────────────
     R++;
 
-    // Row 2 - Teacher + Date
-    const teacherLabel = isAm ? '\u12e8\u1218\u121d\u1205\u1229 \u1235\u121d............' : 'Teacher Name............';
-    const dateLabel    = isAm ? '\u1240\u1295............' : 'Date............';
-    sc(R, 0, teacherLabel, { font: normalFont, alignment: leftAlign });
-    fillRow(R, 1, 5);
-    merges.push({ s: { r: R, c: 0 }, e: { r: R, c: 5 } });
-    sc(R, 6, dateLabel, { font: normalFont, alignment: leftAlign });
-    fillRow(R, 7, totalCols - 1);
-    merges.push({ s: { r: R, c: 6 }, e: { r: R, c: totalCols - 1 } });
+    // ── Shared info-row style ──────────────────────────────────────
+    const infoLabelStyle = {
+      font:      { bold: true, sz: isAm ? 11 : 10, color: { rgb: '000000' } },
+      fill:      { fgColor: { rgb: 'FFFFFF' } },
+      alignment: left,
+      border:    borderInfo,
+    };
+
+    // ── Row 2: Teacher Name | Date ─────────────────────────────────
+    const teacherLabel = isAm ? '\u12e8\u1218\u121d\u1205\u1229 \u1235\u121d:  _______________________________' : 'Teacher Name:  _______________________________';
+    const dateLabel    = isAm ? '\u1240\u1295:  ___________________________'                                 : 'Date:  ___________________________';
+    sc(R, 0, teacherLabel, infoLabelStyle);
+    fillMerge(R, 1, 12, infoLabelStyle);
+    merges.push({ s: { r: R, c: 0 }, e: { r: R, c: 12 } });
+    sc(R, 13, dateLabel, infoLabelStyle);
+    fillMerge(R, 14, totalCols - 1, infoLabelStyle);
+    merges.push({ s: { r: R, c: 13 }, e: { r: R, c: totalCols - 1 } });
     R++;
 
-    // Row 3 - Class/Section + Subject
-    const classVal   = attendanceClass || '';
-    const sectionVal = attendanceSection || '';
+    // ── Row 3: Class / Section | Subject ──────────────────────────
+    const classVal   = attendanceClass   || '_____________';
+    const sectionVal = attendanceSection || '_____________';
     const classLabel   = isAm
-      ? '\u12ad\u134d\u120d......' + classVal + '......\u12ad\u134d\u120d \u1245\u1345......' + sectionVal + '......'
-      : 'Class......' + classVal + '......Section......' + sectionVal + '......';
-    const subjectLabel = isAm ? '\u12e8\u1275\u121d\u1205\u122d\u1275 \u12a0\u12ed\u1290\u1275............' : 'Subject............';
-    sc(R, 0, classLabel, { font: normalFont, alignment: leftAlign });
-    fillRow(R, 1, 5);
-    merges.push({ s: { r: R, c: 0 }, e: { r: R, c: 5 } });
-    sc(R, 6, subjectLabel, { font: normalFont, alignment: leftAlign });
-    fillRow(R, 7, totalCols - 1);
-    merges.push({ s: { r: R, c: 6 }, e: { r: R, c: totalCols - 1 } });
+      ? `\u12ad\u134d\u120d:  ${classVal}          \u12ad\u134d\u120d \u1245\u1345:  ${sectionVal}`
+      : `Class:  ${classVal}          Section:  ${sectionVal}`;
+    const subjectLabel = isAm ? '\u12e8\u1275\u121d\u1205\u122d\u1275 \u12a0\u12ed\u1290\u1275:  ___________________________' : 'Subject:  ___________________________';
+    sc(R, 0, classLabel, infoLabelStyle);
+    fillMerge(R, 1, 12, infoLabelStyle);
+    merges.push({ s: { r: R, c: 0 }, e: { r: R, c: 12 } });
+    sc(R, 13, subjectLabel, infoLabelStyle);
+    fillMerge(R, 14, totalCols - 1, infoLabelStyle);
+    merges.push({ s: { r: R, c: 13 }, e: { r: R, c: totalCols - 1 } });
     R++;
 
-    // Rows 4-5 blank
-    R++;
+    // ── Row 4: blank spacer ────────────────────────────────────────
     R++;
 
-    // Row 6 - Headers with borders + light green fill
+    // ── Row 5: Column headers ──────────────────────────────────────
+    // font sizes: Ethiopic needs larger sz to avoid overlap
+    const fSz     = isAm ? 11 : 10;
+    const fSzHdr  = isAm ? 11 : 10;
+    const rowH    = isAm ? 26 : 18;  // taller rows for Ethiopic glyphs
+    const hdrH    = isAm ? 28 : 22;
+    const infoH   = isAm ? 24 : 20;
+    const nameW   = isAm ? 42 : 32;  // wider name col for Ethiopic
+    const genderW = isAm ? 10 : 8;
+    const dayW    = isAm ? 5  : 4;   // slightly wider day cols for Ethiopic
+
+    const headerStyle = {
+      font:      { bold: true, sz: fSzHdr, color: { rgb: '000000' } },
+      fill:      { fgColor: { rgb: 'FFFFFF' } },
+      alignment: center,
+      border,
+    };
+    const headerNameStyle = { ...headerStyle, alignment: left };
     const headers = isAm
       ? ['\u1270.\u1241', '\u12e8\u1270\u121b\u122a\u12cd \u1235\u121d', '\u12d5\u12f5\u121c', '\u133e\u1273']
       : ['No.', 'Student Name', 'Age', 'Gender'];
     const days = Array.from({ length: 22 }, (_, i) => String(i + 1));
     [...headers, ...days].forEach((h, c) => {
-      sc(R, c, h, {
-        font: boldFont,
-        alignment: c === 1 ? leftAlign : centerAlign,
-        border,
-        fill: { fgColor: { rgb: 'D9EAD3' } },
-      });
+      sc(R, c, h, c === 1 ? headerNameStyle : headerStyle);
     });
     R++;
 
-    // Student rows
+    // ── Student data rows ──────────────────────────────────────────
+    const whiteFill = { fgColor: { rgb: 'FFFFFF' } };
     list.forEach((s, i) => {
+      const cellStyle = { font: { sz: fSz }, fill: whiteFill, alignment: center, border };
+      const nameStyle = { font: { sz: fSz }, fill: whiteFill, alignment: left,   border };
       const name   = getStudentName(s, attendanceLang);
       const age    = getAge(s.dateOfBirth);
       const gender = isAm
         ? (s.gender === 'Male' ? '\u12c8\u1295\u12f5' : s.gender === 'Female' ? '\u1234\u1275' : s.gender)
         : (s.gender === 'Male' ? 'M' : s.gender === 'Female' ? 'F' : s.gender);
-      sc(R, 0, i + 1,  { font: normalFont, alignment: centerAlign, border });
-      sc(R, 1, name,   { font: normalFont, alignment: leftAlign,   border });
-      sc(R, 2, age,    { font: normalFont, alignment: centerAlign, border });
-      sc(R, 3, gender, { font: normalFont, alignment: centerAlign, border });
-      for (let c = 4; c < totalCols; c++) sc(R, c, '', { border });
+      sc(R, 0, i + 1, cellStyle);
+      sc(R, 1, name,  nameStyle);
+      sc(R, 2, age,   cellStyle);
+      sc(R, 3, gender,cellStyle);
+      for (let c = 4; c < totalCols; c++) sc(R, c, '', cellStyle);
       R++;
     });
 
-    R++;
+    // ── Blank spacer ───────────────────────────────────────────────
     R++;
 
-    // Legend
+    // ── Legend row ─────────────────────────────────────────────────
+    const legendStyle = {
+      font:      { bold: false, sz: isAm ? 10 : 9, italic: true, color: { rgb: '000000' } },
+      fill:      { fgColor: { rgb: 'FFFFFF' } },
+      alignment: left,
+      border:    { top: thinGray, bottom: thinGray, left: thinGray, right: thinGray },
+    };
     const legend = isAm
-      ? '\u121b\u1235\u1273\u12c8\u123b\u1361  \u2713 = \u12e8\u1270\u1308\u1298   \u2718 = \u12eb\u120d\u1270\u1308\u1298   P = \u1348\u1243\u12f5'
-      : 'Legend:  \u2713 = Present   \u2718 = Absent   P = Permission';
-    sc(R, 0, legend, { font: normalFont, alignment: leftAlign });
+      ? '\u121b\u1235\u1273\u12c8\u123b\u1361   \u2713 = \u12e8\u1270\u1308\u1298     \u2718 = \u12eb\u120d\u1270\u1308\u1298     P = \u1348\u1243\u12f5'
+      : 'Legend:   \u2713 = Present     \u2718 = Absent     P = Permission';
+    sc(R, 0, legend, legendStyle);
+    fillMerge(R, 1, totalCols - 1, legendStyle);
     merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
-    fillRow(R, 1, totalCols - 1);
 
-    ws['!cols'] = [{ wch: 5 }, { wch: 30 }, { wch: 6 }, { wch: 7 }, ...Array(22).fill({ wch: 3.5 })];
+    // ── Sheet metadata ─────────────────────────────────────────────
+    ws['!cols'] = [
+      { wch: 5 },        // No.
+      { wch: nameW },    // Name
+      { wch: 6 },        // Age
+      { wch: genderW },  // Gender
+      ...Array(22).fill({ wch: dayW }),
+    ];
+    ws['!rows'] = [
+      { hpt: 30 },              // title
+      { hpt: 6  },              // spacer
+      { hpt: infoH },           // teacher/date
+      { hpt: infoH },           // class/subject
+      { hpt: 6  },              // spacer
+      { hpt: hdrH },            // header
+      ...Array(list.length).fill({ hpt: rowH }),
+      { hpt: 6  },              // spacer
+      { hpt: rowH },            // legend
+    ];
     ws['!merges'] = merges;
     ws['!ref'] = XLSXStyle.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: R, c: totalCols - 1 } });
 
@@ -756,10 +819,79 @@ export default function StudentsPage() {
     XLSXStyle.utils.book_append_sheet(wb, ws, isAm ? '\u1201\u1294\u1273' : 'Attendance');
     const buf = XLSXStyle.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const cls = attendanceClass ? '_' + attendanceClass : '';
+    const cls = attendanceClass   ? '_' + attendanceClass   : '';
     const sec = attendanceSection ? '_' + attendanceSection : '';
     saveAs(blob, 'Attendance' + cls + sec + '_' + new Date().toISOString().split('T')[0] + '.xlsx');
     toast.success(getText('Attendance Excel downloaded!', '\u12e8\u1201\u1294\u1273 Excel \u12c8\u1323!'));
+  };
+
+  const exportToPDF = async () => {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+    const doc = new (jsPDF as any)({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const W = doc.internal.pageSize.getWidth();
+
+    // Header bar
+    doc.setFillColor(29, 78, 216);
+    doc.rect(0, 0, W, 18, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Bluelight Academy — Student List', 14, 11);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Exported: ${new Date().toLocaleString()}   |   Total: ${filteredStudents.length} student${filteredStudents.length !== 1 ? 's' : ''}`, W - 14, 11, { align: 'right' });
+
+    autoTable(doc, {
+      startY: 22,
+      head: [['#', 'Student ID', 'Full Name', 'Class', 'Sec.', 'Gender', 'Batch', 'Date of Birth', 'Father Name', 'Father Phone', 'Mother Name', 'Mother Phone', 'Payment Code', 'Reg. Date']],
+      body: filteredStudents.map((s, i) => [
+        i + 1,
+        s.studentId,
+        `${s.firstName} ${s.middleName} ${s.lastName}`,
+        s.class,
+        s.section || '—',
+        s.gender,
+        s.joinedYear,
+        formatDOB(s.dateOfBirth),
+        s.fatherName || '—',
+        s.fatherPhone || '—',
+        s.motherName || '—',
+        s.motherPhone || '—',
+        s.paymentCode || '—',
+        s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—',
+      ]),
+      styles: { fontSize: 7, cellPadding: 2.5, textColor: [30, 30, 30] },
+      headStyles: { fillColor: [29, 78, 216], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      alternateRowStyles: { fillColor: [245, 247, 255] },
+      columnStyles: {
+        0:  { cellWidth: 8,  halign: 'center' },
+        1:  { cellWidth: 22 },
+        2:  { cellWidth: 38 },
+        3:  { cellWidth: 16 },
+        4:  { cellWidth: 10, halign: 'center' },
+        5:  { cellWidth: 14 },
+        6:  { cellWidth: 12 },
+        7:  { cellWidth: 20 },
+        8:  { cellWidth: 28 },
+        9:  { cellWidth: 22 },
+        10: { cellWidth: 28 },
+        11: { cellWidth: 22 },
+        12: { cellWidth: 20 },
+        13: { cellWidth: 22 },
+      },
+      margin: { left: 10, right: 10 },
+      didDrawPage: (data: any) => {
+        const pageCount = (doc as any).internal.getNumberOfPages();
+        doc.setFontSize(7);
+        doc.setTextColor(150);
+        doc.text(`Page ${data.pageNumber} of ${pageCount}`, W / 2, doc.internal.pageSize.getHeight() - 5, { align: 'center' });
+      },
+    });
+
+    doc.save(`${fileName}.pdf`);
+    setShowExportMenu(false);
+    toast.success(getText('PDF exported successfully!', 'PDF በተሳካ ሁኔታ ወጣ!'));
   };
 
   const exportToExcel = () => {
@@ -780,7 +912,8 @@ export default function StudentsPage() {
         getText('Mother Phone', 'የእናት ስልክ'),
         getText('Email', 'ኢሜይል'),
         getText('Address', 'አድራሻ'),
-        getText('Payment Code', 'የክፍያ ኮድ')
+        getText('Payment Code', 'የክፍያ ኮድ'),
+        getText('Registration Date', 'የምዝገባ ቀን')
       ],
       // Data rows
       ...filteredStudents.map((student, index) => [
@@ -802,7 +935,8 @@ export default function StudentsPage() {
         student.motherPhone || '',
         student.email || '',
         student.address || '',
-        student.paymentCode || ''
+        student.paymentCode || '',
+        student.createdAt ? new Date(student.createdAt).toLocaleString() : ''
       ])
     ];
     
@@ -824,7 +958,8 @@ export default function StudentsPage() {
       { wch: 15 },  // Mother Phone
       { wch: 25 },  // Email
       { wch: 30 },  // Address
-      { wch: 15 }   // Payment Code
+      { wch: 15 },  // Payment Code
+      { wch: 22 }   // Registration Date
     ];
     worksheet['!cols'] = colWidths;
     
@@ -978,16 +1113,28 @@ export default function StudentsPage() {
                           <div className={`text-xs mb-3 p-2 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-50 text-gray-600'}`}>
                             {getText('Exporting', 'እያወጣ')}: {filteredStudents.length} {getText('students', 'ተማሪዎች')}
                           </div>
-                          <button
-                            onClick={exportToExcel}
-                            disabled={filteredStudents.length === 0}
-                            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Excel
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={exportToExcel}
+                              disabled={filteredStudents.length === 0}
+                              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Excel
+                            </button>
+                            <button
+                              onClick={exportToPDF}
+                              disabled={filteredStudents.length === 0}
+                              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                              PDF
+                            </button>
+                          </div>
                           <button onClick={() => setShowExportMenu(false)} className={`w-full mt-2 px-4 py-2 text-sm rounded-md transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
                             {getText('Cancel', 'ሰርዝ')}
                           </button>
@@ -1004,7 +1151,7 @@ export default function StudentsPage() {
                     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                     </svg>
-                    {getText('Attendance', 'ሁኔታ')}
+                    {getText('Attendance Sheet', 'የattendance ዝርዝር')}
                   </button>
 
                   {/* Generate Sections — visible to all admin roles */}

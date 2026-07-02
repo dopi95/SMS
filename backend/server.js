@@ -71,6 +71,7 @@ app.use('/api/classes', require('./routes/class.routes'));
 app.use('/api/custom-payments', require('./routes/customPayment.routes'));
 app.use('/api/payments', require('./routes/payment.routes'));
 app.use('/api/pending-students', require('./routes/pendingStudent.routes'));
+app.use('/api/pending-employees', require('./routes/pendingEmployee.routes'));
 app.use('/api/admins', require('./routes/admin.routes'));
 app.use('/api/activity-logs', require('./routes/activityLog.routes'));
 app.use('/api/notification-history', require('./routes/notificationHistory.routes'));
