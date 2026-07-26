@@ -84,6 +84,8 @@ export default function StudentsPage() {
   const [credResults, setCredResults] = useState<{studentId:string;name:string;username:string;password:string}[]>([]);
   const [generatingCreds, setGeneratingCreds] = useState(false);
   const [singleCredResult, setSingleCredResult] = useState<{studentId:string;name:string;username:string;password:string}|null>(null);
+  const [siblingsModal, setSiblingsModal] = useState<{student: Student; siblings: Student[]} | null>(null);
+  const [showAllSiblingsModal, setShowAllSiblingsModal] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -648,6 +650,19 @@ export default function StudentsPage() {
       ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim()
       : `${s.firstName} ${s.middleName} ${s.lastName}`;
 
+  const showSiblings = (student: Student) => {
+    const fn = (student.fatherName || '').trim().toLowerCase();
+    const mn = (student.motherName || '').trim().toLowerCase();
+    if (!fn || !mn) return toast.error(getText('No parent names recorded for this student', 'ለዚህ ተማሪ የወላጅ ስም አልተመዘገበም'));
+    const siblings = students.filter(s =>
+      s._id !== student._id &&
+      (s.fatherName || '').trim().toLowerCase() === fn &&
+      (s.motherName || '').trim().toLowerCase() === mn
+    );
+    if (siblings.length === 0) return toast(getText('No siblings found', 'ወንድም/እህት አልተገኘም'), { icon: 'ℹ️' });
+    setSiblingsModal({ student, siblings });
+  };
+
   const getAge = (dob?: string) => {
     if (!dob) return '-';
     const age = calcAgeFromDOB(dob);
@@ -1007,6 +1022,12 @@ export default function StudentsPage() {
                   <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Total Students', 'ጠቅላላ ተማሪዎች')}</p>
                   <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{students.length}</p>
                   <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Active students', 'ንቁ ተማሪዎች')}</p>
+                  <button
+                    onClick={() => setShowAllSiblingsModal(true)}
+                    className="mt-1 text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                  >
+                    {getText('Show Siblings', 'ወንድም/እህት አሳይ')}
+                  </button>
                 </div>
               </div>
             </div>
@@ -2161,6 +2182,115 @@ export default function StudentsPage() {
               <button onClick={() => setSingleCredResult(null)} className="bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
                 {getText('Close', 'የረስት')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* All Siblings Groups Modal */}
+      {showAllSiblingsModal && (() => {
+        const groups: { fatherName: string; motherName: string; students: Student[] }[] = [];
+        const seen = new Set<string>();
+        students.forEach(s => {
+          const fn = (s.fatherName || '').trim().toLowerCase();
+          const mn = (s.motherName || '').trim().toLowerCase();
+          if (!fn || !mn) return;
+          const key = `${fn}|||${mn}`;
+          if (seen.has(key)) return;
+          const group = students.filter(x =>
+            (x.fatherName || '').trim().toLowerCase() === fn &&
+            (x.motherName || '').trim().toLowerCase() === mn
+          );
+          if (group.length > 1) { seen.add(key); groups.push({ fatherName: s.fatherName!, motherName: s.motherName!, students: group }); }
+        });
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div>
+                  <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    {getText('Sibling Groups', 'የወንድም/እህት ቡድኖች')} ({groups.length})
+                  </h2>
+                  <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {getText('Students sharing the same father and mother', 'የተመሳሳይ አባት እና እናት ያላቸው ተማሪዎች')}
+                  </p>
+                </div>
+                <button onClick={() => setShowAllSiblingsModal(false)} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto p-4 space-y-4" style={{ maxHeight: 'calc(85vh - 100px)' }}>
+                {groups.length === 0 ? (
+                  <p className={`text-center py-8 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('No sibling groups found', 'የወንድም/እህት ቡድኖች አልተገኙም')}</p>
+                ) : groups.map((g, gi) => (
+                  <div key={gi} className={`rounded-lg border ${theme === 'dark' ? 'border-gray-600 bg-gray-750' : 'border-gray-200 bg-gray-50'}`}>
+                    <div className={`px-4 py-2 rounded-t-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                      <p className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-200' : 'text-blue-800'}`}>
+                        {getText('Father', 'አባት')}: {g.fatherName} &nbsp;|&nbsp; {getText('Mother', 'እናት')}: {g.motherName} &nbsp;&mdash;&nbsp; {g.students.length} {getText('students', 'ተማሪዎች')}
+                      </p>
+                    </div>
+                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                      {g.students.map(s => (
+                        <div key={s._id} className={`px-4 py-2 flex items-center justify-between cursor-pointer ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-white'}`} onClick={() => { setShowAllSiblingsModal(false); router.push(`/students/view/${s._id}`); }}>
+                          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim() : `${s.firstName} ${s.middleName} ${s.lastName}`}
+                          </span>
+                          <span className="text-xs text-blue-600 font-medium">{language === 'am' ? s.studentId.replace('BLUE', 'ብሉ') : s.studentId} &bull; {s.class}{s.section ? `/${s.section}` : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Siblings Modal */}
+      {siblingsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div>
+                <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {getText('Siblings', 'ወንድም/እህት')} ({siblingsModal.siblings.length})
+                </h2>
+                <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {getText('Father', 'አባት')}: {siblingsModal.student.fatherName} &nbsp;|&nbsp; {getText('Mother', 'እናት')}: {siblingsModal.student.motherName}
+                </p>
+              </div>
+              <button onClick={() => setSiblingsModal(null)} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto" style={{ maxHeight: 'calc(85vh - 120px)' }}>
+              <table className="w-full text-sm">
+                <thead className={`sticky top-0 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <tr>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>#</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Name', 'ስም')}</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('ID', 'መለያ')}</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Class', 'ክፍል')}</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Gender', 'ጾታ')}</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-100'}`}>
+                  {siblingsModal.siblings.map((s, i) => (
+                    <tr key={s._id} className={`cursor-pointer ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setSiblingsModal(null); router.push(`/students/view/${s._id}`); }}>
+                      <td className={`px-4 py-2.5 text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{i + 1}</td>
+                      <td className={`px-4 py-2.5 font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        {language === 'am' && s.firstNameAmharic
+                          ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim()
+                          : `${s.firstName} ${s.middleName} ${s.lastName}`}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-blue-600 font-medium">{language === 'am' ? s.studentId.replace('BLUE', 'ብሉ') : s.studentId}</td>
+                      <td className={`px-4 py-2.5 text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{s.class}{s.section ? ` / ${s.section}` : ''}</td>
+                      <td className={`px-4 py-2.5 text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{getText(s.gender, s.gender === 'Male' ? 'ወንድ' : 'ሴት')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
