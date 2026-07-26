@@ -83,6 +83,7 @@ const approvePending = async (req, res) => {
       motherName: pending.motherName,
       motherPhone: pending.motherPhone,
       motherPhoto: pending.motherPhoto,
+      studentType: pending.studentType || 'new',
       status: 'active',
     });
     await student.save();
@@ -106,6 +107,41 @@ const rejectPending = async (req, res) => {
   }
 };
 
+const updatePending = async (req, res) => {
+  try {
+    const allowed = [
+      'studentType','firstName','middleName','lastName',
+      'firstNameAmharic','middleNameAmharic','lastNameAmharic',
+      'gender','email','dateOfBirth','joinedYear','class',
+      'address','fatherName','fatherPhone','motherName','motherPhone',
+    ];
+    const update = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
+    const pending = await PendingStudent.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!pending) return res.status(404).json({ message: 'Not found' });
+    await logActivity(req.user, 'Updated', 'Pending Student', `Updated registration of ${pending.firstName} ${pending.lastName}`);
+    res.json(pending);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const makePendingAgain = async (req, res) => {
+  try {
+    const pending = await PendingStudent.findById(req.params.id);
+    if (!pending) return res.status(404).json({ message: 'Not found' });
+    // Remove the linked student record if it was approved
+    if (pending.studentId) {
+      await Student.deleteOne({ studentId: pending.studentId });
+    }
+    await PendingStudent.findByIdAndUpdate(req.params.id, { status: 'pending', studentId: undefined });
+    await logActivity(req.user, 'Reset to Pending', 'Pending Student', `Reset registration of ${pending.firstName} ${pending.lastName} back to pending`);
+    res.json({ message: 'Status reset to pending' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const deletePending = async (req, res) => {
   try {
     const pending = await PendingStudent.findByIdAndDelete(req.params.id);
@@ -118,4 +154,4 @@ const deletePending = async (req, res) => {
   }
 };
 
-module.exports = { submitPending, getPending, getPendingCount, approvePending, rejectPending, deletePending };
+module.exports = { submitPending, getPending, getPendingCount, approvePending, rejectPending, deletePending, makePendingAgain, updatePending };

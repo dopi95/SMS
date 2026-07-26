@@ -55,6 +55,7 @@ export default function ActivityLogsPage() {
   const [search, setSearch] = useState('')
   const [filterModule, setFilterModule] = useState('all')
   const [confirmClear, setConfirmClear] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const token = () => localStorage.getItem('token')
 
@@ -79,6 +80,17 @@ export default function ActivityLogsPage() {
       toast.success('Logs cleared')
     } catch { toast.error('Failed to clear logs') }
     finally { setConfirmClear(false) }
+  }
+
+  const handleDeleteLog = async (id: string) => {
+    try {
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/activity-logs/${id}`, {
+        headers: { Authorization: `Bearer ${token()}` }
+      })
+      setLogs(prev => prev.filter(l => l._id !== id))
+      toast.success('Log deleted')
+    } catch { toast.error('Failed to delete log') }
+    finally { setConfirmDeleteId(null) }
   }
 
   const modules = ['all', ...Array.from(new Set(logs.map(l => l.module)))]
@@ -174,6 +186,12 @@ export default function ActivityLogsPage() {
                     <div className="flex-shrink-0 text-right">
                       <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`}>{new Date(log.createdAt).toLocaleDateString()}</p>
                       <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>{new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      {role === 'superadmin' && (
+                        <button onClick={() => setConfirmDeleteId(log._id)}
+                          className="mt-1 text-xs text-red-400 hover:text-red-600 transition-colors">
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -182,6 +200,31 @@ export default function ActivityLogsPage() {
           </div>
         </div>
       </div>
+
+      {/* Confirm Delete Single Log */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className={`w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className="px-6 pt-8 pb-4 flex flex-col items-center text-center">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mb-3">
+                <svg className="w-7 h-7 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </div>
+              <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Delete this log?</h2>
+              <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>This record will be permanently removed.</p>
+            </div>
+            <div className="px-6 pb-6 flex gap-3">
+              <button onClick={() => setConfirmDeleteId(null)}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${theme === 'dark' ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                Cancel
+              </button>
+              <button onClick={() => handleDeleteLog(confirmDeleteId)}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirm Clear Modal */}
       {confirmClear && (

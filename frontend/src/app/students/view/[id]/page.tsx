@@ -27,6 +27,7 @@ interface Student {
   section?: string;
   address?: string;
   paymentCode?: string;
+  studentType?: string;
   photo?: string;
   fatherName?: string;
   fatherPhone?: string;
@@ -384,6 +385,18 @@ export default function ViewStudentPage() {
                   <div>
                     <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Joined Year', 'የተገባ ዓመት')}</label>
                     <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.joinedYear}</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Student Type', 'የተማሪ አይነት')}</label>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${
+                      student.studentType === 'new'
+                        ? 'bg-green-100 text-green-700'
+                        : student.studentType === 'existing'
+                        ? 'bg-blue-100 text-blue-700'
+                        : theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {student.studentType === 'new' ? 'New · አዲስ' : student.studentType === 'existing' ? 'Existing · ነባር' : student.studentType || '-'}
+                    </span>
                   </div>
                   <div>
                     <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Registration Date', 'የምዝገባ ቀን')}</label>

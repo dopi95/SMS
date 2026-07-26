@@ -30,6 +30,7 @@ interface Student {
   section?: string;
   address?: string;
   paymentCode?: string;
+  studentType?: string;
   photo?: string;
   fatherName?: string;
   fatherPhone?: string;
@@ -56,6 +57,7 @@ export default function StudentsPage() {
   const [sectionFilter, setSectionFilter] = useState('');
   const [batchFilter, setBatchFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [studentTypeFilter, setStudentTypeFilter] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     type: 'inactive' | 'delete';
@@ -90,11 +92,11 @@ export default function StudentsPage() {
 
   useEffect(() => {
     filterStudents();
-  }, [students, searchTerm, classFilter, sectionFilter, batchFilter, typeFilter]);
+  }, [students, searchTerm, classFilter, sectionFilter, batchFilter, typeFilter, studentTypeFilter]);
 
   useEffect(() => {
     generateFileName();
-  }, [filteredStudents, classFilter, sectionFilter, batchFilter, typeFilter, language]);
+  }, [filteredStudents, classFilter, sectionFilter, batchFilter, typeFilter, studentTypeFilter, language]);
 
   const generateFileName = () => {
     const parts = [];
@@ -144,6 +146,10 @@ export default function StudentsPage() {
       } else if (typeFilter === 'special') {
         filtered = filtered.filter(student => !student.paymentCode || student.paymentCode.trim() === '');
       }
+    }
+
+    if (studentTypeFilter) {
+      filtered = filtered.filter(student => student.studentType === studentTypeFilter);
     }
     
     setFilteredStudents(filtered);
@@ -1372,7 +1378,7 @@ export default function StudentsPage() {
                 </div>
 
                 {/* Filters */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <select
                     value={classFilter}
                     onChange={(e) => setClassFilter(e.target.value)}
@@ -1422,6 +1428,16 @@ export default function StudentsPage() {
                     <option value="">{getText('All Types', 'ሁሉም አይነቶች')}</option>
                     <option value="regular">{getText('Regular', 'መደበኛ')}</option>
                     <option value="special">{getText('Special', 'ልዩ')}</option>
+                  </select>
+
+                  <select
+                    value={studentTypeFilter}
+                    onChange={(e) => setStudentTypeFilter(e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="">{getText('All Student Types', 'ሁሉም የተማሪ አይነቶች')}</option>
+                    <option value="new">{getText('New', 'አዲስ')}</option>
+                    <option value="existing">{getText('Existing', 'ነባር')}</option>
                   </select>
                 </div>
 
@@ -1474,10 +1490,10 @@ export default function StudentsPage() {
                             </svg>
                           </div>
                           <h3 className={`text-lg font-medium mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                            {searchTerm || classFilter || sectionFilter || batchFilter || typeFilter ? getText('No students found', 'ምንም ተማሪዎች አልተገኙም') : getText('No students yet', 'ከስሆን ተማሪዎች የሉም')}
+                            {searchTerm || classFilter || sectionFilter || batchFilter || typeFilter || studentTypeFilter ? getText('No students found', 'ምንም ተማሪዎች አልተገኙም') : getText('No students yet', 'ከስሆን ተማሪዎች የሉም')}
                           </h3>
                           <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {searchTerm || classFilter || sectionFilter || batchFilter || typeFilter 
+                            {searchTerm || classFilter || sectionFilter || batchFilter || typeFilter || studentTypeFilter
                               ? getText('Try adjusting your filters', 'ፈልተሮችን ማስተካከል ይመክሩ') 
                               : getText('Add your first student', 'የመጀምረሪያውን ተማሪ ያክሉ')}
                           </p>
@@ -1616,10 +1632,10 @@ export default function StudentsPage() {
                       </svg>
                     </div>
                     <h3 className={`text-lg font-medium mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                      {searchTerm || classFilter || sectionFilter || batchFilter || typeFilter ? getText('No students found', 'ምንም ተማሪዎች አልተገኙም') : getText('No students yet', 'ከስሆን ተማሪዎች የሉም')}
+                      {searchTerm || classFilter || sectionFilter || batchFilter || typeFilter || studentTypeFilter ? getText('No students found', 'ምንም ተማሪዎች አልተገኙም') : getText('No students yet', 'ከስሆን ተማሪዎች የሉም')}
                     </h3>
                     <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {searchTerm || classFilter || sectionFilter || batchFilter || typeFilter 
+                      {searchTerm || classFilter || sectionFilter || batchFilter || typeFilter || studentTypeFilter 
                         ? getText('Try adjusting your filters', 'ፈልተሮችን ማስተካከል ይመክሩ') 
                         : getText('Add your first student', 'የመጀምረሪያውን ተማሪ ያክሉ')}
                     </p>

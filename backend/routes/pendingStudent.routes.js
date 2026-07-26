@@ -1,5 +1,5 @@
 const express = require('express');
-const { submitPending, getPending, getPendingCount, approvePending, rejectPending, deletePending } = require('../controllers/pendingStudent.controller');
+const { submitPending, getPending, getPendingCount, approvePending, rejectPending, deletePending, makePendingAgain, updatePending } = require('../controllers/pendingStudent.controller');
 const auth = require('../middleware/auth.middleware');
 const upload = require('../middleware/upload.middleware');
 
@@ -13,6 +13,8 @@ router.get('/', auth, getPending);
 router.get('/count', auth, getPendingCount);
 router.patch('/:id/approve', auth, approvePending);
 router.patch('/:id/reject', auth, rejectPending);
+router.put('/:id', auth, updatePending);
+router.patch('/:id/make-pending', auth, makePendingAgain);
 router.delete('/:id', auth, deletePending);
 
 module.exports = router;

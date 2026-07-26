@@ -317,14 +317,22 @@ export default function NotificationsPage() {
         })
       })
 
-      // TODO: Implement actual SMS sending API
-      // For now, just show success message
-      console.log('Sending to:', phoneNumbers)
+      const smsRecipients = phoneNumbers.map(p => ({ phone: p.phone, message: p.message }))
+      const result = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/sms/send`,
+        { recipients: smsRecipients },
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 120000 }
+      )
 
       // Save to history
       saveNotificationToHistory(title, message, selectedStudents.length, phoneNumbers.length)
 
-      toast.success(getText(`Notification sent to ${phoneNumbers.length} phone numbers`, `ማሳወቂያ ወደ ${phoneNumbers.length} ስልክ ቁጥሮች ተልኳል`))
+      const { sent, failed } = result.data
+      if (failed > 0) {
+        toast.success(getText(`Sent: ${sent}, Failed: ${failed}`, `ተልኳል: ${sent}፣ አልተሳካም: ${failed}`))
+      } else {
+        toast.success(getText(`SMS sent to ${sent} phone numbers`, `ኤስኤምኤስ ወደ ${sent} ስልክ ቁጥሮች ተልኳል`))
+      }
       setTitle('')
       setMessage('')
       setSelectedStudents([])

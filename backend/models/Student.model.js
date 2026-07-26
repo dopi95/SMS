@@ -23,6 +23,7 @@ const studentSchema = new mongoose.Schema({
   motherName: { type: String },
   motherPhone: { type: String },
   motherPhoto: { type: String },
+  studentType: { type: String, enum: ['new', 'existing'], default: 'new' },
   portalUsername: { type: String, default: '' },
   portalPassword: { type: String, default: '' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },

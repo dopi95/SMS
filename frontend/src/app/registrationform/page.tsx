@@ -153,7 +153,7 @@ export default function RegistrationFormPage() {
     if (String(parts[0].trim()).length > 2) { setDobError('Day must be 1 or 2 digits'); setAge(null); return }
     if (dd < 0 || dd > 30) { setDobError('Day must be between 0 and 30'); setAge(null); return }
     if (String(parts[1].trim()).length > 2) { setDobError('Month must be 1 or 2 digits'); setAge(null); return }
-    if (mm < 0 || mm > 12) { setDobError('Month must be between 0 and 12'); setAge(null); return }
+    if (mm < 0 || mm > 13) { setDobError('Month must be between 0 and 13'); setAge(null); return }
     if (yyyy.length !== 4) { setDobError('Year must be exactly 4 digits'); setAge(null); return }
     const yy = parseInt(yyyy)
     if (isNaN(yy) || yy < 2000 || yy > 2019) { setDobError('Year must be between 2000 and 2019'); setAge(null); return }

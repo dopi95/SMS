@@ -29,6 +29,7 @@ export default function AddStudentPage() {
     email: '',
     dateOfBirth: '',
     joinedYear: new Date().getFullYear().toString(),
+    studentType: '',
     class: '',
     section: '',
     address: '',
@@ -383,6 +384,22 @@ export default function AddStudentPage() {
                       placeholder="e.g., 2024"
                       className={`w-full px-3 py-2.5 sm:py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
                     />
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {getText('Student Type', 'የተማሪ አይነት')}
+                    </label>
+                    <select
+                      name="studentType"
+                      value={formData.studentType}
+                      onChange={handleInputChange}
+                      className={`w-full px-3 py-2.5 sm:py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                    >
+                      <option value="">{getText('Select Type', 'አይነት ይምረጡ')}</option>
+                      <option value="new">{getText('New', 'አዲስ')}</option>
+                      <option value="existing">{getText('Existing', 'ነባር')}</option>
+                    </select>
                   </div>
 
                   <div>

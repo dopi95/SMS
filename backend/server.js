@@ -77,6 +77,7 @@ app.use('/api/activity-logs', require('./routes/activityLog.routes'));
 app.use('/api/notification-history', require('./routes/notificationHistory.routes'));
 app.use('/api/notices', require('./routes/notice.routes'));
 app.use('/api/backup', require('./routes/backup.routes'));
+app.use('/api/sms', require('./routes/sms.routes'));
 
 app.get('/', (req, res) => {
   res.json({ 

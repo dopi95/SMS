@@ -34,7 +34,7 @@ interface PendingStudent {
   createdAt: string
 }
 
-type AlertType = 'success-approve' | 'success-reject' | 'success-delete' | 'confirm-reject' | 'confirm-delete'
+type AlertType = 'success-approve' | 'success-reject' | 'success-delete' | 'success-make-pending' | 'confirm-reject' | 'confirm-delete' | 'confirm-make-pending'
 
 interface AlertState {
   type: AlertType
@@ -55,6 +55,9 @@ export default function PendingStudentsPage() {
   const [actionId, setActionId] = useState<string | null>(null)
   const [detail, setDetail] = useState<PendingStudent | null>(null)
   const [alert, setAlert] = useState<AlertState | null>(null)
+  const [editStudent, setEditStudent] = useState<PendingStudent | null>(null)
+  const [editForm, setEditForm] = useState<Partial<PendingStudent>>({})
+  const [editSaving, setEditSaving] = useState(false)
   const { canDo, role } = usePermissions()
   const isExecutive = role === 'executive'
 
@@ -120,6 +123,29 @@ export default function PendingStudentsPage() {
     }
   }
 
+  function openEdit(s: PendingStudent) {
+    setEditStudent(s)
+    setEditForm({ ...s })
+  }
+
+  async function saveEdit() {
+    if (!editStudent) return
+    setEditSaving(true)
+    try {
+      const token = localStorage.getItem('token')
+      const res = await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/pending-students/${editStudent._id}`, editForm, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setStudents(prev => prev.map(x => x._id === editStudent._id ? res.data : x))
+      setDetail(prev => prev?._id === editStudent._id ? res.data : prev)
+      setEditStudent(null)
+    } catch {
+      // silently fail
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   function confirmReject(id: string) {
     const s = students.find(x => x._id === id)!
     setAlert({ type: 'confirm-reject', studentName: `${s.firstName} ${s.middleName} ${s.lastName}`, pendingId: id })
@@ -146,6 +172,29 @@ export default function PendingStudentsPage() {
   function confirmDelete(id: string) {
     const s = students.find(x => x._id === id)!
     setAlert({ type: 'confirm-delete', studentName: `${s.firstName} ${s.middleName} ${s.lastName}`, pendingId: id })
+  }
+
+  function confirmMakePending(id: string) {
+    const s = students.find(x => x._id === id)!
+    setAlert({ type: 'confirm-make-pending', studentName: `${s.firstName} ${s.middleName} ${s.lastName}`, pendingId: id })
+  }
+
+  async function executeMakePending(id: string) {
+    setActionId(id)
+    try {
+      const token = localStorage.getItem('token')
+      await axios.patch(`${process.env.NEXT_PUBLIC_API_URL}/pending-students/${id}/make-pending`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const s = students.find(x => x._id === id)!
+      setStudents(prev => prev.map(x => x._id === id ? { ...x, status: 'pending' } : x))
+      setDetail(prev => prev?._id === id ? { ...prev, status: 'pending' } : prev)
+      setAlert({ type: 'success-make-pending', studentName: `${s.firstName} ${s.middleName} ${s.lastName}`, pendingId: id })
+    } catch {
+      setAlert(null)
+    } finally {
+      setActionId(null)
+    }
   }
 
   async function executeDelete(id: string) {
@@ -412,6 +461,11 @@ export default function PendingStudentsPage() {
                                 className="w-7 h-7 flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors flex-shrink-0">
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                               </button>
+                              {/* Edit */}
+                              <button onClick={() => openEdit(s)} title="Edit"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors flex-shrink-0">
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
                               {/* Approve */}
                               {s.status !== 'approved' && canDo('pending-students','approve') && (
                                 <button onClick={() => approve(s._id)} disabled={actionId === s._id} title="Approve"
@@ -419,6 +473,13 @@ export default function PendingStudentsPage() {
                                   {actionId === s._id
                                     ? <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
                                     : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
+                                </button>
+                              )}
+                              {/* Make Pending */}
+                              {s.status === 'approved' && canDo('pending-students','approve') && (
+                                <button onClick={() => confirmMakePending(s._id)} disabled={actionId === s._id} title="Make Pending"
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-yellow-50 hover:bg-yellow-100 disabled:opacity-50 text-yellow-600 border border-yellow-300 transition-colors flex-shrink-0">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 </button>
                               )}
                               {/* Reject */}
@@ -482,10 +543,20 @@ export default function PendingStudentsPage() {
                           className="flex-1 py-1.5 text-xs font-semibold bg-blue-50 text-blue-700 rounded-lg border border-blue-200 active:bg-blue-100">
                           View
                         </button>
+                        <button onClick={() => openEdit(s)}
+                          className="flex-1 py-1.5 text-xs font-semibold bg-purple-50 text-purple-700 rounded-lg border border-purple-200 active:bg-purple-100">
+                          Edit
+                        </button>
                         {!isExecutive && s.status !== 'approved' && canDo('pending-students','approve') && (
                           <button onClick={() => approve(s._id)} disabled={actionId === s._id}
                             className="flex-1 py-1.5 text-xs font-semibold bg-green-600 text-white rounded-lg disabled:opacity-50 active:bg-green-700">
                             {actionId === s._id ? '...' : 'Approve'}
+                          </button>
+                        )}
+                        {!isExecutive && s.status === 'approved' && canDo('pending-students','approve') && (
+                          <button onClick={() => confirmMakePending(s._id)} disabled={actionId === s._id}
+                            className="flex-1 py-1.5 text-xs font-semibold bg-yellow-50 text-yellow-600 rounded-lg border border-yellow-300 disabled:opacity-50 active:bg-yellow-100">
+                            Pending
                           </button>
                         )}
                         {!isExecutive && s.status !== 'rejected' && canDo('pending-students','reject') && (
@@ -568,11 +639,23 @@ export default function PendingStudentsPage() {
             </div>
 
             <div className="px-6 pb-3 flex gap-3">
+              <button onClick={() => { setDetail(null); openEdit(detail) }}
+                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                Edit
+              </button>
               {!isExecutive && detail.status !== 'approved' && (
                 <button onClick={() => approve(detail._id)} disabled={actionId === detail._id}
                   className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
                   {actionId === detail._id ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
                   Approve
+                </button>
+              )}
+              {!isExecutive && detail.status === 'approved' && (
+                <button onClick={() => confirmMakePending(detail._id)} disabled={actionId === detail._id}
+                  className="flex-1 py-2.5 bg-yellow-50 hover:bg-yellow-100 disabled:opacity-50 text-yellow-600 font-semibold rounded-xl border border-yellow-300 transition-colors flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  Make Pending
                 </button>
               )}
               {!isExecutive && detail.status !== 'rejected' && (
@@ -709,10 +792,163 @@ export default function PendingStudentsPage() {
               </>
             )}
 
+            {/* Confirm — Make Pending */}
+            {alert.type === 'confirm-make-pending' && (
+              <>
+                <div className="px-6 pt-8 pb-4 flex flex-col items-center text-center">
+                  <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-3">
+                    <svg className="w-8 h-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <h2 className="text-lg font-bold text-gray-900">Reset to Pending?</h2>
+                  <p className="text-gray-500 text-sm mt-1">{alert.studentName} will be removed from active students and set back to pending.</p>
+                </div>
+                <div className="px-6 pb-6 flex gap-3">
+                  <button onClick={() => setAlert(null)}
+                    className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={() => executeMakePending(alert.pendingId)}
+                    className="flex-1 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl transition-colors">
+                    Yes, Reset
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Success — Make Pending */}
+            {alert.type === 'success-make-pending' && (
+              <>
+                <div className="bg-yellow-500 px-6 pt-8 pb-6 flex flex-col items-center text-center">
+                  <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3">
+                    <svg className="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <h2 className="text-xl font-bold text-white">Reset to Pending</h2>
+                  <p className="text-yellow-100 text-sm mt-1">{alert.studentName} has been moved back to pending.</p>
+                </div>
+                <div className="px-6 py-5">
+                  <button onClick={() => setAlert(null)}
+                    className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl transition-colors">
+                    Done
+                  </button>
+                </div>
+              </>
+            )}
+
+          </div>
+        </div>
+      )}
+      {/* ── EDIT MODAL ── */}
+      {editStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setEditStudent(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-purple-700 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h2 className="text-white font-bold text-lg">Edit Registration</h2>
+              <button onClick={() => setEditStudent(null)} className="text-white/70 hover:text-white">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Student Type */}
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Student Type</p>
+                <div className="bg-gray-50 rounded-xl px-4 py-3">
+                  <select value={editForm.studentType || ''} onChange={e => setEditForm(f => ({ ...f, studentType: e.target.value }))}
+                    className="w-full bg-transparent text-sm text-gray-800 focus:outline-none">
+                    <option value="new">New</option>
+                    <option value="existing">Existing</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* English Name */}
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Name (English)</p>
+                <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+                  <EditField label="First Name" value={editForm.firstName || ''} onChange={v => setEditForm(f => ({ ...f, firstName: v }))} />
+                  <EditField label="Middle Name" value={editForm.middleName || ''} onChange={v => setEditForm(f => ({ ...f, middleName: v }))} />
+                  <EditField label="Last Name" value={editForm.lastName || ''} onChange={v => setEditForm(f => ({ ...f, lastName: v }))} />
+                </div>
+              </div>
+
+              {/* Amharic Name */}
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Name (Amharic)</p>
+                <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+                  <EditField label="First" value={editForm.firstNameAmharic || ''} onChange={v => setEditForm(f => ({ ...f, firstNameAmharic: v }))} />
+                  <EditField label="Middle" value={editForm.middleNameAmharic || ''} onChange={v => setEditForm(f => ({ ...f, middleNameAmharic: v }))} />
+                  <EditField label="Last" value={editForm.lastNameAmharic || ''} onChange={v => setEditForm(f => ({ ...f, lastNameAmharic: v }))} />
+                </div>
+              </div>
+
+              {/* Student Info */}
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Student Info</p>
+                <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+                  <div className="flex gap-3 items-center text-sm">
+                    <span className="text-gray-400 w-28 flex-shrink-0">Gender</span>
+                    <select value={editForm.gender || ''} onChange={e => setEditForm(f => ({ ...f, gender: e.target.value }))}
+                      className="flex-1 bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  </div>
+                  <EditField label="Date of Birth" value={editForm.dateOfBirth || ''} onChange={v => setEditForm(f => ({ ...f, dateOfBirth: v }))} />
+                  <div className="flex gap-3 items-center text-sm">
+                    <span className="text-gray-400 w-28 flex-shrink-0">Class</span>
+                    <select value={editForm.class || ''} onChange={e => setEditForm(f => ({ ...f, class: e.target.value }))}
+                      className="flex-1 bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      <option value="Nursery (ጀማሪ)">Nursery (ጀማሪ)</option>
+                      <option value="LKG (ደረጃ 1)">LKG (ደረጃ 1)</option>
+                      <option value="UKG (ደረጃ 2)">UKG (ደረጃ 2)</option>
+                    </select>
+                  </div>
+                  <EditField label="Joined Year" value={editForm.joinedYear || ''} onChange={v => setEditForm(f => ({ ...f, joinedYear: v }))} />
+                  <EditField label="Email" value={editForm.email || ''} onChange={v => setEditForm(f => ({ ...f, email: v }))} />
+                  <EditField label="Address" value={editForm.address || ''} onChange={v => setEditForm(f => ({ ...f, address: v }))} />
+                </div>
+              </div>
+
+              {/* Parent Info */}
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Parent Info</p>
+                <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+                  <EditField label="Father Name" value={editForm.fatherName || ''} onChange={v => setEditForm(f => ({ ...f, fatherName: v }))} />
+                  <EditField label="Father Phone" value={editForm.fatherPhone || ''} onChange={v => setEditForm(f => ({ ...f, fatherPhone: v }))} />
+                  <EditField label="Mother Name" value={editForm.motherName || ''} onChange={v => setEditForm(f => ({ ...f, motherName: v }))} />
+                  <EditField label="Mother Phone" value={editForm.motherPhone || ''} onChange={v => setEditForm(f => ({ ...f, motherPhone: v }))} />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 flex gap-3">
+              <button onClick={() => setEditStudent(null)}
+                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors">
+                Cancel
+              </button>
+              <button onClick={saveEdit} disabled={editSaving}
+                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                {editSaving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : null}
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       )}
     </DashboardLayout>
+  )
+}
+
+function EditField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex gap-3 items-center text-sm">
+      <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="flex-1 bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+      />
+    </div>
   )
 }
 
