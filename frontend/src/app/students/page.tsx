@@ -1707,7 +1707,7 @@ export default function StudentsPage() {
                           onChange={() => toggleSelectStudent(student._id)}
                           className="w-5 h-5 mt-1 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                         />
-                        <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                        <button onClick={() => router.push(`/students/view/${student._id}`)} className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-blue-400 transition-all">
                           {student.photo ? (
                             <img src={student.photo} alt="" className="h-12 w-12 rounded-full object-cover" />
                           ) : (
@@ -1715,7 +1715,7 @@ export default function StudentsPage() {
                               {student.firstName.charAt(0)}{student.lastName.charAt(0)}
                             </span>
                           )}
-                        </div>
+                        </button>
                         <div className="flex-1 min-w-0">
                           <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                             {language === 'am' && student.firstNameAmharic 
@@ -1723,7 +1723,7 @@ export default function StudentsPage() {
                               : `${student.firstName} ${student.middleName} ${student.lastName}`
                             }
                           </h3>
-                          <p className="text-sm font-medium text-blue-600 mb-2">{language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId}</p>
+                          <button onClick={() => router.push(`/students/view/${student._id}`)} className="text-sm font-medium text-blue-600 hover:underline mb-2 block">{language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId}</button>
                           
                           <div className="grid grid-cols-2 gap-3 mb-3">
                             <div>
