@@ -35,7 +35,7 @@ const upsertStudentCredential = async (student) => {
 const getStudents = async (req, res) => {
   try {
     const students = await Student.find({ status: 'active' });
-    res.json(students);
+    res.json(students.map(s => { const d = s.toObject(); d.dateOfBirth = normalizeDOB(d.dateOfBirth); return d; }));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -44,10 +44,24 @@ const getStudents = async (req, res) => {
 const getInactiveStudents = async (req, res) => {
   try {
     const students = await Student.find({ status: 'inactive' });
-    res.json(students);
+    res.json(students.map(s => { const d = s.toObject(); d.dateOfBirth = normalizeDOB(d.dateOfBirth); return d; }));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+};
+
+const normalizeDOB = (dob) => {
+  if (!dob) return dob;
+  const s = String(dob);
+  // Already dd/mm/yyyy
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s.trim())) return s.trim();
+  // ISO or any parseable date → convert to dd/mm/yyyy
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 };
 
 const getStudent = async (req, res) => {
@@ -56,7 +70,9 @@ const getStudent = async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
-    res.json(student);
+    const data = student.toObject();
+    data.dateOfBirth = normalizeDOB(data.dateOfBirth);
+    res.json(data);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -121,6 +137,20 @@ const updateStudent = async (req, res) => {
 
     const student = await Student.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
     if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    // Sync changes back to the linked approved pending record
+    if (student.studentId) {
+      const pendingUpdate = {};
+      const syncFields = ['firstName','middleName','lastName','firstNameAmharic','middleNameAmharic','lastNameAmharic','email','dateOfBirth','joinedYear','address','fatherName','fatherPhone','motherName','motherPhone'];
+      syncFields.forEach(k => { if (updateData[k] !== undefined) pendingUpdate[k] = updateData[k]; });
+      if (updateData.gender) pendingUpdate.gender = updateData.gender.toLowerCase();
+      if (updateData.class) {
+        const reverseClassMap = { 'Nursery': 'Nursery (ጀማሪ)', 'LKG': 'LKG (ደረጃ 1)', 'UKG': 'UKG (ደረጃ 2)' };
+        pendingUpdate.class = reverseClassMap[updateData.class] || updateData.class;
+      }
+      if (Object.keys(pendingUpdate).length) await PendingStudent.findOneAndUpdate({ studentId: student.studentId, status: 'approved' }, pendingUpdate);
+    }
+
     await logActivity(req.user, 'Edited', 'Student', `Edited student ${student.firstName} ${student.lastName} (ID: ${student.studentId})`);
     res.json(student);
   } catch (error) {
@@ -288,13 +318,17 @@ const bulkImport = async (req, res) => {
           continue;
         }
 
-        const parseDate = (val) => {
+        const parseDateToEC = (val) => {
           if (!val) return undefined;
-          // dd/mm/yyyy → Date
-          const dmyMatch = String(val).trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-          if (dmyMatch) return new Date(`${dmyMatch[3]}-${dmyMatch[2].padStart(2,'0')}-${dmyMatch[1].padStart(2,'0')}`);
-          const d = new Date(val);
-          return isNaN(d.getTime()) ? undefined : d;
+          const s = String(val).trim();
+          // Already dd/mm/yyyy
+          if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return s;
+          // Try to parse and convert to dd/mm/yyyy
+          const dmyMatch = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+          if (dmyMatch) return `${dmyMatch[1].padStart(2,'0')}/${dmyMatch[2].padStart(2,'0')}/${dmyMatch[3]}`;
+          const d = new Date(s);
+          if (isNaN(d.getTime())) return undefined;
+          return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
         };
 
         const student = new Student({
@@ -306,7 +340,7 @@ const bulkImport = async (req, res) => {
           lastNameAmharic: row.lastNameAmharic || '',
           email: row.email || '',
           gender: genderVal,
-          dateOfBirth: parseDate(row.dateOfBirth),
+          dateOfBirth: parseDateToEC(row.dateOfBirth),
           joinedYear: String(row.joinedYear),
           class: classVal,
           section: sectionVal,

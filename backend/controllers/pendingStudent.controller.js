@@ -119,6 +119,18 @@ const updatePending = async (req, res) => {
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
     const pending = await PendingStudent.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!pending) return res.status(404).json({ message: 'Not found' });
+
+    // If approved, sync changes to the linked Student record
+    if (pending.status === 'approved' && pending.studentId) {
+      const classMap = { 'Nursery (ጀማሪ)': 'Nursery', 'LKG (ደረጃ 1)': 'LKG', 'UKG (ደረጃ 2)': 'UKG' };
+      const studentUpdate = {};
+      const syncFields = ['firstName','middleName','lastName','firstNameAmharic','middleNameAmharic','lastNameAmharic','email','dateOfBirth','joinedYear','address','fatherName','fatherPhone','motherName','motherPhone'];
+      syncFields.forEach(k => { if (update[k] !== undefined) studentUpdate[k] = update[k]; });
+      if (update.gender) studentUpdate.gender = update.gender === 'male' ? 'Male' : update.gender === 'female' ? 'Female' : update.gender;
+      if (update.class) studentUpdate.class = classMap[update.class] || update.class;
+      if (Object.keys(studentUpdate).length) await Student.findOneAndUpdate({ studentId: pending.studentId }, studentUpdate);
+    }
+
     await logActivity(req.user, 'Updated', 'Pending Student', `Updated registration of ${pending.firstName} ${pending.lastName}`);
     res.json(pending);
   } catch (error) {

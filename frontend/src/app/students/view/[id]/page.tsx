@@ -8,7 +8,7 @@ import DashboardLayout from '@/components/DashboardLayout';
 
 import { useSettings } from '@/contexts/SettingsContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { calcAgeFromECString } from '@/utils/dateUtils';
+import { calcAgeFromDOB } from '@/utils/dateUtils';
 
 interface Student {
   _id: string;
@@ -335,8 +335,8 @@ export default function ViewStudentPage() {
                     <div>
                       <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Age', 'ዕድሜ')}</label>
                       <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>
-                        {student.dateOfBirth && calcAgeFromECString(student.dateOfBirth) !== null
-                          ? `${calcAgeFromECString(student.dateOfBirth)} yrs`
+                        {student.dateOfBirth && calcAgeFromDOB(student.dateOfBirth) !== null
+                          ? `${calcAgeFromDOB(student.dateOfBirth)} yrs`
                           : '-'}
                       </p>
                     </div>

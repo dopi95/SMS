@@ -9,6 +9,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { useSettings } from '@/contexts/SettingsContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatDateWithBothCalendars } from '@/utils/dateUtils';
 
 interface Student {
   _id: string;
@@ -32,6 +33,17 @@ interface Student {
   paymentCode?: string;
 }
 
+interface Payment {
+  _id: string;
+  studentId: string;
+  month: string;
+  year: number;
+  amount: number;
+  description: string;
+  paymentDate: string;
+  status: string;
+}
+
 export default function InactiveStudentsPage() {
   const { language, theme, getText } = useSettings();
   const [students, setStudents] = useState<Student[]>([]);
@@ -45,6 +57,10 @@ export default function InactiveStudentsPage() {
     studentId: string;
     studentName: string;
   }>({ isOpen: false, type: 'activate', studentId: '', studentName: '' });
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyStudent, setHistoryStudent] = useState<Student | null>(null);
+  const [studentHistory, setStudentHistory] = useState<Payment[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -162,6 +178,24 @@ export default function InactiveStudentsPage() {
     } catch (error: any) {
       toast.dismiss(loadingToast);
       toast.error(getText('❌ Failed to delete', '❌ መሰረዝ አልተሳካም'));
+    }
+  };
+
+  const handleShowHistory = async (student: Student) => {
+    setHistoryStudent(student);
+    setShowHistoryModal(true);
+    setHistoryLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/payments/student/${student._id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setStudentHistory(response.data);
+    } catch {
+      toast.error(getText('Failed to fetch payment history', 'የክፍያ ታሪክ መጫን አልተሳካም'));
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -417,7 +451,7 @@ export default function InactiveStudentsPage() {
                           </div>
                         </td>
                         <td className="px-3 py-3">
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 items-center">
                             <button
                               onClick={() => router.push(`/students/view/${student._id}`)}
                               className={`text-xs px-2 py-1 rounded transition-colors ${theme === 'dark' ? 'bg-green-800 text-green-200 hover:bg-green-700' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
@@ -435,6 +469,15 @@ export default function InactiveStudentsPage() {
                               className={`text-xs px-2 py-1 rounded transition-colors ${theme === 'dark' ? 'bg-red-800 text-red-200 hover:bg-red-700' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
                             >
                               {getText('Delete', 'ሰርዝ')}
+                            </button>
+                            <button
+                              onClick={() => handleShowHistory(student)}
+                              className={`p-1.5 rounded transition-all hover:scale-110 ${theme === 'dark' ? 'hover:bg-gray-600 text-gray-400 hover:text-blue-400' : 'hover:bg-blue-50 text-gray-500 hover:text-blue-600'}`}
+                              title={getText('Payment History', 'የክፍያ ታሪክ')}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
                             </button>
                           </div>
                         </td>
@@ -573,6 +616,15 @@ export default function InactiveStudentsPage() {
                             >
                               {getText('Delete', 'ሰርዝ')}
                             </button>
+                            <button
+                              onClick={() => handleShowHistory(student)}
+                              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1 ${theme === 'dark' ? 'bg-gray-700 text-blue-300 hover:bg-gray-600' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              {getText('Payments', 'ክፍያ')}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -586,6 +638,85 @@ export default function InactiveStudentsPage() {
         </div>
       </div>
       
+      {showHistoryModal && historyStudent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl p-6 w-full max-w-3xl max-h-[80vh] overflow-y-auto ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {getText('Payment History', 'የክፍያ ታሪክ')}
+                </h2>
+                <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {language === 'am' && historyStudent.firstNameAmharic
+                    ? `${historyStudent.firstNameAmharic} ${historyStudent.middleNameAmharic || ''} ${historyStudent.lastNameAmharic || ''}`.trim()
+                    : `${historyStudent.firstName} ${historyStudent.middleName} ${historyStudent.lastName}`
+                  } — {language === 'am' ? historyStudent.studentId.replace('BLUE', 'ብሉ') : historyStudent.studentId}
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowHistoryModal(false); setHistoryStudent(null); setStudentHistory([]); }}
+                className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {historyLoading ? (
+              <div className="flex justify-center items-center h-40">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+              </div>
+            ) : studentHistory.length === 0 ? (
+              <div className="text-center py-12">
+                <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                  {getText('No payment history found', 'ምንም የክፍያ ታሪክ አልተገኘም')}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {studentHistory.map((payment) => (
+                  <div
+                    key={payment._id}
+                    className={`p-4 rounded-lg border ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                        payment.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {payment.month} {payment.year} E.C
+                      </span>
+                      <span className={`text-lg font-bold ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                        {payment.amount} ETB
+                      </span>
+                    </div>
+                    <div className={`grid grid-cols-1 gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <div>
+                        <span className="font-medium">{getText('Payment Date', 'የክፍያ ቀን')}:</span>
+                        <div className="ml-2 mt-1">{formatDateWithBothCalendars(payment.paymentDate)}</div>
+                      </div>
+                      <div>
+                        <span className="font-medium">{getText('Status', 'ሁኔታ')}:</span>
+                        <span className="ml-2 capitalize">{payment.status}</span>
+                      </div>
+                    </div>
+                    {payment.description && (
+                      <div className={`mt-2 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <span className="font-medium">{getText('Description', 'መግለጫ')}:</span>
+                        <p className="mt-1">{payment.description}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog({ isOpen: false, type: 'activate', studentId: '', studentName: '' })}

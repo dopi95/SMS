@@ -43,6 +43,7 @@ export default function PaymentFilePage() {
   const [showModal, setShowModal] = useState(false)
   const [editingEntry, setEditingEntry] = useState<PaymentEntry | null>(null)
   
+  const [searchTerm, setSearchTerm] = useState('')
   const [studentName, setStudentName] = useState('')
   const [studentClass, setStudentClass] = useState('')
   const [amount, setAmount] = useState('')
@@ -135,6 +136,14 @@ export default function PaymentFilePage() {
     setPaymentMethod('cash')
     setDescription('')
   }
+
+  const filteredEntries = entries.filter(entry => {
+    const q = searchTerm.toLowerCase()
+    return (
+      entry.studentName.toLowerCase().includes(q) ||
+      (entry.description || '').toLowerCase().includes(q)
+    )
+  })
 
   const totalAmount = entries.reduce((sum, entry) => sum + entry.amount, 0)
 
@@ -235,6 +244,38 @@ export default function PaymentFilePage() {
 
               {/* Entries Table */}
               <div className={`rounded-xl shadow-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+                {/* Search Bar */}
+                {entries.length > 0 && (
+                  <div className={`px-6 py-4 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-750' : 'border-gray-100 bg-gray-50'}`}>
+                    <div className="relative max-w-md">
+                      <input
+                        type="text"
+                        placeholder={getText('Search by name or description...', 'በስም ወይም መግለጫ ይፈልጉ...')}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className={`w-full px-4 py-2.5 pl-10 pr-4 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300'}`}
+                      />
+                      <svg className="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm('')}
+                          className={`absolute right-3 top-3 transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    {searchTerm && (
+                      <p className={`text-xs mt-1.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {filteredEntries.length} {getText('of', 'ከ')} {entries.length} {getText('entries', 'ግቤቶች')}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {entries.length === 0 ? (
                   <div className="text-center py-12">
                     <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -275,7 +316,15 @@ export default function PaymentFilePage() {
                         </tr>
                       </thead>
                       <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-600' : 'divide-gray-100'}`}>
-                        {entries.map((entry) => (
+                        {filteredEntries.length === 0 && searchTerm ? (
+                          <tr>
+                            <td colSpan={7} className="px-6 py-10 text-center">
+                              <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                                {getText('No entries match your search', 'ምንም ግቤቶች ፍለጋዎን አያሟሉም')}
+                              </p>
+                            </td>
+                          </tr>
+                        ) : filteredEntries.map((entry) => (
                           <tr key={entry._id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
                             <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                               <div className="font-medium">{entry.studentName}</div>
@@ -329,7 +378,13 @@ export default function PaymentFilePage() {
 
                   {/* Mobile Card View */}
                   <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
-                    {entries.map((entry) => (
+                    {filteredEntries.length === 0 && searchTerm ? (
+                      <div className="px-6 py-10 text-center">
+                        <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                          {getText('No entries match your search', 'ምንም ግቤቶች ፍለጋዎን አያሟሉም')}
+                        </p>
+                      </div>
+                    ) : filteredEntries.map((entry) => (
                       <div key={entry._id} className={`p-4 ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex-1">

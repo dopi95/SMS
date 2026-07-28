@@ -78,6 +78,8 @@ export default function StudentsPage() {
   const [sectionClass, setSectionClass] = useState('');
   const [numSections, setNumSections] = useState(2);
   const [studentsPerSection, setStudentsPerSection] = useState('');
+  const [customPerSection, setCustomPerSection] = useState<string[]>([]);
+  const [sectionMode, setSectionMode] = useState<'auto' | 'custom'>('auto');
   const [sectionPreview, setSectionPreview] = useState<{id:string;name:string;section:string}[]>([]);
   const [assigningSection, setAssigningSection] = useState(false);
   const [showCredModal, setShowCredModal] = useState(false);
@@ -494,13 +496,29 @@ export default function StudentsPage() {
     const classStudents = students.filter(s => s.class === sectionClass);
     if (classStudents.length === 0) return toast.error(getText('No students in this class', 'በዚህ ክፍል ምንም ተማሪ የለም'));
     const sections = ['A','B','C','D','E'];
-    const limit = studentsPerSection ? parseInt(studentsPerSection) : Math.ceil(classStudents.length / numSections);
     const sorted = [...classStudents].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
-    const preview = sorted.map((s, i) => ({
-      id: s._id,
-      name: language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic||''}`.trim() : `${s.firstName} ${s.middleName}`,
-      section: sections[Math.min(Math.floor(i / limit), numSections - 1)]
-    }));
+    let preview: {id:string;name:string;section:string}[];
+    if (sectionMode === 'custom' && customPerSection.length > 0) {
+      preview = [];
+      let idx = 0;
+      for (let sec = 0; sec < numSections; sec++) {
+        const limit = parseInt(customPerSection[sec] || '0') || 0;
+        const end = idx + limit;
+        sorted.slice(idx, end).forEach(s => preview.push({
+          id: s._id,
+          name: language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic||''}`.trim() : `${s.firstName} ${s.middleName}`,
+          section: sections[sec]
+        }));
+        idx = end;
+      }
+    } else {
+      const limit = studentsPerSection ? parseInt(studentsPerSection) : Math.ceil(classStudents.length / numSections);
+      preview = sorted.map((s, i) => ({
+        id: s._id,
+        name: language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic||''}`.trim() : `${s.firstName} ${s.middleName}`,
+        section: sections[Math.min(Math.floor(i / limit), numSections - 1)]
+      }));
+    }
     setSectionPreview(preview);
   };
 
@@ -1184,7 +1202,7 @@ export default function StudentsPage() {
                   {/* Generate Sections — visible to all admin roles */}
                   {canDo('students', 'view') && (
                     <button
-                      onClick={() => { setShowSectionModal(true); setSectionPreview([]); }}
+                      onClick={() => { setShowSectionModal(true); setSectionPreview([]); setSectionMode('auto'); setStudentsPerSection(''); setCustomPerSection([]); }}
                       className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
                     >
                       <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1534,7 +1552,7 @@ export default function StudentsPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center">
-                            <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                            <button onClick={() => router.push(`/students/view/${student._id}`)} className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-blue-400 transition-all">
                               {student.photo ? (
                                 <img src={student.photo} alt="" className="h-8 w-8 rounded-full object-cover" />
                               ) : (
@@ -1542,7 +1560,7 @@ export default function StudentsPage() {
                                   {student.firstName.charAt(0)}{student.lastName.charAt(0)}
                                 </span>
                               )}
-                            </div>
+                            </button>
                             <div className="ml-3 min-w-0 flex-1">
                               <div className={`text-sm font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                                 {language === 'am' && student.firstNameAmharic 
@@ -1557,9 +1575,9 @@ export default function StudentsPage() {
                           </div>
                         </td>
                         <td className="px-3 py-3">
-                          <span className="text-sm font-medium text-blue-600">
+                          <button onClick={() => router.push(`/students/view/${student._id}`)} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors">
                             {language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId}
-                          </span>
+                          </button>
                         </td>
                         <td className="px-3 py-3">
                           <span className={`text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
@@ -1582,10 +1600,10 @@ export default function StudentsPage() {
                         <td className="px-3 py-3">
                           <div className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                             {student.fatherPhone && (
-                              <div>F: {student.fatherPhone}</div>
+                              <div>F: <a href={`tel:${student.fatherPhone}`} className="text-blue-500 hover:text-blue-700 hover:underline">{student.fatherPhone}</a></div>
                             )}
                             {student.motherPhone && (
-                              <div>M: {student.motherPhone}</div>
+                              <div>M: <a href={`tel:${student.motherPhone}`} className="text-blue-500 hover:text-blue-700 hover:underline">{student.motherPhone}</a></div>
                             )}
                             {!student.fatherPhone && !student.motherPhone && (
                               <span className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>-</span>
@@ -1732,7 +1750,17 @@ export default function StudentsPage() {
                           </div>
                           
                           {student.email && (
-                            <p className={`text-xs mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{student.email}</p>
+                            <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{student.email}</p>
+                          )}
+                          {(student.fatherPhone || student.motherPhone) && (
+                            <div className={`text-xs mb-3 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {student.fatherPhone && (
+                                <span className="mr-3">F: <a href={`tel:${student.fatherPhone}`} className="text-blue-500 hover:text-blue-700 hover:underline">{student.fatherPhone}</a></span>
+                              )}
+                              {student.motherPhone && (
+                                <span>M: <a href={`tel:${student.motherPhone}`} className="text-blue-500 hover:text-blue-700 hover:underline">{student.motherPhone}</a></span>
+                              )}
+                            </div>
                           )}
                           
                           <div className="flex flex-wrap gap-2">
@@ -2000,33 +2028,78 @@ export default function StudentsPage() {
                     </p>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
-                      {getText('Number of Sections', 'የክፍሎች ብዛት')}
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      value={numSections}
-                      onChange={e => { setNumSections(parseInt(e.target.value) || 1); setSectionPreview([]); }}
-                      className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-violet-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                    />
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                    {getText('Number of Sections', 'የክፍሎች ብዛት')}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={5}
+                    value={numSections}
+                    onChange={e => { const n = parseInt(e.target.value) || 1; setNumSections(n); setSectionPreview([]); if (sectionMode === 'custom') setCustomPerSection(prev => Array.from({ length: n }, (_, i) => prev[i] || '')); }}
+                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-violet-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                    {getText('Students per Section', 'በክፍል የተማሪ ብዛት')}
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={() => { setSectionMode('auto'); setStudentsPerSection(''); setSectionPreview([]); }}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+                        sectionMode === 'auto'
+                          ? 'border-violet-600 bg-violet-50 text-violet-700'
+                          : theme === 'dark' ? 'border-gray-600 text-gray-300 bg-gray-700' : 'border-gray-200 text-gray-600 bg-white'
+                      }`}
+                    >
+                      {getText('Auto', 'ቤኖ')}
+                    </button>
+                    <button
+                      onClick={() => { setSectionMode('custom'); setCustomPerSection(Array(numSections).fill('')); setSectionPreview([]); }}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+                        sectionMode === 'custom'
+                          ? 'border-violet-600 bg-violet-50 text-violet-700'
+                          : theme === 'dark' ? 'border-gray-600 text-gray-300 bg-gray-700' : 'border-gray-200 text-gray-600 bg-white'
+                      }`}
+                    >
+                      {getText('Custom', 'ብጁ')}
+                    </button>
                   </div>
-                  <div>
-                    <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
-                      {getText('Students per Section', 'በክፍል የተማሪ ብዛት')}
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={studentsPerSection}
-                      onChange={e => { setStudentsPerSection(e.target.value); setSectionPreview([]); }}
-                      placeholder={getText('Auto', 'ቤኖ')}
-                      className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-violet-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-300'}`}
-                    />
-                  </div>
+                  {sectionMode === 'auto' ? (
+                    <p className={`text-xs px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
+                      {sectionClass
+                        ? getText(
+                            `~${Math.ceil(students.filter(s => s.class === sectionClass).length / numSections)} students per section`,
+                            `በእያንዳንዱ ክፍል ~${Math.ceil(students.filter(s => s.class === sectionClass).length / numSections)} ተማሪዎች`
+                          )
+                        : getText('Distributes students equally across sections', 'ተማሪዎችን በእኩል ያሰራጫል')}
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {Array.from({ length: numSections }, (_, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className={`text-xs font-semibold w-20 shrink-0 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {getText('Section', 'ክፍል')} {['A','B','C','D','E'][i]}
+                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={customPerSection[i] || ''}
+                            onChange={e => {
+                              const next = [...customPerSection];
+                              next[i] = e.target.value;
+                              setCustomPerSection(next);
+                              setSectionPreview([]);
+                            }}
+                            placeholder={getText('# students', 'ተማሪ ብዛት')}
+                            className={`flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-violet-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-300'}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={generateSectionPreview}
