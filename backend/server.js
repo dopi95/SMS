@@ -104,4 +104,15 @@ app.listen(PORT, '0.0.0.0', () => {
 
   // Run once 1 min after server starts, then every 24h
   setTimeout(() => { runBackup(); setInterval(runBackup, TWENTY_FOUR_HOURS); }, 60 * 1000);
+
+  // Keep-alive ping every 14 minutes to prevent Render free tier spin-down
+  const FOURTEEN_MINUTES = 14 * 60 * 1000;
+  setInterval(() => {
+    const http = require('https');
+    http.get('https://sms-vwyd.onrender.com/', (res) => {
+      console.log(`[Keep-alive] ping status: ${res.statusCode}`);
+    }).on('error', (err) => {
+      console.log(`[Keep-alive] ping failed: ${err.message}`);
+    });
+  }, FOURTEEN_MINUTES);
 });
