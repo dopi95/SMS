@@ -22,7 +22,7 @@ const allowedOrigins = [
   'https://sms-frontend.vercel.app',
   'https://bluelight-sms.vercel.app',
   'https://sms-rjml.vercel.app',
-  'https://sms-vwyd.onrender.com',
+  'https://sms-vyws.onrender.com',
   'https://lbk-sms.vercel.app',
   'https://admission.bluelight.edu.et',
   'https://portal.bluelight.edu.et',
