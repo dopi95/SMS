@@ -1,6 +1,6 @@
 # Bluelight Academy - School Management System 
 
-A comprehensive school management system built with modern web technologies.
+A comprehensive school management system built with modern web technologies. 
 
 ## Tech Stack
 
