@@ -1,4 +1,4 @@
-# Bluelight Academy - School Management System
+# Bluelight Academy - School Management System 
 
 A comprehensive school management system built with modern web technologies.
 
