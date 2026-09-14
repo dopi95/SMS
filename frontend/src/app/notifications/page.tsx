@@ -735,6 +735,17 @@ export default function NotificationsPage() {
                     </div>
                   ) : (
                     <div className="p-4 space-y-4">
+                      <div className={`flex items-center gap-3 px-2 py-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedStudents.length > 0 && selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                          className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                        />
+                        <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {getText('Select All', 'ሁሉንም ምረጥ')} ({filteredStudents.length})
+                        </span>
+                      </div>
                       {filteredStudents.map((student) => {
                         const isSelected = selectedStudents.includes(student._id)
                         const contacts = getPhoneContacts(student)
