@@ -1,9 +1,22 @@
-const ET_MONTHS = [
+export const ET_MONTHS = [
   'መስከረም','ጥቅምት','ህዳር','ታህሳስ','ጥር','የካቲት',
   'መጋቢት','ሚያዚያ','ግንቦት','ሰኔ','ሐምሌ','ነሐሴ','ጳጉሜ'
 ]
 
-function toEthiopian(gy: number, gm: number, gd: number): [number, number, number] {
+export const ETHIOPIAN_ACADEMIC_MONTHS = [
+  { value: 'September', en: 'Meskerem', am: 'መስከረም', ecIndex: 1 },
+  { value: 'October', en: 'Tikimt', am: 'ጥቅምት', ecIndex: 2 },
+  { value: 'November', en: 'Hidar', am: 'ህዳር', ecIndex: 3 },
+  { value: 'December', en: 'Tahsas', am: 'ታህሳስ', ecIndex: 4 },
+  { value: 'January', en: 'Tir', am: 'ጥር', ecIndex: 5 },
+  { value: 'February', en: 'Yekatit', am: 'የካቲት', ecIndex: 6 },
+  { value: 'March', en: 'Megabit', am: 'መጋቢት', ecIndex: 7 },
+  { value: 'April', en: 'Miazia', am: 'ሚያዚያ', ecIndex: 8 },
+  { value: 'May', en: 'Ginbot', am: 'ግንቦት', ecIndex: 9 },
+  { value: 'June', en: 'Sene', am: 'ሰኔ', ecIndex: 10 },
+] as const
+
+export function toEthiopian(gy: number, gm: number, gd: number): [number, number, number] {
   const gMonths = [0,31,28,31,30,31,30,31,31,30,31,30,31]
   if ((gy%4===0&&gy%100!==0)||gy%400===0) gMonths[2]=29
   let ey = gy - 8
@@ -24,6 +37,28 @@ function toEthiopian(gy: number, gm: number, gd: number): [number, number, numbe
   if(m>10) ey+=1
   const order=[0,4,5,6,7,8,9,10,11,12,13,1,2,3,4]
   return [ey, order[m], ed]
+}
+
+export function getCurrentEthiopianDate(date: Date = new Date()): { year: number; month: number; day: number } {
+  const [year, month, day] = toEthiopian(date.getFullYear(), date.getMonth() + 1, date.getDate())
+  return { year, month, day }
+}
+
+export function getCurrentEthiopianAcademicMonth(date: Date = new Date()): string {
+  const { month } = getCurrentEthiopianDate(date)
+  const matched = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.ecIndex === month)
+  if (matched) return matched.value
+  return 'September'
+}
+
+export function getCurrentEthiopianYear(date: Date = new Date()): number {
+  return getCurrentEthiopianDate(date).year
+}
+
+export function getEthiopianMonthDisplay(monthValue: string, lang: string = 'en'): string {
+  const matched = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value.toLowerCase() === monthValue.toLowerCase())
+  if (!matched) return monthValue
+  return lang === 'am' ? `${matched.am} (${matched.en})` : `${matched.en} (${matched.am})`
 }
 
 export function calcAgeFromECString(dob: string): number | null {

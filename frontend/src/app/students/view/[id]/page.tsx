@@ -8,7 +8,12 @@ import DashboardLayout from '@/components/DashboardLayout';
 
 import { useSettings } from '@/contexts/SettingsContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { calcAgeFromDOB } from '@/utils/dateUtils';
+import {
+  calcAgeFromDOB,
+  ETHIOPIAN_ACADEMIC_MONTHS,
+  getCurrentEthiopianAcademicMonth,
+  getCurrentEthiopianYear
+} from '@/utils/dateUtils';
 
 interface Student {
   _id: string;
@@ -64,13 +69,22 @@ export default function ViewStudentPage() {
   const [credLoading, setCredLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [generatingSingle, setGeneratingSingle] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const savedYear = localStorage.getItem('studentDetailYear')
-      return savedYear ? Number(savedYear) : 2019
-    }
-    return 2019
-  })
+  const currentEcYear = getCurrentEthiopianYear();
+  const currentEcMonth = getCurrentEthiopianAcademicMonth();
+  const [selectedYear, setSelectedYear] = useState<number>(currentEcYear);
+
+  const baseStartYear = 2018;
+  const maxYear = Math.max(currentEcYear + 5, 2026);
+  const availableYears = Array.from({ length: maxYear - baseStartYear + 1 }, (_, i) => baseStartYear + i);
+
+  // Keep year aligned if calendar year rolls over
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const nowYear = getCurrentEthiopianYear();
+      setSelectedYear(prev => prev === currentEcYear ? nowYear : prev);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [currentEcYear]);
   const router = useRouter();
   const params = useParams();
 
@@ -84,8 +98,6 @@ export default function ViewStudentPage() {
 
   useEffect(() => {
     fetchPayments();
-    // Save to localStorage when changed
-    localStorage.setItem('studentDetailYear', selectedYear.toString())
   }, [selectedYear]);
 
   const fetchCredential = async () => {
@@ -466,31 +478,59 @@ export default function ViewStudentPage() {
 
               {/* Payment Status */}
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Payment Status', 'የክፍያ ሁኔታ')}</h3>
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(Number(e.target.value))}
-                    className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value={2018}>2018 E.C</option>
-                    <option value={2019}>2019 E.C</option>
-                    <option value={2020}>2020 E.C</option>
-                    <option value={2021}>2021 E.C</option>
-                    <option value={2022}>2022 E.C</option>
-                    <option value={2023}>2023 E.C</option>
-                    <option value={2024}>2024 E.C</option>
-                    <option value={2025}>2025 E.C</option>
-                    <option value={2026}>2026 E.C</option>
-                  </select>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Payment Status', 'የክፍያ ሁኔታ')}</h3>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 font-medium">
+                      {getText('Ethiopian Calendar', 'የኢትዮጵያ ዘመን አቆጣጠር')}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(Number(e.target.value))}
+                      className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                      title={getText('Filter by Ethiopian Year', 'በኢትዮጵያ ዓመት አጣራ')}
+                    >
+                      {availableYears.map(y => {
+                        const isNow = y === currentEcYear;
+                        const label = language === 'am'
+                          ? `${y} ዓ.ም${isNow ? ' • አሁን' : ''}`
+                          : `${y} E.C${isNow ? ' • Current' : ''}`;
+                        return (
+                          <option key={y} value={y}>
+                            {label}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {selectedYear !== currentEcYear && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedYear(currentEcYear)}
+                        title={getText('Reset to Ethiopian current year', 'ወደ የአሁኑ የኢትዮጵያ ዓመት መልስ')}
+                        className={`px-3 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shadow-sm active:scale-95 ${
+                          theme === 'dark'
+                            ? 'bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 border border-blue-700/50'
+                            : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'
+                        }`}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>{getText('Now', 'አሁን')}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {months.map((month) => {
-                    const isPaid = isMonthPaid(month)
+                  {ETHIOPIAN_ACADEMIC_MONTHS.map((m) => {
+                    const isPaid = isMonthPaid(m.value)
+                    const isCurrent = m.value === currentEcMonth && selectedYear === currentEcYear
                     return (
                       <div
-                        key={month}
-                        className={`p-3 rounded-lg border-2 transition-all ${
+                        key={m.value}
+                        className={`p-3 rounded-lg border-2 transition-all relative ${
                           isPaid
                             ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                             : theme === 'dark'
@@ -498,29 +538,39 @@ export default function ViewStudentPage() {
                             : 'border-gray-300 bg-gray-50'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm font-medium ${
-                            isPaid
-                              ? 'text-green-700 dark:text-green-400'
-                              : theme === 'dark'
-                              ? 'text-gray-300'
-                              : 'text-gray-700'
-                          }`}>
-                            {month.substring(0, 3)}
+                        {isCurrent && (
+                          <span className="absolute -top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white shadow-sm">
+                            {getText('Now', 'አሁን')}
                           </span>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <span className={`text-sm font-semibold ${
+                              isPaid
+                                ? 'text-green-700 dark:text-green-400'
+                                : theme === 'dark'
+                                ? 'text-gray-200'
+                                : 'text-gray-800'
+                            }`}>
+                              {language === 'am' ? m.am : m.en}
+                            </span>
+                            <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                              {language === 'am' ? m.en : m.am}
+                            </span>
+                          </div>
                           {isPaid ? (
-                            <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                             </svg>
                           ) : (
-                            <svg className="w-5 h-5 text-red-500 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                             </svg>
                           )}
                         </div>
-                        <p className={`text-xs mt-1 ${
+                        <p className={`text-xs mt-2 font-medium ${
                           isPaid
-                            ? 'text-green-600 dark:text-green-500'
+                            ? 'text-green-600 dark:text-green-400'
                             : 'text-red-600 dark:text-red-400'
                         }`}>
                           {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}

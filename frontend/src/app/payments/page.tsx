@@ -8,7 +8,14 @@ import axios from 'axios'
 import toast from 'react-hot-toast'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { formatDateWithBothCalendars } from '@/utils/dateUtils'
+import {
+  formatDateWithBothCalendars,
+  ETHIOPIAN_ACADEMIC_MONTHS,
+  getCurrentEthiopianAcademicMonth,
+  getCurrentEthiopianYear,
+  getEthiopianMonthDisplay
+} from '@/utils/dateUtils'
+import Pagination from '@/components/Pagination'
 
 interface Student {
   _id: string
@@ -45,20 +52,26 @@ export default function PaymentsPage() {
   const [allPayments, setAllPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const gcToEc: Record<number, string> = {
-    1:'January', 2:'February', 3:'March', 4:'April', 5:'May', 6:'June',
-    9:'September', 10:'October', 11:'November', 12:'December'
-  }
-  const currentMonth = gcToEc[new Date().getMonth() + 1] || 'September'
+  const currentEcMonth = getCurrentEthiopianAcademicMonth()
+  const currentEcYear = getCurrentEthiopianYear()
 
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
-  const [selectedYear, setSelectedYear] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const savedYear = localStorage.getItem('selectedYear')
-      return savedYear ? Number(savedYear) : 2019
-    }
-    return 2019
-  })
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentEcMonth)
+  const [selectedYear, setSelectedYear] = useState<number>(currentEcYear)
+
+  const baseStartYear = 2018
+  const maxYear = Math.max(currentEcYear + 5, 2026)
+  const availableYears = Array.from({ length: maxYear - baseStartYear + 1 }, (_, i) => baseStartYear + i)
+
+  // Keep month and year aligned when Ethiopian month/year changes
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const nowMonth = getCurrentEthiopianAcademicMonth()
+      const nowYear = getCurrentEthiopianYear()
+      setSelectedMonth(prev => prev === currentEcMonth ? nowMonth : prev)
+      setSelectedYear(prev => prev === currentEcYear ? nowYear : prev)
+    }, 60000)
+    return () => clearInterval(timer)
+  }, [currentEcMonth, currentEcYear])
   const [showModal, setShowModal] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [amount, setAmount] = useState('')
@@ -80,14 +93,19 @@ export default function PaymentsPage() {
   const [bulkDescription, setBulkDescription] = useState('')
   const [bulkPaymentDate, setBulkPaymentDate] = useState(new Date().toISOString().split('T')[0])
 
+  const PAGE_SIZE = 20
+  const [currentPage, setCurrentPage] = useState(1)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, selectedMonth, selectedYear, paymentFilter, studentTypeFilter, dateFrom, dateTo])
+
   useEffect(() => {
     fetchStudents()
     fetchAllPayments()
   }, [])
 
-  useEffect(() => {
-    localStorage.setItem('selectedYear', selectedYear.toString())
-  }, [selectedYear])
+
 
   useEffect(() => {
     if (students.length > 0) {
@@ -336,7 +354,7 @@ export default function PaymentsPage() {
     
     // Period info
     doc.setFontSize(12)
-    doc.text(`Period: ${selectedMonth} ${selectedYear} E.C`, 14, 30)
+    doc.text(`Period: ${getEthiopianMonthDisplay(selectedMonth, 'en')} ${selectedYear} E.C`, 14, 30)
     doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 37)
     
     // Separate paid and unpaid students
@@ -511,6 +529,11 @@ export default function PaymentsPage() {
     
     return true
   })
+
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE))
+  const startIndex = (currentPage - 1) * PAGE_SIZE
+  const endIndex = Math.min(startIndex + PAGE_SIZE, filteredStudents.length)
+  const paginatedStudents = filteredStudents.slice(startIndex, endIndex)
 
   return (
     <DashboardLayout pageTitle={getText('Monthly Payments', 'ወርሃዊ ክፍያዎች')}>
@@ -709,38 +732,63 @@ export default function PaymentsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <select
                       value={selectedMonth}
                       onChange={(e) => setSelectedMonth(e.target.value)}
-                      className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                      title={getText('Filter by Ethiopian Month', 'በኢትዮጵያ ወር አጣራ')}
                     >
-                      <option value="September">September</option>
-                      <option value="October">October</option>
-                      <option value="November">November</option>
-                      <option value="December">December</option>
-                      <option value="January">January</option>
-                      <option value="February">February</option>
-                      <option value="March">March</option>
-                      <option value="April">April</option>
-                      <option value="May">May</option>
-                      <option value="June">June</option>
+                      {ETHIOPIAN_ACADEMIC_MONTHS.map(m => {
+                        const isNow = m.value === currentEcMonth
+                        const label = language === 'am'
+                          ? `${m.am} (${m.en})${isNow ? ' • አሁን' : ''}`
+                          : `${m.en} (${m.am})${isNow ? ' • Current' : ''}`
+                        return (
+                          <option key={m.value} value={m.value}>
+                            {label}
+                          </option>
+                        )
+                      })}
                     </select>
                     <select
                       value={selectedYear}
                       onChange={(e) => setSelectedYear(Number(e.target.value))}
-                      className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                      title={getText('Filter by Ethiopian Year', 'በኢትዮጵያ ዓመት አጣራ')}
                     >
-                      <option value={2018}>2018 E.C</option>
-                      <option value={2019}>2019 E.C</option>
-                      <option value={2020}>2020 E.C</option>
-                      <option value={2021}>2021 E.C</option>
-                      <option value={2022}>2022 E.C</option>
-                      <option value={2023}>2023 E.C</option>
-                      <option value={2024}>2024 E.C</option>
-                      <option value={2025}>2025 E.C</option>
-                      <option value={2026}>2026 E.C</option>
+                      {availableYears.map(y => {
+                        const isNow = y === currentEcYear
+                        const label = language === 'am'
+                          ? `${y} ዓ.ም${isNow ? ' • አሁን' : ''}`
+                          : `${y} E.C${isNow ? ' • Current' : ''}`
+                        return (
+                          <option key={y} value={y}>
+                            {label}
+                          </option>
+                        )
+                      })}
                     </select>
+                    {(selectedMonth !== currentEcMonth || selectedYear !== currentEcYear) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonth(currentEcMonth)
+                          setSelectedYear(currentEcYear)
+                        }}
+                        title={getText('Reset to Ethiopian now month and year', 'ወደ የአሁኑ የኢትዮጵያ ወር እና ዓመት መልስ')}
+                        className={`px-3 py-2.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shadow-sm active:scale-95 ${
+                          theme === 'dark'
+                            ? 'bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 border border-blue-700/50'
+                            : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>{getText('Now', 'አሁን')}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col md:flex-row gap-3">
@@ -871,7 +919,7 @@ export default function PaymentsPage() {
                           </td>
                         </tr>
                       ) : (
-                        filteredStudents.map((student) => {
+                        paginatedStudents.map((student) => {
                           const isPaid = isStudentPaid(student._id)
                           const isSelected = isPaid ? selectedPaidStudents.includes(student._id) : selectedStudents.includes(student._id)
                           return (
@@ -970,7 +1018,7 @@ export default function PaymentsPage() {
                     </div>
                   ) : (
                     <div className="p-4 space-y-4">
-                      {filteredStudents.map((student) => {
+                      {paginatedStudents.map((student) => {
                         const isPaid = isStudentPaid(student._id)
                         const isSelected = isPaid ? selectedPaidStudents.includes(student._id) : selectedStudents.includes(student._id)
                         return (
@@ -1074,6 +1122,16 @@ export default function PaymentsPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Pagination Controls */}
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={filteredStudents.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={(page) => setCurrentPage(page)}
+                  itemName={{ en: 'students', am: 'ተማሪዎች' }}
+                />
               </>
             )}
           </div>
@@ -1092,7 +1150,7 @@ export default function PaymentsPage() {
                 {getText('Selected Students', 'የተመረጡ ተማሪዎች')}: <span className="font-semibold">{selectedStudents.length}</span>
               </p>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                {getText('Period', 'ጊዜ')}: <span className="font-semibold">{selectedMonth} {selectedYear} E.C</span>
+                {getText('Period', 'ጊዜ')}: <span className="font-semibold">{getEthiopianMonthDisplay(selectedMonth, language)} {selectedYear} {getText('E.C', 'ዓ.ም')}</span>
               </p>
             </div>
             <form onSubmit={handleBulkPayment}>
@@ -1173,7 +1231,7 @@ export default function PaymentsPage() {
                 {getText('Student', 'ተማሪ')}: <span className="font-semibold">{`${selectedStudent.firstName} ${selectedStudent.middleName} ${selectedStudent.lastName}`}</span>
               </p>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                {getText('Period', 'ጊዜ')}: <span className="font-semibold">{selectedMonth} {selectedYear} E.C</span>
+                {getText('Period', 'ጊዜ')}: <span className="font-semibold">{getEthiopianMonthDisplay(selectedMonth, language)} {selectedYear} {getText('E.C', 'ዓ.ም')}</span>
               </p>
             </div>
             <form onSubmit={handleAddPayment}>
@@ -1296,7 +1354,7 @@ export default function PaymentsPage() {
                             ? 'bg-green-100 text-green-800'
                             : 'bg-yellow-100 text-yellow-800'
                         }`}>
-                          {payment.month} {payment.year} E.C
+                          {getEthiopianMonthDisplay(payment.month, language)} {payment.year} {getText('E.C', 'ዓ.ም')}
                         </span>
                       </div>
                       <span className={`text-lg font-bold ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>

@@ -102,3 +102,6 @@ typings/
 # OS
 .DS_Store
 Thumbs.db
+
+# TypeScript cache
+*.tsbuildinfo

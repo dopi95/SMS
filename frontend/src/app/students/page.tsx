@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx';
 import XLSXStyle from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
 import { calcAgeFromDOB } from '@/utils/dateUtils';
+import Pagination from '@/components/Pagination';
 
 interface Student {
   _id: string;
@@ -234,6 +235,20 @@ export default function StudentsPage() {
       }))
       .filter(g => g.students.length > 0);
   }, [typeFilter, filteredStudents, allSiblingGroups]);
+
+  const PAGE_SIZE = 20;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, classFilter, sectionFilter, batchFilter, typeFilter, studentTypeFilter]);
+
+  const totalItems = typeFilter === 'siblings' ? filteredSiblingGroups.length : filteredStudents.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const endIndex = Math.min(startIndex + PAGE_SIZE, totalItems);
+  const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
+  const paginatedSiblingGroups = filteredSiblingGroups.slice(startIndex, endIndex);
 
   useEffect(() => {
     fetchStudents();
@@ -1647,7 +1662,7 @@ export default function StudentsPage() {
                 {/* Results Count */}
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                    {getText('Showing', 'እያሳየ')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{filteredStudents.length}</span> {getText('of', 'ከ')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{students.length}</span> {getText('students', 'ተማሪዎች')}
+                    {getText('Showing', 'እያሳየ')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{totalItems === 0 ? 0 : `${startIndex + 1}-${endIndex}`}</span> {getText('of', 'ከ')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{totalItems}</span> {typeFilter === 'siblings' ? getText('family groups', 'የቤተሰብ ቡድኖች') : getText('students', 'ተማሪዎች')}
                     {typeFilter === 'siblings' && (
                       <span className="ml-2 font-medium text-blue-600 dark:text-blue-400">
                         ({filteredSiblingGroups.length} {getText('family groups in order', 'የቤተሰብ ቡድኖች በቅደም ተከተል')})
@@ -1719,7 +1734,7 @@ export default function StudentsPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredStudents.map((student) => (
+                    paginatedStudents.map((student) => (
                       <tr key={student._id} className={`${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
                         <td className="px-4 py-3">
                           <input
@@ -1889,7 +1904,7 @@ export default function StudentsPage() {
                     </label>
                   </div>
 
-                  {filteredSiblingGroups.map((group, gIdx) => (
+                  {paginatedSiblingGroups.map((group, gIdx) => (
                     <div key={`m-group-${gIdx}`} className={`rounded-xl border overflow-hidden shadow-sm ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-blue-200 bg-blue-50/20'}`}>
                       <div className={`px-4 py-2.5 flex items-center justify-between ${theme === 'dark' ? 'bg-gray-700' : 'bg-blue-100/70'}`}>
                         <span className={`text-xs font-bold ${theme === 'dark' ? 'text-blue-300' : 'text-blue-900'}`}>
@@ -2045,7 +2060,7 @@ export default function StudentsPage() {
                     </label>
                   </div>
 
-                  {filteredStudents.map((student) => (
+                  {paginatedStudents.map((student) => (
                     <div key={student._id} className={`rounded-lg border p-4 shadow-sm ${theme === 'dark' ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
                       <div className="flex items-start space-x-3">
                         <input
@@ -2136,6 +2151,16 @@ export default function StudentsPage() {
                 </div>
               )}
             </div>
+
+            {/* Pagination Controls */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={PAGE_SIZE}
+              onPageChange={(page) => setCurrentPage(page)}
+              itemName={typeFilter === 'siblings' ? { en: 'family groups', am: 'የቤተሰብ ቡድኖች' } : { en: 'students', am: 'ተማሪዎች' }}
+            />
           </div>
         </div>
       </div>

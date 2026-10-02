@@ -51,6 +51,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function PendingStudentsPage() {
   const [students, setStudents] = useState<PendingStudent[]>([])
+  const [totalStudents, setTotalStudents] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [actionId, setActionId] = useState<string | null>(null)
   const [detail, setDetail] = useState<PendingStudent | null>(null)
@@ -71,10 +72,16 @@ export default function PendingStudentsPage() {
   const fetchPending = useCallback(async () => {
     try {
       const token = localStorage.getItem('token')
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/pending-students`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      setStudents(res.data)
+      const [pendingRes, studentsRes] = await Promise.all([
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/pending-students`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/students`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(() => ({ data: [] }))
+      ])
+      setStudents(pendingRes.data)
+      setTotalStudents(Array.isArray(studentsRes.data) ? studentsRes.data.length : 0)
     } catch {
       // silently fail
     } finally {
@@ -115,6 +122,7 @@ export default function PendingStudentsPage() {
       })
       setStudents(prev => prev.map(x => x._id === id ? { ...x, status: 'approved' } : x))
       setDetail(prev => prev?._id === id ? { ...prev, status: 'approved' } : prev)
+      setTotalStudents(prev => prev + 1)
       setAlert({ type: 'success-approve', studentName: `${s.firstName} ${s.middleName} ${s.lastName}`, studentId: res.data.studentId, pendingId: id })
     } catch (e: any) {
       setAlert({ type: 'success-approve', studentName: e.response?.data?.message || 'Approval failed', pendingId: id })
@@ -288,8 +296,8 @@ export default function PendingStudentsPage() {
                 </svg>
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide leading-tight">Total</p>
-                <p className="text-xl sm:text-3xl font-extrabold text-gray-900">{students.length}</p>
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide leading-tight">Total Students</p>
+                <p className="text-xl sm:text-3xl font-extrabold text-gray-900">{totalStudents}</p>
               </div>
             </div>
 
