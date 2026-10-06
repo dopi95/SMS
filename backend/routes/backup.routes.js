@@ -38,4 +38,27 @@ router.post('/restore', async (req, res) => {
   }
 });
 
+// POST /api/backup/resync-mirror — safe idempotent bulk mirror resync
+router.post('/resync-mirror', async (req, res) => {
+  try {
+    const { secret } = req.body;
+    const RESTORE_SECRET = process.env.RESTORE_SECRET || 'bluelight-restore-2024';
+    if (secret !== RESTORE_SECRET) return res.status(403).json({ message: 'Invalid restore secret' });
+
+    const { resyncModelToBackup } = require('../utils/mirrorSync');
+    const models = [
+      'User', 'Teacher', 'Student', 'Class', 'Payment',
+      'PendingStudent', 'PendingEmployee', 'CustomPaymentFile',
+      'CustomPaymentEntry', 'ActivityLog', 'NotificationHistory'
+    ];
+    const results = {};
+    for (const model of models) {
+      results[model] = await resyncModelToBackup(model);
+    }
+    res.json({ message: 'Mirror resync completed', results });
+  } catch (error) {
+    res.status(500).json({ message: 'Mirror resync failed', error: error.message });
+  }
+});
+
 module.exports = router;
