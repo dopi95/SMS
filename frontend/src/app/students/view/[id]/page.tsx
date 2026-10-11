@@ -59,6 +59,24 @@ interface Credential {
   password: string | null;
 }
 
+const toTitleCase = (str?: string): string => {
+  if (!str) return '';
+  const s = String(str).trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  return s
+    .toLowerCase()
+    .replace(/(?:^|[^\p{L}\p{N}])(\p{L})/gu, (match, letter) =>
+      match.slice(0, -letter.length) + letter.toUpperCase()
+    );
+};
+
+
+const getInitials = (firstName?: string, middleName?: string, lastName?: string) => {
+  const f = firstName?.trim().charAt(0) || '';
+  const m = middleName?.trim().charAt(0) || lastName?.trim().charAt(0) || '';
+  return `${f}${m}`.toUpperCase();
+};
+
 export default function ViewStudentPage() {
   const { language, theme, getText } = useSettings();
   const { role } = usePermissions();
@@ -138,7 +156,7 @@ export default function ViewStudentPage() {
 
     const fullName = language === 'am' && student.firstNameAmharic
       ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-      : `${student.firstName} ${student.middleName} ${student.lastName}`;
+      : [toTitleCase(student.firstName), toTitleCase(student.middleName), toTitleCase(student.lastName)].filter(Boolean).join(' ');
 
     const W = doc.internal.pageSize.getWidth();
 
@@ -293,7 +311,12 @@ export default function ViewStudentPage() {
                 </button>
                 <div>
                   <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Student Details', 'የተማሪ ዝርዝሮች')}</h1>
-                  <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Complete information for', 'ሙሉ መረጃ ለ')} {language === 'am' && student.firstNameAmharic ? `${student.firstNameAmharic} ${student.lastNameAmharic || ''}` : `${student.firstName} ${student.lastName}`}</p>
+                  <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {getText('Complete information for', 'ሙሉ መረጃ ለ')}{' '}
+                    {language === 'am' && student.firstNameAmharic 
+                      ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''}`.trim() 
+                      : [toTitleCase(student.firstName), toTitleCase(student.middleName)].filter(Boolean).join(' ')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -307,7 +330,7 @@ export default function ViewStudentPage() {
                       <img src={student.photo} alt="Student" className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-2xl font-medium text-gray-600">
-                        {student.firstName.charAt(0)}{student.lastName.charAt(0)}
+                        {getInitials(student.firstName, student.middleName, student.lastName)}
                       </span>
                     )}
                   </div>
@@ -328,7 +351,7 @@ export default function ViewStudentPage() {
                       <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>
                         {language === 'am' && student.firstNameAmharic 
                           ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-                          : `${student.firstName} ${student.middleName} ${student.lastName}`
+                          : [toTitleCase(student.firstName), toTitleCase(student.middleName), toTitleCase(student.lastName)].filter(Boolean).join(' ')
                         }
                       </p>
                     </div>
@@ -435,7 +458,7 @@ export default function ViewStudentPage() {
                       <div className="space-y-2">
                         <div>
                           <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Name', 'ስም')}</label>
-                          <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.fatherName || '-'}</p>
+                          <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.fatherName ? toTitleCase(student.fatherName) : '-'}</p>
                         </div>
                         <div>
                           <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Phone', 'ስልክ')}</label>
@@ -456,7 +479,7 @@ export default function ViewStudentPage() {
                       <div className="space-y-2">
                         <div>
                           <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Name', 'ስም')}</label>
-                          <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.motherName || '-'}</p>
+                          <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.motherName ? toTitleCase(student.motherName) : '-'}</p>
                         </div>
                         <div>
                           <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Phone', 'ስልክ')}</label>

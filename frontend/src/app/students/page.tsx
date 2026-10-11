@@ -58,6 +58,42 @@ const isValidParentName = (name?: string) => {
   return true;
 };
 
+const toTitleCase = (str?: string): string => {
+  if (!str) return '';
+  const s = String(str).trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  return s
+    .toLowerCase()
+    .replace(/(?:^|[^\p{L}\p{N}])(\p{L})/gu, (match, letter) =>
+      match.slice(0, -letter.length) + letter.toUpperCase()
+    );
+};
+
+
+const ALL_EXPORT_FIELD_IDS = [
+  'studentId',
+  'fullName',
+  'class',
+  'section',
+  'gender',
+  'batch',
+  'dateOfBirth',
+  'fatherName',
+  'fatherPhone',
+  'motherName',
+  'motherPhone',
+  'email',
+  'address',
+  'paymentCode',
+  'registrationDate',
+];
+
+const getInitials = (firstName?: string, middleName?: string, lastName?: string) => {
+  const f = firstName?.trim().charAt(0) || '';
+  const m = middleName?.trim().charAt(0) || lastName?.trim().charAt(0) || '';
+  return `${f}${m}`.toUpperCase();
+};
+
 export default function StudentsPage() {
   const { language, theme, getText } = useSettings();
   const { canDo, role } = usePermissions();
@@ -84,11 +120,13 @@ export default function StudentsPage() {
     studentName: string;
   }>({ isOpen: false, type: 'inactive', studentId: '', studentName: '' });
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [selectedExportColumns, setSelectedExportColumns] = useState<string[]>([]);
   const [fileName, setFileName] = useState('');
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [attendanceLang, setAttendanceLang] = useState<'am' | 'en'>('am');
   const [attendanceClass, setAttendanceClass] = useState('');
   const [attendanceSection, setAttendanceSection] = useState('');
+  const [attendanceType, setAttendanceType] = useState<'' | 'regular' | 'special'>('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -201,8 +239,8 @@ export default function StudentsPage() {
         });
 
         groups.push({
-          fatherName: fatherNames.join(' / ') || '—',
-          motherName: motherNames.join(' / ') || '—',
+          fatherName: fatherNames.map(toTitleCase).join(' / ') || '—',
+          motherName: motherNames.map(toTitleCase).join(' / ') || '—',
           students: sortedStudents,
         });
       }
@@ -224,6 +262,13 @@ export default function StudentsPage() {
     });
     return idSet;
   }, [allSiblingGroups]);
+
+  const showSiblings = (student: Student) => {
+    const group = allSiblingGroups.find(g => g.students.some(s => s._id === student._id));
+    if (group) {
+      setSiblingsModal({ student, siblings: group.students });
+    }
+  };
 
   const filteredSiblingGroups = useMemo(() => {
     if (typeFilter !== 'siblings') return [];
@@ -823,48 +868,58 @@ export default function StudentsPage() {
     }
   };
 
+  const getStudentName = (s: Student, lang: 'am' | 'en') => {
+    if (lang === 'am') {
+      const parts = [s.firstNameAmharic, s.middleNameAmharic, s.lastNameAmharic].filter(Boolean);
+      if (parts.length > 0) return parts.join(' ');
+    }
+    return [toTitleCase(s.firstName), toTitleCase(s.middleName), toTitleCase(s.lastName)].filter(Boolean).join(' ');
+  };
+
+  const getAge = (dob?: string) => (dob ? calcAgeFromDOB(dob) : '');
+
+  const cleanLetterOnly = (str?: string): string => {
+    if (!str) return '';
+    return str.replace(/[^\p{L}]/gu, '').toLowerCase();
+  };
+
+  const compareStudentsAlphabetically = (a: Student, b: Student, lang: 'am' | 'en'): number => {
+    const isAm = lang === 'am';
+    const aFirst = cleanLetterOnly(isAm && a.firstNameAmharic ? a.firstNameAmharic : a.firstName);
+    const bFirst = cleanLetterOnly(isAm && b.firstNameAmharic ? b.firstNameAmharic : b.firstName);
+
+    const locale = isAm ? 'am' : 'en';
+    let cmp = aFirst.localeCompare(bFirst, locale, { sensitivity: 'base' });
+    if (cmp !== 0) return cmp;
+
+    const aMiddle = cleanLetterOnly(isAm && a.middleNameAmharic ? a.middleNameAmharic : a.middleName);
+    const bMiddle = cleanLetterOnly(isAm && b.middleNameAmharic ? b.middleNameAmharic : b.middleName);
+    cmp = aMiddle.localeCompare(bMiddle, locale, { sensitivity: 'base' });
+    if (cmp !== 0) return cmp;
+
+    const aLast = cleanLetterOnly(isAm && a.lastNameAmharic ? a.lastNameAmharic : a.lastName);
+    const bLast = cleanLetterOnly(isAm && b.lastNameAmharic ? b.lastNameAmharic : b.lastName);
+    return aLast.localeCompare(bLast, locale, { sensitivity: 'base' });
+  };
+
   const getAttendanceStudents = () => {
-    let list = students;
+    let list = [...students];
     if (attendanceClass) list = list.filter(s => s.class === attendanceClass);
     if (attendanceSection) list = list.filter(s => s.section === attendanceSection);
-    return [...list].sort((a, b) => {
-      const nameA = attendanceLang === 'am' && a.firstNameAmharic
-        ? `${a.firstNameAmharic} ${a.middleNameAmharic || ''}`.trim()
-        : `${a.firstName} ${a.middleName}`;
-      const nameB = attendanceLang === 'am' && b.firstNameAmharic
-        ? `${b.firstNameAmharic} ${b.middleNameAmharic || ''}`.trim()
-        : `${b.firstName} ${b.middleName}`;
-      return nameA.localeCompare(nameB);
-    });
-  };
-
-  const getStudentName = (s: Student, lang: 'am' | 'en') =>
-    lang === 'am' && s.firstNameAmharic
-      ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim()
-      : `${s.firstName} ${s.middleName} ${s.lastName}`;
-
-  const showSiblings = (student: Student) => {
-    const familyGroup = allSiblingGroups.find(g => g.students.some(s => s._id === student._id));
-
-    if (!familyGroup || familyGroup.students.length <= 1) {
-      return toast(getText('No siblings found', 'ወንድም/እህት አልተገኘም'), { icon: 'ℹ️' });
+    if (attendanceType === 'regular') {
+      list = list.filter(s => s.paymentCode && s.paymentCode.trim() !== '');
+    } else if (attendanceType === 'special') {
+      list = list.filter(s => !s.paymentCode || s.paymentCode.trim() === '');
     }
-
-    setSiblingsModal({ student, siblings: familyGroup.students });
+    list.sort((a, b) => compareStudentsAlphabetically(a, b, attendanceLang));
+    return list;
   };
-
-  const getAge = (dob?: string) => {
-    if (!dob) return '-';
-    const age = calcAgeFromDOB(dob);
-    return age !== null ? String(age) : '-';
-  };
-
-
 
   const downloadAttendanceExcel = () => {
     const list = getAttendanceStudents();
     const isAm = attendanceLang === 'am';
     const totalCols = 4 + 22;
+    const fontName = isAm ? 'Nyala' : 'Arial';
 
     // ── Style helpers ──────────────────────────────────────────────
     const thinBlack  = { style: 'thin',   color: { rgb: '000000' } };
@@ -889,14 +944,14 @@ export default function StudentsPage() {
 
     // ── Row 0: School title bar ────────────────────────────────────
     const titleStyle = {
-      font:      { bold: true, sz: isAm ? 14 : 15, color: { rgb: '000000' } },
+      font:      { name: fontName, bold: true, sz: isAm ? 15 : 14, color: { rgb: '000000' } },
       fill:      { fgColor: { rgb: 'FFFFFF' } },
       alignment: center,
       border:    borderMed,
     };
     const title = isAm
-      ? '\u12e8\u1265\u1209 \u120b\u12ed\u1275 \u12a0\u12ab\u12f3\u121a  —  \u12e8\u1270\u121b\u122a\u12ce\u127d \u1201\u1294\u1273 \u1218\u1246\u1323\u1320\u122a\u12eb'
-      : 'Bluelight Academy  —  Student Attendance Sheet';
+      ? 'ብሉ ላይት አካዳሚ — የተማሪዎች የመገኘት መከታተያ ቅጽ'
+      : 'Bluelight Academy — Student Attendance Sheet';
     sc(R, 0, title, titleStyle);
     fillMerge(R, 1, totalCols - 1, titleStyle);
     merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
@@ -907,63 +962,61 @@ export default function StudentsPage() {
 
     // ── Shared info-row style ──────────────────────────────────────
     const infoLabelStyle = {
-      font:      { bold: true, sz: isAm ? 11 : 10, color: { rgb: '000000' } },
+      font:      { name: fontName, bold: true, sz: isAm ? 11 : 10, color: { rgb: '000000' } },
       fill:      { fgColor: { rgb: 'FFFFFF' } },
       alignment: left,
       border:    borderInfo,
     };
 
-    // ── Row 2: Teacher Name | Date ─────────────────────────────────
-    const teacherLabel = isAm ? '\u12e8\u1218\u121d\u1205\u1229 \u1235\u121d:  _______________________________' : 'Teacher Name:  _______________________________';
-    const dateLabel    = isAm ? '\u1240\u1295:  ___________________________'                                 : 'Date:  ___________________________';
+    // ── Row 2: Teacher Name | Month ────────────────────────────────
+    const teacherLabel = isAm ? 'የመምህሩ/ሯ ስም:  _______________________________' : 'Teacher Name:  _______________________________';
+    const monthLabel   = isAm ? 'ወር:  ___________________________'              : 'Month:  ___________________________';
     sc(R, 0, teacherLabel, infoLabelStyle);
     fillMerge(R, 1, 12, infoLabelStyle);
     merges.push({ s: { r: R, c: 0 }, e: { r: R, c: 12 } });
-    sc(R, 13, dateLabel, infoLabelStyle);
+    sc(R, 13, monthLabel, infoLabelStyle);
     fillMerge(R, 14, totalCols - 1, infoLabelStyle);
     merges.push({ s: { r: R, c: 13 }, e: { r: R, c: totalCols - 1 } });
     R++;
 
-    // ── Row 3: Class / Section | Subject ──────────────────────────
-    const classVal   = attendanceClass   || '_____________';
-    const sectionVal = attendanceSection || '_____________';
-    const classLabel   = isAm
-      ? `\u12ad\u134d\u120d:  ${classVal}          \u12ad\u134d\u120d \u1245\u1345:  ${sectionVal}`
+    // ── Row 3: Class / Section ─────────────────────────────────────
+    const classVal   = attendanceClass   || (isAm ? 'ሁሉም' : 'All');
+    const classAm    = attendanceClass === 'Nursery' ? 'ጀማሪ' : attendanceClass === 'LKG' ? 'ደረጃ 1' : attendanceClass === 'UKG' ? 'ደረጃ 2' : (attendanceClass || 'ሁሉም');
+    const sectionAm  = attendanceSection === 'A' ? 'ሀ' : attendanceSection === 'B' ? 'ለ' : attendanceSection === 'C' ? 'ሐ' : attendanceSection === 'D' ? 'መ' : (attendanceSection || 'ሁሉም');
+    const sectionVal = attendanceSection || (isAm ? 'ሁሉም' : 'All');
+
+    const classLabel = isAm
+      ? `ክፍል:  ${classAm}          ሴክሽን:  ${sectionAm}`
       : `Class:  ${classVal}          Section:  ${sectionVal}`;
-    const subjectLabel = isAm ? '\u12e8\u1275\u121d\u1205\u122d\u1275 \u12a0\u12ed\u1290\u1275:  ___________________________' : 'Subject:  ___________________________';
     sc(R, 0, classLabel, infoLabelStyle);
-    fillMerge(R, 1, 12, infoLabelStyle);
-    merges.push({ s: { r: R, c: 0 }, e: { r: R, c: 12 } });
-    sc(R, 13, subjectLabel, infoLabelStyle);
-    fillMerge(R, 14, totalCols - 1, infoLabelStyle);
-    merges.push({ s: { r: R, c: 13 }, e: { r: R, c: totalCols - 1 } });
+    fillMerge(R, 1, totalCols - 1, infoLabelStyle);
+    merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
     R++;
 
     // ── Row 4: blank spacer ────────────────────────────────────────
     R++;
 
-    // ── Row 5: Column headers ──────────────────────────────────────
-    // font sizes: Ethiopic needs larger sz to avoid overlap
+    // ── Row 5: Column headers (Numbers 1 to 22 removed) ────────────
     const fSz     = isAm ? 11 : 10;
     const fSzHdr  = isAm ? 11 : 10;
-    const rowH    = isAm ? 26 : 18;  // taller rows for Ethiopic glyphs
+    const rowH    = isAm ? 26 : 20;  // taller rows for Ethiopic glyphs
     const hdrH    = isAm ? 28 : 22;
     const infoH   = isAm ? 24 : 20;
-    const nameW   = isAm ? 42 : 32;  // wider name col for Ethiopic
+    const nameW   = isAm ? 38 : 32;  // proper name col for Ethiopic
     const genderW = isAm ? 10 : 8;
-    const dayW    = isAm ? 5  : 4;   // slightly wider day cols for Ethiopic
+    const dayW    = 4.5;             // blank day cols for attendance marks
 
     const headerStyle = {
-      font:      { bold: true, sz: fSzHdr, color: { rgb: '000000' } },
-      fill:      { fgColor: { rgb: 'FFFFFF' } },
+      font:      { name: fontName, bold: true, sz: fSzHdr, color: { rgb: '000000' } },
+      fill:      { fgColor: { rgb: 'F3F4F6' } },
       alignment: center,
       border,
     };
     const headerNameStyle = { ...headerStyle, alignment: left };
     const headers = isAm
-      ? ['\u1270.\u1241', '\u12e8\u1270\u121b\u122a\u12cd \u1235\u121d', '\u12d5\u12f5\u121c', '\u133e\u1273']
+      ? ['ተ.ቁ', 'የተማሪው ሙሉ ስም', 'ዕድሜ', 'ጾታ']
       : ['No.', 'Student Name', 'Age', 'Gender'];
-    const days = Array.from({ length: 22 }, (_, i) => String(i + 1));
+    const days = Array.from({ length: 22 }, () => '');
     [...headers, ...days].forEach((h, c) => {
       sc(R, c, h, c === 1 ? headerNameStyle : headerStyle);
     });
@@ -972,17 +1025,18 @@ export default function StudentsPage() {
     // ── Student data rows ──────────────────────────────────────────
     const whiteFill = { fgColor: { rgb: 'FFFFFF' } };
     list.forEach((s, i) => {
-      const cellStyle = { font: { sz: fSz }, fill: whiteFill, alignment: center, border };
-      const nameStyle = { font: { sz: fSz }, fill: whiteFill, alignment: left,   border };
+      const cellStyle = { font: { name: fontName, sz: fSz }, fill: whiteFill, alignment: center, border };
+      const nameStyle = { font: { name: fontName, sz: fSz }, fill: whiteFill, alignment: left,   border };
       const name   = getStudentName(s, attendanceLang);
       const age    = getAge(s.dateOfBirth);
       const gender = isAm
-        ? (s.gender === 'Male' ? '\u12c8\u1295\u12f5' : s.gender === 'Female' ? '\u1234\u1275' : s.gender)
-        : (s.gender === 'Male' ? 'M' : s.gender === 'Female' ? 'F' : s.gender);
-      sc(R, 0, i + 1, cellStyle);
-      sc(R, 1, name,  nameStyle);
-      sc(R, 2, age,   cellStyle);
-      sc(R, 3, gender,cellStyle);
+        ? (s.gender === 'Male' ? 'ወንድ' : s.gender === 'Female' ? 'ሴት' : (s.gender || ''))
+        : (s.gender === 'Male' ? 'M' : s.gender === 'Female' ? 'F' : (s.gender || ''));
+
+      sc(R, 0, i + 1,  cellStyle);
+      sc(R, 1, name,   nameStyle);
+      sc(R, 2, age,    cellStyle);
+      sc(R, 3, gender, cellStyle);
       for (let c = 4; c < totalCols; c++) sc(R, c, '', cellStyle);
       R++;
     });
@@ -992,55 +1046,348 @@ export default function StudentsPage() {
 
     // ── Legend row ─────────────────────────────────────────────────
     const legendStyle = {
-      font:      { bold: false, sz: isAm ? 10 : 9, italic: true, color: { rgb: '000000' } },
+      font:      { name: fontName, bold: false, sz: isAm ? 10 : 9, italic: true, color: { rgb: '000000' } },
       fill:      { fgColor: { rgb: 'FFFFFF' } },
       alignment: left,
       border:    { top: thinGray, bottom: thinGray, left: thinGray, right: thinGray },
     };
     const legend = isAm
-      ? '\u121b\u1235\u1273\u12c8\u123b\u1361   \u2713 = \u12e8\u1270\u1308\u1298     \u2718 = \u12eb\u120d\u1270\u1308\u1298     P = \u1348\u1243\u12f5'
-      : 'Legend:   \u2713 = Present     \u2718 = Absent     P = Permission';
+      ? 'ምልክት:   ✓ = የተገኘ (Present)     ✗ = የቀረ (Absent)     ፈ = ፈቃድ (Permission)'
+      : 'Legend:   ✓ = Present     ✗ = Absent     P = Permission';
     sc(R, 0, legend, legendStyle);
     fillMerge(R, 1, totalCols - 1, legendStyle);
     merges.push({ s: { r: R, c: 0 }, e: { r: R, c: totalCols - 1 } });
 
     // ── Sheet metadata ─────────────────────────────────────────────
     ws['!cols'] = [
-      { wch: 5 },        // No.
-      { wch: nameW },    // Name
-      { wch: 6 },        // Age
-      { wch: genderW },  // Gender
-      ...Array(22).fill({ wch: dayW }),
+      { wch: 6 },
+      { wch: nameW },
+      { wch: 7 },
+      { wch: genderW },
+      ...Array.from({ length: 22 }, () => ({ wch: dayW })),
     ];
     ws['!rows'] = [
-      { hpt: 30 },              // title
-      { hpt: 6  },              // spacer
-      { hpt: infoH },           // teacher/date
-      { hpt: infoH },           // class/subject
-      { hpt: 6  },              // spacer
-      { hpt: hdrH },            // header
-      ...Array(list.length).fill({ hpt: rowH }),
-      { hpt: 6  },              // spacer
-      { hpt: rowH },            // legend
+      { hpt: isAm ? 34 : 30 }, // Row 0
+      { hpt: 6 },              // Row 1
+      { hpt: infoH },          // Row 2
+      { hpt: infoH },          // Row 3
+      { hpt: 6 },              // Row 4
+      { hpt: hdrH },           // Row 5
+      ...Array.from({ length: list.length }, () => ({ hpt: rowH })),
+      { hpt: 6 },
+      { hpt: infoH },
     ];
     ws['!merges'] = merges;
     ws['!ref'] = XLSXStyle.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: R, c: totalCols - 1 } });
 
     const wb = XLSXStyle.utils.book_new();
-    XLSXStyle.utils.book_append_sheet(wb, ws, isAm ? '\u1201\u1294\u1273' : 'Attendance');
+    XLSXStyle.utils.book_append_sheet(wb, ws, isAm ? 'የመገኘት መከታተያ' : 'Attendance');
     const buf = XLSXStyle.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const cls = attendanceClass   ? '_' + attendanceClass   : '';
     const sec = attendanceSection ? '_' + attendanceSection : '';
-    saveAs(blob, 'Attendance' + cls + sec + '_' + new Date().toISOString().split('T')[0] + '.xlsx');
-    toast.success(getText('Attendance Excel downloaded!', '\u12e8\u1201\u1294\u1273 Excel \u12c8\u1323!'));
+    const typ = attendanceType    ? '_' + attendanceType    : '';
+    saveAs(blob, 'Attendance' + cls + sec + typ + '_' + new Date().toISOString().split('T')[0] + '.xlsx');
+    toast.success(getText('Attendance Excel downloaded!', 'የattendance Excel ወጣ!'));
   };
 
+  let cachedNyalaBase64: string | null = null;
+  const loadNyalaFont = async (doc: any): Promise<boolean> => {
+    try {
+      if (!cachedNyalaBase64) {
+        const res = await fetch('/fonts/nyala.ttf');
+        if (!res.ok) return false;
+        const fontBinary = await res.arrayBuffer();
+        let binary = '';
+        const bytes = new Uint8Array(fontBinary);
+        const chunk = 8192;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)));
+        }
+        cachedNyalaBase64 = btoa(binary);
+      }
+      doc.addFileToVFS('Nyala.ttf', cachedNyalaBase64);
+      doc.addFont('Nyala.ttf', 'Nyala', 'normal');
+      doc.addFont('Nyala.ttf', 'Nyala', 'bold');
+      return true;
+    } catch (err) {
+      console.warn('Could not load Nyala font:', err);
+      return false;
+    }
+  };
+
+  const downloadAttendancePDF = async () => {
+    const list = getAttendanceStudents();
+    const isAm = attendanceLang === 'am';
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+
+    const doc = new (jsPDF as any)({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const hasNyala = await loadNyalaFont(doc);
+    const fontName = hasNyala ? 'Nyala' : 'helvetica';
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    // Title
+    doc.setFillColor(30, 58, 138);
+    doc.rect(0, 0, pageW, 16, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont(fontName, 'bold');
+    doc.setFontSize(14);
+    const title = isAm
+      ? 'ብሉ ላይት አካዳሚ — የተማሪዎች የመገኘት መከታተያ ቅጽ'
+      : 'Bluelight Academy — Student Attendance Sheet';
+    doc.text(title, pageW / 2, 10.5, { align: 'center' });
+
+    // Info header box
+    doc.setDrawColor(209, 213, 219);
+    doc.setFillColor(249, 250, 251);
+    doc.rect(10, 19, pageW - 20, 14, 'F');
+    doc.rect(10, 19, pageW - 20, 14, 'S');
+
+    doc.setTextColor(31, 41, 55);
+    doc.setFont(fontName, 'normal');
+    doc.setFontSize(9);
+
+    const teacherLabel = isAm ? 'የመምህሩ/ሯ ስም:  _______________________________' : 'Teacher Name:  _______________________________';
+    const monthLabel   = isAm ? 'ወር:  ___________________________'              : 'Month:  ___________________________';
+    const classVal   = attendanceClass   || (isAm ? 'ሁሉም' : 'All');
+    const classAm    = attendanceClass === 'Nursery' ? 'ጀማሪ' : attendanceClass === 'LKG' ? 'ደረጃ 1' : attendanceClass === 'UKG' ? 'ደረጃ 2' : (attendanceClass || 'ሁሉም');
+    const sectionAm  = attendanceSection === 'A' ? 'ሀ' : attendanceSection === 'B' ? 'ለ' : attendanceSection === 'C' ? 'ሐ' : attendanceSection === 'D' ? 'መ' : (attendanceSection || 'ሁሉም');
+    const sectionVal = attendanceSection || (isAm ? 'ሁሉም' : 'All');
+
+    const classLabel = isAm
+      ? `ክፍል:  ${classAm}          ሴክሽን:  ${sectionAm}`
+      : `Class:  ${classVal}          Section:  ${sectionVal}`;
+
+    // Line 1: Teacher Name on left, Month on right (Date & Subject removed)
+    doc.text(teacherLabel, 14, 25);
+    doc.text(monthLabel, pageW - 14, 25, { align: 'right' });
+
+    // Line 2: Class / Section on left, Total students on right
+    doc.text(classLabel, 14, 30.5);
+    const countLabel = isAm ? `ጠቅላላ ተማሪዎች: ${list.length}` : `Total Students: ${list.length}`;
+    doc.text(countLabel, pageW - 14, 30.5, { align: 'right' });
+
+    // Table: numbers 1 to 22 removed, blank day columns
+    const headers = isAm
+      ? ['ተ.ቁ', 'የተማሪው ሙሉ ስም', 'ዕድሜ', 'ጾታ']
+      : ['#', 'Student Name', 'Age', 'Gender'];
+    const days = Array.from({ length: 22 }, () => '');
+    const headRow = [...headers, ...days];
+
+    const bodyRows = list.map((s, i) => {
+      const name = getStudentName(s, attendanceLang);
+      const age = getAge(s.dateOfBirth);
+      const gender = isAm
+        ? (s.gender === 'Male' ? 'ወንድ' : s.gender === 'Female' ? 'ሴት' : (s.gender || ''))
+        : (s.gender === 'Male' ? 'M' : s.gender === 'Female' ? 'F' : (s.gender || ''));
+      const emptyDays = Array(22).fill('');
+      return [String(i + 1), name, String(age), gender, ...emptyDays];
+    });
+
+    autoTable(doc, {
+      startY: 36,
+      head: [headRow],
+      body: bodyRows,
+      theme: 'grid',
+      styles: {
+        font: fontName,
+        fontSize: 7,
+        cellPadding: 1.5,
+        valign: 'middle',
+        halign: 'center',
+        lineColor: [209, 213, 219],
+        lineWidth: 0.2
+      },
+      headStyles: {
+        fillColor: [30, 58, 138],
+        textColor: 255,
+        font: fontName,
+        fontSize: 7,
+        fontStyle: 'bold',
+        halign: 'center',
+        valign: 'middle'
+      },
+      columnStyles: {
+        0: { cellWidth: 7, halign: 'center' },
+        1: { cellWidth: isAm ? 44 : 38, halign: 'left' },
+        2: { cellWidth: 9, halign: 'center' },
+        3: { cellWidth: 10, halign: 'center' }
+      },
+      margin: { left: 10, right: 10, top: 10, bottom: 8 },
+      didDrawPage: (data: any) => {
+        const pageCount = (doc as any).internal.getNumberOfPages();
+        doc.setFont(fontName, 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(156, 163, 175);
+        doc.text(`Page ${data.pageNumber} of ${pageCount}`, pageW / 2, pageH - 4, { align: 'center' });
+      }
+    });
+
+    const cls = attendanceClass ? '_' + attendanceClass : '';
+    const sec = attendanceSection ? '_' + attendanceSection : '';
+    const typ = attendanceType ? '_' + attendanceType : '';
+    doc.save('Attendance' + cls + sec + typ + '_' + new Date().toISOString().split('T')[0] + '.pdf');
+    toast.success(getText('Attendance PDF downloaded!', 'የattendance PDF ወጣ!'));
+  };
+
+  const getExportStudents = () => {
+    if (selectedStudents.length > 0) {
+      const selectedSet = new Set(selectedStudents);
+      return students.filter(s => selectedSet.has(s._id));
+    }
+    return filteredStudents;
+  };
+
+  const ALL_EXPORT_FIELDS = useMemo(() => [
+    {
+      id: 'studentId',
+      labelEn: 'Student ID',
+      labelAm: 'የተማሪ መለያ',
+      excelWidth: 15,
+      pdfWidth: 22,
+      getValue: (s: Student) => (language === 'am' ? s.studentId.replace('BLUE', 'ብሉ') : s.studentId),
+    },
+    {
+      id: 'fullName',
+      labelEn: 'Full Name',
+      labelAm: 'ሙሉ ስም',
+      excelWidth: 28,
+      pdfWidth: 38,
+      getValue: (s: Student) =>
+        language === 'am' && s.firstNameAmharic
+          ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim()
+          : [toTitleCase(s.firstName), toTitleCase(s.middleName), toTitleCase(s.lastName)].filter(Boolean).join(' '),
+    },
+    {
+      id: 'class',
+      labelEn: 'Class',
+      labelAm: 'ክፍል',
+      excelWidth: 12,
+      pdfWidth: 16,
+      getValue: (s: Student) =>
+        getText(s.class, s.class === 'Nursery' ? 'ጀማሪ' : s.class === 'LKG' ? 'ደረጃ 1' : s.class === 'UKG' ? 'ደረጃ 2' : s.class),
+    },
+    {
+      id: 'section',
+      labelEn: 'Section',
+      labelAm: 'ሴክሽን',
+      excelWidth: 10,
+      pdfWidth: 10,
+      getValue: (s: Student) =>
+        language === 'am' && s.section
+          ? (s.section === 'A' ? 'ሀ' : s.section === 'B' ? 'ለ' : s.section === 'C' ? 'ሐ' : s.section === 'D' ? 'መ' : s.section)
+          : (s.section || ''),
+    },
+    {
+      id: 'gender',
+      labelEn: 'Gender',
+      labelAm: 'ጾታ',
+      excelWidth: 10,
+      pdfWidth: 14,
+      getValue: (s: Student) => getText(s.gender, s.gender === 'Male' ? 'ወንድ' : 'ሴት'),
+    },
+    {
+      id: 'batch',
+      labelEn: 'Batch',
+      labelAm: 'ቡድን',
+      excelWidth: 10,
+      pdfWidth: 12,
+      getValue: (s: Student) => s.joinedYear || '',
+    },
+    {
+      id: 'dateOfBirth',
+      labelEn: 'Date of Birth',
+      labelAm: 'የትውልድ ቀን',
+      excelWidth: 15,
+      pdfWidth: 20,
+      getValue: (s: Student) => formatDOB(s.dateOfBirth),
+    },
+    {
+      id: 'fatherName',
+      labelEn: 'Father Name',
+      labelAm: 'የአባት ስም',
+      excelWidth: 22,
+      pdfWidth: 28,
+      getValue: (s: Student) => toTitleCase(s.fatherName) || '',
+    },
+    {
+      id: 'fatherPhone',
+      labelEn: 'Father Phone',
+      labelAm: 'የአባት ስልክ',
+      excelWidth: 15,
+      pdfWidth: 22,
+      getValue: (s: Student) => s.fatherPhone || '',
+    },
+    {
+      id: 'motherName',
+      labelEn: 'Mother Name',
+      labelAm: 'የእናት ስም',
+      excelWidth: 22,
+      pdfWidth: 28,
+      getValue: (s: Student) => toTitleCase(s.motherName) || '',
+    },
+    {
+      id: 'motherPhone',
+      labelEn: 'Mother Phone',
+      labelAm: 'የእናት ስልክ',
+      excelWidth: 15,
+      pdfWidth: 22,
+      getValue: (s: Student) => s.motherPhone || '',
+    },
+    {
+      id: 'email',
+      labelEn: 'Email',
+      labelAm: 'ኢሜይል',
+      excelWidth: 25,
+      pdfWidth: 28,
+      getValue: (s: Student) => s.email || '',
+    },
+    {
+      id: 'address',
+      labelEn: 'Address',
+      labelAm: 'አድራሻ',
+      excelWidth: 30,
+      pdfWidth: 30,
+      getValue: (s: Student) => s.address || '',
+    },
+    {
+      id: 'paymentCode',
+      labelEn: 'Payment Code',
+      labelAm: 'የክፍያ ኮድ',
+      excelWidth: 15,
+      pdfWidth: 20,
+      getValue: (s: Student) => s.paymentCode || '',
+    },
+    {
+      id: 'registrationDate',
+      labelEn: 'Registration Date',
+      labelAm: 'የምዝገባ ቀን',
+      excelWidth: 22,
+      pdfWidth: 22,
+      getValue: (s: Student) => (s.createdAt ? new Date(s.createdAt).toLocaleDateString() : ''),
+    },
+  ], [language, getText]);
+
   const exportToPDF = async () => {
+    const exportList = getExportStudents();
+    if (exportList.length === 0) {
+      toast.error(getText('No students to export', 'ወደ ውጭ የሚወጡ ተማሪዎች የሉም'));
+      return;
+    }
+
+    const activeFields = ALL_EXPORT_FIELDS.filter(f => selectedExportColumns.includes(f.id));
+    if (activeFields.length === 0) {
+      toast.error(getText('Please select at least one column to export', 'እባክዎ ቢያንስ አንድ አምድ ይምረጡ'));
+      return;
+    }
+
     const { default: jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
     const doc = new (jsPDF as any)({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const W = doc.internal.pageSize.getWidth();
+    const isSelectedOnly = selectedStudents.length > 0;
 
     // Header bar
     doc.setFillColor(29, 78, 216);
@@ -1051,46 +1398,39 @@ export default function StudentsPage() {
     doc.text('Bluelight Academy — Student List', 14, 11);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Exported: ${new Date().toLocaleString()}   |   Total: ${filteredStudents.length} student${filteredStudents.length !== 1 ? 's' : ''}`, W - 14, 11, { align: 'right' });
+    const countNote = isSelectedOnly
+      ? `Selected: ${exportList.length} student${exportList.length !== 1 ? 's' : ''}`
+      : `Total: ${exportList.length} student${exportList.length !== 1 ? 's' : ''}`;
+    doc.text(`Exported: ${new Date().toLocaleString()}   |   ${countNote}`, W - 14, 11, { align: 'right' });
+
+    const headRow = ['#', ...activeFields.map(f => getText(f.labelEn, f.labelAm))];
+    const bodyRows = exportList.map((s, i) => [
+      i + 1,
+      ...activeFields.map(f => {
+        const val = f.getValue(s);
+        return val ? String(val) : '—';
+      })
+    ]);
+
+    const columnStyles: Record<number, any> = {
+      0: { cellWidth: 8, halign: 'center' }
+    };
+    activeFields.forEach((f, idx) => {
+      if (f.id === 'section') {
+        columnStyles[idx + 1] = { halign: 'center' };
+      }
+    });
+
+    const isCompact = activeFields.length >= 10;
 
     autoTable(doc, {
       startY: 22,
-      head: [['#', 'Student ID', 'Full Name', 'Class', 'Sec.', 'Gender', 'Batch', 'Date of Birth', 'Father Name', 'Father Phone', 'Mother Name', 'Mother Phone', 'Payment Code', 'Reg. Date']],
-      body: filteredStudents.map((s, i) => [
-        i + 1,
-        s.studentId,
-        `${s.firstName} ${s.middleName} ${s.lastName}`,
-        s.class,
-        s.section || '—',
-        s.gender,
-        s.joinedYear,
-        formatDOB(s.dateOfBirth),
-        s.fatherName || '—',
-        s.fatherPhone || '—',
-        s.motherName || '—',
-        s.motherPhone || '—',
-        s.paymentCode || '—',
-        s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—',
-      ]),
-      styles: { fontSize: 7, cellPadding: 2.5, textColor: [30, 30, 30] },
-      headStyles: { fillColor: [29, 78, 216], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      head: [headRow],
+      body: bodyRows,
+      styles: { fontSize: isCompact ? 7 : 8, cellPadding: isCompact ? 2.5 : 3.5, textColor: [30, 30, 30] },
+      headStyles: { fillColor: [29, 78, 216], textColor: 255, fontStyle: 'bold', fontSize: isCompact ? 7 : 8 },
       alternateRowStyles: { fillColor: [245, 247, 255] },
-      columnStyles: {
-        0:  { cellWidth: 8,  halign: 'center' },
-        1:  { cellWidth: 22 },
-        2:  { cellWidth: 38 },
-        3:  { cellWidth: 16 },
-        4:  { cellWidth: 10, halign: 'center' },
-        5:  { cellWidth: 14 },
-        6:  { cellWidth: 12 },
-        7:  { cellWidth: 20 },
-        8:  { cellWidth: 28 },
-        9:  { cellWidth: 22 },
-        10: { cellWidth: 28 },
-        11: { cellWidth: 22 },
-        12: { cellWidth: 20 },
-        13: { cellWidth: 22 },
-      },
+      columnStyles,
       margin: { left: 10, right: 10 },
       didDrawPage: (data: any) => {
         const pageCount = (doc as any).internal.getNumberOfPages();
@@ -1100,89 +1440,64 @@ export default function StudentsPage() {
       },
     });
 
-    doc.save(`${fileName}.pdf`);
+    const outName = (fileName || (isSelectedOnly ? `Selected_Students_${exportList.length}` : 'Students')).trim();
+    doc.save(`${outName}.pdf`);
     setShowExportMenu(false);
-    toast.success(getText('PDF exported successfully!', 'PDF በተሳካ ሁኔታ ወጣ!'));
+    toast.success(getText(
+      isSelectedOnly ? `${exportList.length} selected students exported to PDF!` : 'PDF exported successfully!',
+      isSelectedOnly ? `${exportList.length} የተመረጡ ተማሪዎች PDF ወጡ!` : 'PDF በተሳካ ሁኔታ ወጣ!'
+    ));
   };
 
   const exportToExcel = () => {
+    const exportList = getExportStudents();
+    if (exportList.length === 0) {
+      toast.error(getText('No students to export', 'ወደ ውጭ የሚወጡ ተማሪዎች የሉም'));
+      return;
+    }
+
+    const activeFields = ALL_EXPORT_FIELDS.filter(f => selectedExportColumns.includes(f.id));
+    if (activeFields.length === 0) {
+      toast.error(getText('Please select at least one column to export', 'እባክዎ ቢያንስ አንድ አምድ ይምረጡ'));
+      return;
+    }
+
+    const isSelectedOnly = selectedStudents.length > 0;
+
     const worksheetData = [
       // Header row
-      [
-        '#',
-        getText('Student ID', 'የተማሪ መለያ'),
-        getText('Full Name', 'ሙሉ ስም'),
-        getText('Class', 'ክፍል'),
-        getText('Section', 'ክፍል'),
-        getText('Gender', 'ጾታ'),
-        getText('Batch', 'ቡድን'),
-        getText('Date of Birth', 'የትውልድ ቀን'),
-        getText('Father Name', 'የአባት ስም'),
-        getText('Father Phone', 'የአባት ስልክ'),
-        getText('Mother Name', 'የእናት ስም'),
-        getText('Mother Phone', 'የእናት ስልክ'),
-        getText('Email', 'ኢሜይል'),
-        getText('Address', 'አድራሻ'),
-        getText('Payment Code', 'የክፍያ ኮድ'),
-        getText('Registration Date', 'የምዝገባ ቀን')
-      ],
+      ['#', ...activeFields.map(f => getText(f.labelEn, f.labelAm))],
       // Data rows
-      ...filteredStudents.map((student, index) => [
+      ...exportList.map((student, index) => [
         index + 1,
-        language === 'am' ? student.studentId.replace('BLUE', 'ብሉ') : student.studentId,
-        language === 'am' && student.firstNameAmharic 
-          ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-          : `${student.firstName} ${student.middleName} ${student.lastName}`,
-        getText(student.class, student.class === 'Nursery' ? 'ጀማሪ' : student.class === 'LKG' ? 'ደረጃ 1' : student.class === 'UKG' ? 'ደረጃ 2' : student.class),
-        language === 'am' && student.section ? 
-          (student.section === 'A' ? 'አ' : student.section === 'B' ? 'ለ' : student.section === 'C' ? 'ሐ' : student.section === 'D' ? 'መ' : student.section) 
-          : (student.section || ''),
-        getText(student.gender, student.gender === 'Male' ? 'ወንድ' : student.gender === 'Female' ? 'ሴት' : student.gender),
-        student.joinedYear,
-        formatDOB(student.dateOfBirth),
-        student.fatherName || '',
-        student.fatherPhone || '',
-        student.motherName || '',
-        student.motherPhone || '',
-        student.email || '',
-        student.address || '',
-        student.paymentCode || '',
-        student.createdAt ? new Date(student.createdAt).toLocaleString() : ''
+        ...activeFields.map(f => {
+          const val = f.getValue(student);
+          return val === undefined || val === null ? '' : val;
+        })
       ])
     ];
-    
+
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    
-    // Set column widths
+
     const colWidths = [
-      { wch: 5 },   // #
-      { wch: 15 },  // Student ID
-      { wch: 25 },  // Full Name
-      { wch: 10 },  // Class
-      { wch: 10 },  // Section
-      { wch: 10 },  // Gender
-      { wch: 10 },  // Batch
-      { wch: 15 },  // DOB
-      { wch: 20 },  // Father Name
-      { wch: 15 },  // Father Phone
-      { wch: 20 },  // Mother Name
-      { wch: 15 },  // Mother Phone
-      { wch: 25 },  // Email
-      { wch: 30 },  // Address
-      { wch: 15 },  // Payment Code
-      { wch: 22 }   // Registration Date
+      { wch: 6 }, // #
+      ...activeFields.map(f => ({ wch: f.excelWidth || 15 }))
     ];
     worksheet['!cols'] = colWidths;
-    
+
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, getText('Students', 'ተማሪዎች'));
-    
+    XLSX.utils.book_append_sheet(workbook, worksheet, isSelectedOnly ? getText('Selected Students', 'የተመረጡ ተማሪዎች') : getText('Students', 'ተማሪዎች'));
+
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    
-    saveAs(data, `${fileName}.xlsx`);
+
+    const outName = (fileName || (isSelectedOnly ? `Selected_Students_${exportList.length}` : 'Students')).trim();
+    saveAs(data, `${outName}.xlsx`);
     setShowExportMenu(false);
-    toast.success(getText('Excel exported successfully!', 'Excel በተሳካ ሁኔታ ወጣ!'));
+    toast.success(getText(
+      isSelectedOnly ? `${exportList.length} selected students exported to Excel!` : 'Excel exported successfully!',
+      isSelectedOnly ? `${exportList.length} የተመረጡ ተማሪዎች Excel ወጡ!` : 'Excel በተሳካ ሁኔታ ወጣ!'
+    ));
   };
 
   if (loading) {
@@ -1303,62 +1618,22 @@ export default function StudentsPage() {
                   )}
 
                   {/* Export */}
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowExportMenu(!showExportMenu)}
-                      className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      {getText('Export', 'ወደ ውጭ')}
-                    </button>
-                    {showExportMenu && (
-                      <div className={`absolute left-0 mt-2 w-72 rounded-lg shadow-lg border z-50 ${theme === 'dark' ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
-                        <div className="p-4">
-                          <h3 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Export Students', 'ተማሪዎችን ወደ ውጭ አውጣ')}</h3>
-                          <div className="mb-3">
-                            <label className={`block text-xs font-medium mb-1.5 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{getText('File Name', 'የፋይል ስም')}</label>
-                            <input
-                              type="text"
-                              value={fileName}
-                              onChange={(e) => setFileName(e.target.value)}
-                              className={`w-full px-3 py-2 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                              placeholder={getText('Enter file name', 'የፋይል ስም ያስገቡ')}
-                            />
-                          </div>
-                          <div className={`text-xs mb-3 p-2 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-50 text-gray-600'}`}>
-                            {getText('Exporting', 'እያወጣ')}: {filteredStudents.length} {getText('students', 'ተማሪዎች')}
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={exportToExcel}
-                              disabled={filteredStudents.length === 0}
-                              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              Excel
-                            </button>
-                            <button
-                              onClick={exportToPDF}
-                              disabled={filteredStudents.length === 0}
-                              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                              </svg>
-                              PDF
-                            </button>
-                          </div>
-                          <button onClick={() => setShowExportMenu(false)} className={`w-full mt-2 px-4 py-2 text-sm rounded-md transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
-                            {getText('Cancel', 'ሰርዝ')}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => {
+                      const defaultName = selectedStudents.length > 0
+                        ? `Selected_Students_${selectedStudents.length}_${new Date().toISOString().split('T')[0]}`
+                        : `Students_${new Date().toISOString().split('T')[0]}`;
+                      setFileName(defaultName);
+                      setSelectedExportColumns([]);
+                      setShowExportMenu(true);
+                    }}
+                    className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {getText('Export', 'ወደ ውጭ')}{selectedStudents.length > 0 ? ` (${selectedStudents.length})` : ''}
+                  </button>
 
                   {/* Attendance */}
                   <button
@@ -1751,7 +2026,7 @@ export default function StudentsPage() {
                                 <img src={student.photo} alt="" className="h-8 w-8 rounded-full object-cover" />
                               ) : (
                                 <span className="text-xs font-medium text-white">
-                                  {student.firstName.charAt(0)}{student.lastName.charAt(0)}
+                                  {getInitials(student.firstName, student.middleName, student.lastName)}
                                 </span>
                               )}
                             </button>
@@ -1760,7 +2035,7 @@ export default function StudentsPage() {
                                 <div className={`text-sm font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                                   {language === 'am' && student.firstNameAmharic 
                                     ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-                                    : `${student.firstName} ${student.middleName} ${student.lastName}`
+                                    : [toTitleCase(student.firstName), toTitleCase(student.middleName), toTitleCase(student.lastName)].filter(Boolean).join(' ')
                                   }
                                 </div>
                                 {siblingStudentIds.has(student._id) && (
@@ -1930,7 +2205,7 @@ export default function StudentsPage() {
                                   <img src={student.photo} alt="" className="h-12 w-12 rounded-full object-cover" />
                                 ) : (
                                   <span className="text-sm font-medium text-white">
-                                    {student.firstName.charAt(0)}{student.lastName.charAt(0)}
+                                    {getInitials(student.firstName, student.middleName, student.lastName)}
                                   </span>
                                 )}
                               </button>
@@ -1939,7 +2214,7 @@ export default function StudentsPage() {
                                   <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                                     {language === 'am' && student.firstNameAmharic 
                                       ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-                                      : `${student.firstName} ${student.middleName} ${student.lastName}`
+                                      : [toTitleCase(student.firstName), toTitleCase(student.middleName), toTitleCase(student.lastName)].filter(Boolean).join(' ')
                                     }
                                   </h3>
                                   {siblingStudentIds.has(student._id) && (
@@ -2074,7 +2349,7 @@ export default function StudentsPage() {
                             <img src={student.photo} alt="" className="h-12 w-12 rounded-full object-cover" />
                           ) : (
                             <span className="text-sm font-medium text-white">
-                              {student.firstName.charAt(0)}{student.lastName.charAt(0)}
+                              {getInitials(student.firstName, student.middleName, student.lastName)}
                             </span>
                           )}
                         </button>
@@ -2083,7 +2358,7 @@ export default function StudentsPage() {
                             <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                               {language === 'am' && student.firstNameAmharic 
                                 ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-                                : `${student.firstName} ${student.middleName} ${student.lastName}`
+                                : [toTitleCase(student.firstName), toTitleCase(student.middleName), toTitleCase(student.lastName)].filter(Boolean).join(' ')
                               }
                             </h3>
                             {siblingStudentIds.has(student._id) && (
@@ -2110,7 +2385,7 @@ export default function StudentsPage() {
                               <p className={`text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Section', 'ክፍል')}</p>
                               <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                                 {language === 'am' && student.section ? 
-                                  (student.section === 'A' ? 'አ' : student.section === 'B' ? 'ለ' : student.section === 'C' ? 'ሐ' : student.section === 'D' ? 'መ' : student.section) 
+                                  (student.section === 'A' ? 'ሀ' : student.section === 'B' ? 'ለ' : student.section === 'C' ? 'ሐ' : student.section === 'D' ? 'መ' : student.section) 
                                   : (student.section || '-')
                                 }
                               </p>
@@ -2165,6 +2440,159 @@ export default function StudentsPage() {
         </div>
       </div>
       
+      {/* Export Modal with Column Selection */}
+      {showExportMenu && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            {/* Header */}
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700 bg-gray-750' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-300 rounded-lg">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    {getText('Export Students', 'ተማሪዎችን ወደ ውጭ አውጣ')}
+                  </h2>
+                  <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {selectedStudents.length > 0
+                      ? getText(`Exporting ${selectedStudents.length} selected students`, `${selectedStudents.length} የተመረጡ ተማሪዎች ይወጣሉ`)
+                      : getText(`Exporting all ${filteredStudents.length} filtered students`, `ሁሉም ${filteredStudents.length} የተጣሩ ተማሪዎች ይወጣሉ`)}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExportMenu(false)}
+                className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[calc(85vh-130px)] overflow-y-auto">
+              {/* File Name */}
+              <div>
+                <label className={`block text-xs font-semibold mb-1.5 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {getText('File Name', 'የፋይል ስም')}
+                </label>
+                <input
+                  type="text"
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                  className={`w-full px-3.5 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                  placeholder={getText('Enter file name', 'የፋይል ስም ያስገቡ')}
+                />
+              </div>
+
+              {/* Columns Selection Section */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <label className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                      {getText('Select Columns to Export', 'ወደ ውጭ የሚወጡ አምዶች')}
+                    </label>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                      selectedExportColumns.length === 0
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                    }`}>
+                      {selectedExportColumns.length}/{ALL_EXPORT_FIELDS.length} {getText('selected', 'ተመርጠዋል')}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedExportColumns(ALL_EXPORT_FIELDS.map(f => f.id))}
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                    >
+                      {getText('Select All', 'ሁሉንም ምረጥ')}
+                    </button>
+                    <span className="text-gray-300 dark:text-gray-600">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedExportColumns([])}
+                      className="text-gray-500 dark:text-gray-400 hover:underline font-medium"
+                    >
+                      {getText('Deselect All', 'ሁሉንም አትምረጥ')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid of columns */}
+                <div className={`grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-xl border max-h-56 overflow-y-auto ${theme === 'dark' ? 'bg-gray-750 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                  {ALL_EXPORT_FIELDS.map((field) => {
+                    const isChecked = selectedExportColumns.includes(field.id);
+                    return (
+                      <label
+                        key={field.id}
+                        className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs font-medium cursor-pointer transition-all ${
+                          isChecked
+                            ? (theme === 'dark' ? 'bg-blue-900/40 border-blue-500 text-white' : 'bg-blue-50 border-blue-400 text-blue-900 font-semibold shadow-xs')
+                            : (theme === 'dark' ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100')
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            setSelectedExportColumns(prev =>
+                              prev.includes(field.id)
+                                ? prev.filter(id => id !== field.id)
+                                : [...prev, field.id]
+                            );
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 shrink-0"
+                        />
+                        <span className="truncate">{getText(field.labelEn, field.labelAm)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {selectedExportColumns.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1 font-medium">
+                    <span>⚠️</span> {getText('Please select at least one column to export', 'እባክዎ ቢያንስ አንድ አምድ ይምረጡ')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className={`px-6 py-4 border-t flex items-center gap-3 ${theme === 'dark' ? 'border-gray-700 bg-gray-750' : 'border-gray-200 bg-gray-50'}`}>
+              <button
+                onClick={() => setShowExportMenu(false)}
+                className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'}`}
+              >
+                {getText('Cancel', 'ሰርዝ')}
+              </button>
+              <div className="flex-1 flex gap-2">
+                <button
+                  onClick={exportToExcel}
+                  disabled={getExportStudents().length === 0 || selectedExportColumns.length === 0}
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Excel
+                </button>
+                <button
+                  onClick={exportToPDF}
+                  disabled={getExportStudents().length === 0 || selectedExportColumns.length === 0}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Attendance Modal */}
       {showAttendanceModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -2228,18 +2656,34 @@ export default function StudentsPage() {
               {/* Section */}
               <div>
                 <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
-                  {getText('Section', 'ክፍል')} ({getText('optional', 'አማራጭ')})
+                  {getText('Section', 'ሴክሽን')} ({getText('optional', 'አማራጭ')})
                 </label>
                 <select
                   value={attendanceSection}
                   onChange={e => setAttendanceSection(e.target.value)}
                   className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-teal-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
                 >
-                  <option value="">{getText('All Sections', 'ሁሉም ክፍሎች')}</option>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                  <option value="D">D</option>
+                  <option value="">{getText('All Sections', 'ሁሉም ሴክሽኖች')}</option>
+                  <option value="A">A (ሀ)</option>
+                  <option value="B">B (ለ)</option>
+                  <option value="C">C (ሐ)</option>
+                  <option value="D">D (መ)</option>
+                </select>
+              </div>
+
+              {/* Student Type */}
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                  {getText('Student Type', 'የተማሪ ዓይነት')} ({getText('optional', 'አማራጭ')})
+                </label>
+                <select
+                  value={attendanceType}
+                  onChange={e => setAttendanceType(e.target.value as any)}
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-teal-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                >
+                  <option value="">{getText('All Students', 'ሁሉም ተማሪዎች')}</option>
+                  <option value="regular">{getText('Regular (With Payment Code)', 'መደበኛ (የክፍያ ኮድ ያላቸው)')}</option>
+                  <option value="special">{getText('Without Payment Code', 'የክፍያ ኮድ የሌላቸው')}</option>
                 </select>
               </div>
 
@@ -2257,6 +2701,14 @@ export default function StudentsPage() {
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   Excel
+                </button>
+                <button
+                  onClick={() => { downloadAttendancePDF(); setShowAttendanceModal(false); }}
+                  disabled={getAttendanceStudents().length === 0}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  PDF
                 </button>
               </div>
             </div>
@@ -2668,7 +3120,7 @@ export default function StudentsPage() {
                 <div key={gi} className={`rounded-lg border ${theme === 'dark' ? 'border-gray-600 bg-gray-750' : 'border-gray-200 bg-gray-50'}`}>
                   <div className={`px-4 py-2.5 rounded-t-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-blue-50'}`}>
                     <p className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-200' : 'text-blue-800'}`}>
-                      👨‍👩‍👧‍👦 {getText('Father', 'አባት')}: <span className="font-bold">{g.fatherName}</span> &nbsp;|&nbsp; {getText('Mother', 'እናት')}: <span className="font-bold">{g.motherName}</span> &nbsp;&mdash;&nbsp; {g.students.length} {getText('students', 'ተማሪዎች')}
+                      👨‍👩‍👧‍👦 {getText('Father', 'አባት')}: <span className="font-bold">{toTitleCase(g.fatherName)}</span> &nbsp;|&nbsp; {getText('Mother', 'እናት')}: <span className="font-bold">{toTitleCase(g.motherName)}</span> &nbsp;&mdash;&nbsp; {g.students.length} {getText('students', 'ተማሪዎች')}
                     </p>
                   </div>
                   <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -2676,7 +3128,7 @@ export default function StudentsPage() {
                       <div key={s._id} className={`px-4 py-2.5 flex items-center justify-between cursor-pointer ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-white'}`} onClick={() => { setShowAllSiblingsModal(false); router.push(`/students/view/${s._id}`); }}>
                         <div className="flex items-center gap-2">
                           <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                            {language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim() : `${s.firstName} ${s.middleName} ${s.lastName}`}
+                            {language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim() : [toTitleCase(s.firstName), toTitleCase(s.middleName), toTitleCase(s.lastName)].filter(Boolean).join(' ')}
                           </span>
                         </div>
                         <span className="text-xs text-blue-600 font-medium">{language === 'am' ? s.studentId.replace('BLUE', 'ብሉ') : s.studentId} &bull; {s.class}{s.section ? `/${s.section}` : ''} &bull; {getText(s.gender, s.gender === 'Male' ? 'ወንድ' : 'ሴት')}</span>
@@ -2704,11 +3156,11 @@ export default function StudentsPage() {
                 </div>
                 <div className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                   <span>
-                    <strong className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>{getText('Father Full Name', 'የአባት ሙሉ ስም')}:</strong> {siblingsModal.student.fatherName || '—'}
+                    <strong className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>{getText('Father Full Name', 'የአባት ሙሉ ስም')}:</strong> {toTitleCase(siblingsModal.student.fatherName) || '—'}
                   </span>
                   <span>&bull;</span>
                   <span>
-                    <strong className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>{getText('Mother Full Name', 'የእናት ሙሉ ስም')}:</strong> {siblingsModal.student.motherName || '—'}
+                    <strong className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>{getText('Mother Full Name', 'የእናት ሙሉ ስም')}:</strong> {toTitleCase(siblingsModal.student.motherName) || '—'}
                   </span>
                 </div>
               </div>
@@ -2743,10 +3195,10 @@ export default function StudentsPage() {
                               <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                                 {language === 'am' && s.firstNameAmharic
                                   ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim()
-                                  : `${s.firstName} ${s.middleName} ${s.lastName}`}
+                                  : [toTitleCase(s.firstName), toTitleCase(s.middleName), toTitleCase(s.lastName)].filter(Boolean).join(' ')}
                               </div>
                               <div className={`text-[11px] ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                <span>F: {s.fatherName || '—'}</span> &bull; <span>M: {s.motherName || '—'}</span>
+                                <span>F: {toTitleCase(s.fatherName) || '—'}</span> &bull; <span>M: {toTitleCase(s.motherName) || '—'}</span>
                               </div>
                             </div>
                             {isCurrent && (

@@ -1,3 +1,14 @@
+const toTitleCase = (str?: string): string => {
+  if (!str) return '';
+  const s = String(str).trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  return s
+    .toLowerCase()
+    .replace(/(?:^|[^\p{L}\p{N}])(\p{L})/gu, (match, letter) =>
+      match.slice(0, -letter.length) + letter.toUpperCase()
+    );
+};
+
 const generateFileName = (filters: any) => {
   const parts = ['students-report'];
   if (filters.searchTerm) parts.push(`search-${filters.searchTerm.replace(/\s+/g, '-')}`);
@@ -43,16 +54,16 @@ export const exportToPDF = (students: any[], filters: any) => {
             ${students.map(s => `
               <tr>
                 <td>${s.studentId || ''}</td>
-                <td>${s.firstName || ''}</td>
-                <td>${s.middleName || ''}</td>
-                <td>${s.lastName || ''}</td>
+                <td>${toTitleCase(s.firstName) || ''}</td>
+                <td>${toTitleCase(s.middleName) || ''}</td>
+                <td>${toTitleCase(s.lastName) || ''}</td>
                 <td>${s.email || ''}</td>
                 <td>${s.gender || ''}</td>
                 <td>${s.class || ''}</td>
                 <td>${s.section || ''}</td>
-                <td>${s.fatherName || ''}</td>
+                <td>${toTitleCase(s.fatherName) || ''}</td>
                 <td>${s.fatherPhone || ''}</td>
-                <td>${s.motherName || ''}</td>
+                <td>${toTitleCase(s.motherName) || ''}</td>
                 <td>${s.motherPhone || ''}</td>
                 <td>${s.address || ''}</td>
                 <td>${s.paymentCode || ''}</td>
@@ -83,16 +94,16 @@ export const exportToExcel = (students: any[], filters: any) => {
     ['Student ID', 'First Name', 'Middle Name', 'Last Name', 'Email', 'Gender', 'Class', 'Section', 'Father Name', 'Father Phone', 'Mother Name', 'Mother Phone', 'Address', 'Payment Code'],
     ...students.map(s => [
       s.studentId || '',
-      s.firstName || '',
-      s.middleName || '',
-      s.lastName || '',
+      toTitleCase(s.firstName) || '',
+      toTitleCase(s.middleName) || '',
+      toTitleCase(s.lastName) || '',
       s.email || '',
       s.gender || '',
       s.class || '',
       s.section || '',
-      s.fatherName || '',
+      toTitleCase(s.fatherName) || '',
       s.fatherPhone || '',
-      s.motherName || '',
+      toTitleCase(s.motherName) || '',
       s.motherPhone || '',
       s.address || '',
       s.paymentCode || ''

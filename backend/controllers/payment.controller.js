@@ -116,6 +116,35 @@ exports.getPaymentStatusByMonthYear = asyncHandler(async (req, res) => {
 exports.getPaymentsByStudent = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
 
-  const payments = await Payment.find({ studentId }).populate('studentId').sort({ year: -1, month: 1 });
+  const payments = await Payment.find({ studentId }).populate('studentId');
+
+  const monthOrder = {
+    'september': 1, 'meskerem': 1, 'መስከረም': 1,
+    'october': 2, 'tikimt': 2, 'ጥቅምት': 2,
+    'november': 3, 'hidar': 3, 'ህዳር': 3,
+    'december': 4, 'tahsas': 4, 'ታህሳስ': 4,
+    'january': 5, 'tir': 5, 'ጥር': 5,
+    'february': 6, 'yekatit': 6, 'የካቲት': 6,
+    'march': 7, 'megabit': 7, 'መጋቢት': 7,
+    'april': 8, 'miazia': 8, 'ሚያዚያ': 8,
+    'may': 9, 'ginbot': 9, 'ግንቦት': 9,
+    'june': 10, 'sene': 10, 'ሰኔ': 10,
+    'july': 11, 'hamle': 11, 'ሐምሌ': 11,
+    'august': 12, 'nehase': 12, 'ነሐሴ': 12,
+    'pagume': 13, 'ጳጉሜ': 13
+  };
+
+  payments.sort((a, b) => {
+    const yearDiff = (Number(b.year) || 0) - (Number(a.year) || 0);
+    if (yearDiff !== 0) return yearDiff;
+    const orderA = monthOrder[a.month ? a.month.toLowerCase().trim() : ''] || 0;
+    const orderB = monthOrder[b.month ? b.month.toLowerCase().trim() : ''] || 0;
+    if (orderB !== orderA) return orderB - orderA;
+    const timeA = a.paymentDate ? new Date(a.paymentDate).getTime() : 0;
+    const timeB = b.paymentDate ? new Date(b.paymentDate).getTime() : 0;
+    return timeB - timeA;
+  });
+
   res.json(payments);
 });
+

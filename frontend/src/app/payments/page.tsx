@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { useSettings } from '@/contexts/SettingsContext'
 import { usePermissions } from '@/contexts/PermissionsContext'
@@ -13,7 +13,8 @@ import {
   ETHIOPIAN_ACADEMIC_MONTHS,
   getCurrentEthiopianAcademicMonth,
   getCurrentEthiopianYear,
-  getEthiopianMonthDisplay
+  getEthiopianMonthDisplay,
+  sortPaymentsByAcademicDate
 } from '@/utils/dateUtils'
 import Pagination from '@/components/Pagination'
 
@@ -43,6 +44,69 @@ interface Payment {
   status: string
 }
 
+const CLASS_OPTIONS = [
+  { value: 'Nursery', en: 'Nursery', am: 'ጀማሪ' },
+  { value: 'LKG', en: 'LKG', am: 'ደረጃ 1' },
+  { value: 'UKG', en: 'UKG', am: 'ደረጃ 2' },
+] as const
+
+const formatClassBoth = (className?: string): string => {
+  if (!className) return '-'
+  const trimmed = className.trim()
+  const matched = CLASS_OPTIONS.find(c => c.value.toLowerCase() === trimmed.toLowerCase())
+  if (matched) {
+    return `${matched.en} (${matched.am})`
+  }
+  const gradeMatch = trimmed.match(/^Grade\s*(\d+)$/i)
+  if (gradeMatch) {
+    return `${trimmed} (${gradeMatch[1]}ኛ ክፍል)`
+  }
+  return trimmed
+}
+
+const SECTION_OPTIONS = [
+  { value: 'A', en: 'Section A', am: 'ክፍል ሀ' },
+  { value: 'B', en: 'Section B', am: 'ክፍል ለ' },
+  { value: 'C', en: 'Section C', am: 'ክፍል ሐ' },
+  { value: 'D', en: 'Section D', am: 'ክፍል መ' },
+] as const
+
+const formatSectionBoth = (section?: string): string => {
+  if (!section) return '-'
+  const trimmed = section.trim()
+  const matched = SECTION_OPTIONS.find(s => s.value.toLowerCase() === trimmed.toLowerCase())
+  if (matched) {
+    return `${matched.en} (${matched.am})`
+  }
+  return trimmed
+}
+
+let cachedNyalaBase64: string | null = null
+
+const loadNyalaFont = async (doc: any): Promise<boolean> => {
+  try {
+    if (!cachedNyalaBase64) {
+      const res = await fetch('/fonts/nyala.ttf')
+      if (!res.ok) return false
+      const fontBinary = await res.arrayBuffer()
+      let binary = ''
+      const bytes = new Uint8Array(fontBinary)
+      const chunk = 8192
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)))
+      }
+      cachedNyalaBase64 = btoa(binary)
+    }
+    doc.addFileToVFS('Nyala.ttf', cachedNyalaBase64)
+    doc.addFont('Nyala.ttf', 'Nyala', 'normal')
+    doc.addFont('Nyala.ttf', 'Nyala', 'bold')
+    return true
+  } catch (err) {
+    console.warn('Could not load Nyala font:', err)
+    return false
+  }
+}
+
 export default function PaymentsPage() {
   const { theme, getText, language } = useSettings()
   const { role, canDo } = usePermissions()
@@ -51,6 +115,7 @@ export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [allPayments, setAllPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
+  const [generatingReport, setGeneratingReport] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const currentEcMonth = getCurrentEthiopianAcademicMonth()
   const currentEcYear = getCurrentEthiopianYear()
@@ -79,9 +144,14 @@ export default function PaymentsPage() {
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [studentHistory, setStudentHistory] = useState<Payment[]>([])
+  const sortedStudentHistory = useMemo(() => {
+    return sortPaymentsByAcademicDate(studentHistory, 'desc')
+  }, [studentHistory])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
+  const [classFilter, setClassFilter] = useState<string>('all')
+  const [sectionFilter, setSectionFilter] = useState<string>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [showDateFilter, setShowDateFilter] = useState(false)
@@ -93,12 +163,48 @@ export default function PaymentsPage() {
   const [bulkDescription, setBulkDescription] = useState('')
   const [bulkPaymentDate, setBulkPaymentDate] = useState(new Date().toISOString().split('T')[0])
 
+  const availableClasses = useMemo(() => {
+    const list: { value: string; label: string }[] = CLASS_OPTIONS.map(c => ({
+      value: c.value,
+      label: `${c.en} (${c.am})`
+    }))
+
+    students.forEach(s => {
+      if (s.class && !list.some(item => item.value.toLowerCase() === s.class.toLowerCase())) {
+        list.push({
+          value: s.class,
+          label: formatClassBoth(s.class)
+        })
+      }
+    })
+
+    return list
+  }, [students])
+
+  const availableSections = useMemo(() => {
+    const list: { value: string; label: string }[] = SECTION_OPTIONS.map(s => ({
+      value: s.value,
+      label: `${s.en} (${s.am})`
+    }))
+
+    students.forEach(s => {
+      if (s.section && !list.some(item => item.value.toLowerCase() === s.section!.toLowerCase())) {
+        list.push({
+          value: s.section,
+          label: formatSectionBoth(s.section)
+        })
+      }
+    })
+
+    return list
+  }, [students])
+
   const PAGE_SIZE = 20
   const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, selectedMonth, selectedYear, paymentFilter, studentTypeFilter, dateFrom, dateTo])
+  }, [searchTerm, selectedMonth, selectedYear, paymentFilter, classFilter, sectionFilter, studentTypeFilter, dateFrom, dateTo])
 
   useEffect(() => {
     fetchStudents()
@@ -337,7 +443,8 @@ export default function PaymentsPage() {
         `${process.env.NEXT_PUBLIC_API_URL}/payments/student/${student._id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
-      setStudentHistory(response.data)
+      const sorted = sortPaymentsByAcademicDate<Payment>(response.data, 'desc')
+      setStudentHistory(sorted)
     } catch (error) {
       toast.error(getText('Failed to fetch payment history', 'የክፍያ ታሪክ መጫን አልተሳካም'))
     } finally {
@@ -345,36 +452,53 @@ export default function PaymentsPage() {
     }
   }
 
-  const exportToPDF = (type: 'paid' | 'unpaid' | 'all') => {
+  const exportToPDF = async (type: 'paid' | 'unpaid' | 'all') => {
+    setShowExportMenu(false)
     const doc = new jsPDF()
-    
+    const hasNyala = await loadNyalaFont(doc)
+    const fontName = hasNyala ? 'Nyala' : 'helvetica'
+
     // Title
+    doc.setFont(fontName, 'bold')
     doc.setFontSize(18)
     doc.text('Bluelight Academy - Payment Report', 14, 20)
-    
+
     // Period info
+    doc.setFont(fontName, 'normal')
     doc.setFontSize(12)
     doc.text(`Period: ${getEthiopianMonthDisplay(selectedMonth, 'en')} ${selectedYear} E.C`, 14, 30)
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 37)
-    
+    let yPosition = 47
+    const extraFilters: string[] = []
+    if (classFilter !== 'all') extraFilters.push(`Class: ${formatClassBoth(classFilter)}`)
+    if (sectionFilter !== 'all') extraFilters.push(`Section: ${formatSectionBoth(sectionFilter)}`)
+    if (extraFilters.length > 0) {
+      doc.setFont(fontName, 'normal')
+      doc.text(extraFilters.join(' | '), 14, 37)
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 44)
+      yPosition = 54
+    } else {
+      doc.setFont(fontName, 'normal')
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 37)
+    }
+
     // Separate paid and unpaid students
     const paidStudents = filteredStudents.filter(s => isStudentPaid(s._id))
     const unpaidStudents = filteredStudents.filter(s => !isStudentPaid(s._id))
-    
-    let yPosition = 47
-    
+
     if (type === 'paid' || type === 'all') {
       // Summary for paid
+      doc.setFont(fontName, 'normal')
       doc.setFontSize(11)
       doc.text(`Total Paid Students: ${paidStudents.length}`, 14, yPosition)
       yPosition += 10
-      
+
       if (paidStudents.length > 0) {
+        doc.setFont(fontName, 'bold')
         doc.setFontSize(14)
         doc.setTextColor(0, 128, 0)
         doc.text('Paid Students', 14, yPosition)
         doc.setTextColor(0, 0, 0)
-        
+
         const paidData = paidStudents.map(student => {
           const payment = payments.find(p => {
             const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
@@ -383,79 +507,315 @@ export default function PaymentsPage() {
           return [
             student.studentId,
             `${student.firstName} ${student.middleName} ${student.lastName}`,
-            student.class,
-            student.section || '-',
+            formatClassBoth(student.class),
+            student.section ? formatSectionBoth(student.section) : '-',
             payment?.amount ? `${payment.amount} ETB` : '-',
             payment?.paymentDate ? formatDateWithBothCalendars(payment.paymentDate) : '-',
             payment?.description || '-'
           ]
         })
-        
+
         autoTable(doc, {
           startY: yPosition + 5,
           head: [['Student ID', 'Name', 'Class', 'Section', 'Amount', 'Payment Date (G.C / E.C)', 'Description']],
           body: paidData,
+          showHead: 'firstPage',
           theme: 'grid',
-          headStyles: { fillColor: [34, 197, 94] },
+          styles: { font: fontName, fontSize: 8 },
+          headStyles: { fillColor: [34, 197, 94], font: fontName, fontStyle: 'bold' },
           margin: { left: 14, right: 14 },
           columnStyles: {
             5: { cellWidth: 50 },
             6: { cellWidth: 40 }
           }
         })
-        
+
         yPosition = (doc as any).lastAutoTable.finalY + 15
       }
     }
-    
+
     if (type === 'unpaid' || type === 'all') {
       if (type === 'all' && yPosition > 250) {
         doc.addPage()
         yPosition = 20
       }
-      
+
       if (type === 'unpaid') {
+        doc.setFont(fontName, 'normal')
         doc.setFontSize(11)
         doc.text(`Total Unpaid Students: ${unpaidStudents.length}`, 14, yPosition)
         yPosition += 10
       }
-      
+
       if (unpaidStudents.length > 0) {
+        doc.setFont(fontName, 'bold')
         doc.setFontSize(14)
         doc.setTextColor(220, 38, 38)
         doc.text('Unpaid Students', 14, yPosition)
         doc.setTextColor(0, 0, 0)
-        
+
         const unpaidData = unpaidStudents.map(student => [
           student.studentId,
           `${student.firstName} ${student.middleName} ${student.lastName}`,
-          student.class,
-          student.section || '-',
+          formatClassBoth(student.class),
+          student.section ? formatSectionBoth(student.section) : '-',
           student.fatherPhone || '-',
           student.motherPhone || '-'
         ])
-        
+
         autoTable(doc, {
           startY: yPosition + 5,
           head: [['Student ID', 'Name', 'Class', 'Section', 'Father Phone', 'Mother Phone']],
           body: unpaidData,
+          showHead: 'firstPage',
           theme: 'grid',
-          headStyles: { fillColor: [220, 38, 38] },
+          styles: { font: fontName, fontSize: 8 },
+          headStyles: { fillColor: [220, 38, 38], font: fontName, fontStyle: 'bold' },
           margin: { left: 14, right: 14 }
         })
       }
     }
-    
+
     // Save PDF
     const fileName = type === 'paid' 
       ? `Paid_Students_${selectedMonth}_${selectedYear}.pdf`
       : type === 'unpaid'
       ? `Unpaid_Students_${selectedMonth}_${selectedYear}.pdf`
       : `Payment_Report_${selectedMonth}_${selectedYear}.pdf`
-    
+
     doc.save(fileName)
     toast.success(getText('PDF exported successfully', 'ፒዲኤፍ በተሳካ ሁኔታ ወጥቷል'))
-    setShowExportMenu(false)
+  }
+
+  const generateAnnualPaymentReportPDF = async () => {
+    if (filteredStudents.length === 0) {
+      toast.error(getText('No students to generate report for', 'ሪፖርት የሚወጣላቸው ተማሪዎች የሉም'))
+      return
+    }
+
+    setGeneratingReport(true)
+    const toastId = toast.loading(getText('Generating annual payment report PDF...', 'ዓመታዊ የክፍያ ሪፖርት ፒዲኤፍ እየተዘጋጀ ነው...'))
+
+    try {
+      const token = localStorage.getItem('token')
+      const res = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/payments?year=${selectedYear}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const yearPayments: Payment[] = Array.isArray(res.data) ? res.data : []
+
+      // Create landscape jsPDF instance (A4: 297mm x 210mm)
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      })
+
+      const hasNyala = await loadNyalaFont(doc)
+      const fontName = hasNyala ? 'Nyala' : 'helvetica'
+
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+
+      // Header Banner
+      doc.setFillColor(30, 58, 138)
+      doc.rect(0, 0, pageWidth, 20, 'F')
+
+      doc.setTextColor(255, 255, 255)
+      doc.setFont(fontName, 'bold')
+      doc.setFontSize(15)
+      doc.text('Bluelight Academy', pageWidth / 2, 8, { align: 'center' })
+
+      doc.setFontSize(10.5)
+      doc.setFont(fontName, 'normal')
+      doc.text(
+        `Annual Student Payment Report — ${selectedYear} E.C (${selectedYear} ዓ.ም የትምህርት ክፍያ ሪፖርት)`,
+        pageWidth / 2,
+        15,
+        { align: 'center' }
+      )
+
+      // Class info box (Class is enough, scope text removed)
+      doc.setFillColor(243, 244, 246)
+      doc.rect(8, 23, pageWidth - 16, 9, 'F')
+      doc.setDrawColor(209, 213, 219)
+      doc.rect(8, 23, pageWidth - 16, 9, 'S')
+
+      doc.setTextColor(31, 41, 55)
+      doc.setFont(fontName, 'bold')
+      doc.setFontSize(9.5)
+
+      let classInfoText = classFilter !== 'all'
+        ? `Class: ${formatClassBoth(classFilter)}`
+        : 'Class: All Classes (ሁሉም ክፍሎች)'
+      if (sectionFilter !== 'all') {
+        classInfoText += `  |  Section: ${formatSectionBoth(sectionFilter)}`
+      }
+
+      doc.text(classInfoText, 12, 29)
+
+      doc.setFont(fontName, 'normal')
+      doc.setFontSize(8.5)
+      const metaRight = `Total Students: ${filteredStudents.length}  |  Generated: ${new Date().toLocaleDateString()}`
+      doc.text(metaRight, pageWidth - 12, 29, { align: 'right' })
+
+      // 10 academic months: Meskerem + Registration Fee then other 9 months in order
+      const reportMonths = [
+        { value: 'September', header: 'Meskerem + Registration Fee\n(መስከረም + የምዝገባ ክፍያ)' },
+        { value: 'October',   header: 'Tikimt\n(ጥቅምት)' },
+        { value: 'November',  header: 'Hidar\n(ህዳር)' },
+        { value: 'December',  header: 'Tahsas\n(ታህሳስ)' },
+        { value: 'January',   header: 'Tir\n(ጥር)' },
+        { value: 'February',  header: 'Yekatit\n(የካቲት)' },
+        { value: 'March',     header: 'Megabit\n(መጋቢት)' },
+        { value: 'April',     header: 'Miazia\n(ሚያዚያ)' },
+        { value: 'May',       header: 'Ginbot\n(ግንቦት)' },
+        { value: 'June',      header: 'Sene\n(ሰኔ)' },
+      ]
+
+      const headRow = [
+        '#',
+        'Student Name\n(የተማሪ ስም)',
+        ...reportMonths.map(m => m.header),
+        'Total\n(ጠቅላላ)'
+      ]
+
+      // Month totals for summary row
+      const monthTotals: number[] = new Array(reportMonths.length).fill(0)
+      let grandTotal = 0
+
+      // Build rows
+      const bodyRows = filteredStudents.map((student, idx) => {
+        let studentTotal = 0
+        const monthCells = reportMonths.map((m, mIdx) => {
+          const p = yearPayments.find(pay => {
+            const pStudentId = typeof pay.studentId === 'string' ? pay.studentId : (pay.studentId as any)?._id
+            return pStudentId === student._id && pay.month.toLowerCase() === m.value.toLowerCase()
+          })
+
+          if (p && p.amount) {
+            const amt = Number(p.amount) || 0
+            studentTotal += amt
+            monthTotals[mIdx] += amt
+            const dateStr = p.paymentDate
+              ? new Date(p.paymentDate).toLocaleDateString('en-GB')
+              : ''
+            return dateStr ? `${amt.toLocaleString()} ETB\n${dateStr}` : `${amt.toLocaleString()} ETB`
+          }
+          return '-'
+        })
+
+        grandTotal += studentTotal
+
+        return [
+          String(idx + 1),
+          `${student.firstName} ${student.middleName} ${student.lastName}`,
+          ...monthCells,
+          `${studentTotal.toLocaleString()} ETB`
+        ]
+      })
+
+      // Summary row
+      const footRow = [
+        '',
+        'TOTAL / ጠቅላላ',
+        ...monthTotals.map(t => (t > 0 ? `${t.toLocaleString()} ETB` : '-')),
+        `${grandTotal.toLocaleString()} ETB`
+      ]
+
+      autoTable(doc, {
+        startY: 35,
+        head: [headRow],
+        body: bodyRows,
+        foot: [footRow],
+        showHead: 'firstPage',
+        showFoot: 'lastPage',
+        theme: 'grid',
+        styles: {
+          font: fontName,
+          fontSize: 6.5,
+          cellPadding: 1.5,
+          valign: 'middle',
+          halign: 'center',
+          overflow: 'linebreak',
+          lineColor: [209, 213, 219],
+          lineWidth: 0.2
+        },
+        headStyles: {
+          fillColor: [30, 58, 138],
+          textColor: 255,
+          font: fontName,
+          fontSize: 6.5,
+          fontStyle: 'bold',
+          halign: 'center',
+          valign: 'middle',
+          cellPadding: 2
+        },
+        footStyles: {
+          fillColor: [243, 244, 246],
+          textColor: [17, 24, 39],
+          font: fontName,
+          fontSize: 7.5,
+          fontStyle: 'bold',
+          halign: 'center',
+          valign: 'middle'
+        },
+        columnStyles: {
+          0: { cellWidth: 8, halign: 'center' },
+          1: { cellWidth: 39, halign: 'left', fontSize: 7 },
+          2: { cellWidth: 24, halign: 'center' },
+          3: { cellWidth: 20, halign: 'center' },
+          4: { cellWidth: 20, halign: 'center' },
+          5: { cellWidth: 20, halign: 'center' },
+          6: { cellWidth: 20, halign: 'center' },
+          7: { cellWidth: 20, halign: 'center' },
+          8: { cellWidth: 20, halign: 'center' },
+          9: { cellWidth: 20, halign: 'center' },
+          10: { cellWidth: 20, halign: 'center' },
+          11: { cellWidth: 20, halign: 'center' },
+          12: { cellWidth: 24, halign: 'right', fontStyle: 'bold', fontSize: 8 }
+        },
+        alternateRowStyles: {
+          fillColor: [249, 250, 251]
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            if (data.column.index >= 2 && data.column.index <= 11) {
+              const txt = Array.isArray(data.cell.text) ? data.cell.text.join(' ') : String(data.cell.text)
+              if (txt.includes('ETB')) {
+                data.cell.styles.fontStyle = 'bold'
+                data.cell.styles.fontSize = 7.5
+                data.cell.styles.textColor = [17, 24, 39]
+              }
+            } else if (data.column.index === 12) {
+              data.cell.styles.fontStyle = 'bold'
+              data.cell.styles.fontSize = 8
+              data.cell.styles.textColor = [17, 24, 39]
+            }
+          }
+        },
+        margin: { left: 8, right: 8, top: 10, bottom: 10 },
+        didDrawPage: (data) => {
+          const str = `Page ${data.pageNumber}`
+          doc.setFont(fontName, 'normal')
+          doc.setFontSize(8)
+          doc.setTextColor(156, 163, 175)
+          doc.text(str, pageWidth / 2, pageHeight - 5, { align: 'center' })
+        }
+      })
+
+      const scopePart = classFilter !== 'all' ? `-${classFilter}` : ''
+      const secPart = sectionFilter !== 'all' ? `-Sec${sectionFilter}` : ''
+      const fileName = `Annual_Payment_Report_${selectedYear}EC${scopePart}${secPart}.pdf`
+
+      doc.save(fileName)
+      toast.success(getText('Annual payment report downloaded successfully', 'ዓመታዊ የክፍያ ሪፖርት በተሳካ ሁኔታ ወርዷል'), { id: toastId })
+    } catch (err: any) {
+      console.error('Failed to generate annual payment report:', err)
+      toast.error(err.message || getText('Failed to generate report', 'ሪፖርት ማውጣት አልተሳካም'), { id: toastId })
+    } finally {
+      setGeneratingReport(false)
+    }
   }
 
   const filteredStudents = students.filter(student => {
@@ -520,6 +880,16 @@ export default function PaymentsPage() {
       }
     }
     
+    // Class filter
+    if (classFilter !== 'all' && student.class?.toLowerCase() !== classFilter.toLowerCase()) {
+      return false
+    }
+
+    // Section filter
+    if (sectionFilter !== 'all' && student.section?.toLowerCase() !== sectionFilter.toLowerCase()) {
+      return false
+    }
+
     // Student type filter
     if (studentTypeFilter !== 'all') {
       const hasPaymentCode = student.paymentCode && student.paymentCode.trim() !== ''
@@ -662,11 +1032,27 @@ export default function PaymentsPage() {
                       <span>{getText(`Mark ${selectedPaidStudents.length} as Unpaid`, `${selectedPaidStudents.length} እንደ ያልተከፈለ ምልክት አድርግ`)}</span>
                     </button>
                   )}
-                  <div className="grid grid-cols-2 gap-3 w-full md:w-auto">
-                    <div className="relative w-full">
+                  <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <button
+                      onClick={generateAnnualPaymentReportPDF}
+                      disabled={generatingReport}
+                      className="bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap disabled:opacity-60"
+                      title={getText('Generate Annual Payment Report (10 Months Table)', 'ዓመታዊ የክፍያ ሪፖርት አውጣ (የ10 ወራት ሠንጠረዥ)')}
+                    >
+                      {generatingReport ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      )}
+                      <span className="text-sm md:text-base font-semibold">{getText('Generate Payment Report', 'የክፍያ ሪፖርት አውጣ')}</span>
+                    </button>
+
+                    <div className="relative">
                       <button
                         onClick={() => setShowExportMenu(!showExportMenu)}
-                        className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
+                        className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -674,7 +1060,7 @@ export default function PaymentsPage() {
                         <span className="text-sm md:text-base">{getText('Export PDF', 'ፒዲኤፍ አውጣ')}</span>
                       </button>
                       {showExportMenu && (
-                        <div className={`absolute right-0 mt-2 w-56 rounded-lg shadow-xl z-10 ${theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+                        <div className={`absolute right-0 mt-2 w-56 rounded-lg shadow-xl z-10 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border border-gray-200'}`}>
                           <div className="py-2">
                             <button
                               onClick={() => exportToPDF('paid')}
@@ -704,7 +1090,7 @@ export default function PaymentsPage() {
                     {canDo('custom-payment', 'view') && (
                     <a
                       href="/payments/custom"
-                      className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
+                      className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -795,16 +1181,42 @@ export default function PaymentsPage() {
                   <select
                     value={paymentFilter}
                     onChange={(e) => setPaymentFilter(e.target.value as 'all' | 'paid' | 'unpaid')}
-                    className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                   >
                     <option value="all">{getText('All Students', 'ሁሉም ተማሪዎች')}</option>
                     <option value="paid">{getText('Paid Only', 'የተከፈለ ብቻ')}</option>
                     <option value="unpaid">{getText('Unpaid Only', 'ያልተከፈለ ብቻ')}</option>
                   </select>
                   <select
+                    value={classFilter}
+                    onChange={(e) => setClassFilter(e.target.value)}
+                    className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                    title={getText('Filter by Class', 'በክፍል አጣራ')}
+                  >
+                    <option value="all">All Classes (ሁሉም ክፍሎች)</option>
+                    {availableClasses.map((cls) => (
+                      <option key={cls.value} value={cls.value}>
+                        {cls.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={sectionFilter}
+                    onChange={(e) => setSectionFilter(e.target.value)}
+                    className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                    title={getText('Filter by Section', 'በሴክሽን አጣራ')}
+                  >
+                    <option value="all">All Sections (ሁሉም ክፍሎች)</option>
+                    {availableSections.map((sec) => (
+                      <option key={sec.value} value={sec.value}>
+                        {sec.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
                     value={studentTypeFilter}
                     onChange={(e) => setStudentTypeFilter(e.target.value as 'all' | 'regular' | 'special')}
-                    className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                   >
                     <option value="all">{getText('All Types', 'ሁሉም አይነቶች')}</option>
                     <option value="regular">{getText('Regular', 'መደበኛ')}</option>
@@ -943,10 +1355,10 @@ export default function PaymentsPage() {
                                 </div>
                               </td>
                               <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                {student.class}
+                                {formatClassBoth(student.class)}
                               </td>
                               <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                {student.section || '-'}
+                                {student.section ? formatSectionBoth(student.section) : '-'}
                               </td>
                               <td className="px-6 py-4">
                                 <div className="flex items-center justify-center gap-3">
@@ -1063,14 +1475,14 @@ export default function PaymentsPage() {
 
                             {/* Class & Section */}
                             <div className={`flex gap-4 mb-3 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                              <div>
-                                <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>{getText('Class', 'ክፍል')}: </span>
-                                <span className="font-medium">{student.class}</span>
-                              </div>
-                              <div>
-                                <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>{getText('Section', 'ክፍል')}: </span>
-                                <span className="font-medium">{student.section || '-'}</span>
-                              </div>
+                                <div>
+                                  <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>{getText('Class', 'ክፍል')}: </span>
+                                  <span className="font-medium">{formatClassBoth(student.class)}</span>
+                                </div>
+                                <div>
+                                  <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>{getText('Section', 'ክፍል')}: </span>
+                                  <span className="font-medium">{student.section ? formatSectionBoth(student.section) : '-'}</span>
+                                </div>
                             </div>
 
                             {/* Payment Status */}
@@ -1331,7 +1743,7 @@ export default function PaymentsPage() {
               <div className="flex justify-center items-center h-40">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
               </div>
-            ) : studentHistory.length === 0 ? (
+            ) : sortedStudentHistory.length === 0 ? (
               <div className="text-center py-12">
                 <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1342,10 +1754,18 @@ export default function PaymentsPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {studentHistory.map((payment) => (
+                {sortedStudentHistory.map((payment, index) => (
                   <div
                     key={payment._id}
-                    className={`p-4 rounded-lg border ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}
+                    className={`p-4 rounded-lg border transition-all ${
+                      index === 0
+                        ? theme === 'dark'
+                          ? 'bg-gray-700 border-blue-500/70 ring-1 ring-blue-500/30'
+                          : 'bg-blue-50/40 border-blue-300 ring-1 ring-blue-200'
+                        : theme === 'dark'
+                        ? 'bg-gray-700 border-gray-600'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
                   >
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
@@ -1356,6 +1776,15 @@ export default function PaymentsPage() {
                         }`}>
                           {getEthiopianMonthDisplay(payment.month, language)} {payment.year} {getText('E.C', 'ዓ.ም')}
                         </span>
+                        {index === 0 && (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            theme === 'dark'
+                              ? 'bg-blue-900/60 text-blue-300 border border-blue-700'
+                              : 'bg-blue-100 text-blue-700 border border-blue-300'
+                          }`}>
+                            {getText('Latest', 'የቅርብ ጊዜ')}
+                          </span>
+                        )}
                       </div>
                       <span className={`text-lg font-bold ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
                         {payment.amount} ETB

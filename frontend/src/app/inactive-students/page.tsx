@@ -9,7 +9,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { useSettings } from '@/contexts/SettingsContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { formatDateWithBothCalendars } from '@/utils/dateUtils';
+import { formatDateWithBothCalendars, sortPaymentsByAcademicDate, getEthiopianMonthDisplay } from '@/utils/dateUtils';
 
 interface Student {
   _id: string;
@@ -43,6 +43,24 @@ interface Payment {
   paymentDate: string;
   status: string;
 }
+
+const toTitleCase = (str?: string): string => {
+  if (!str) return '';
+  const s = String(str).trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  return s
+    .toLowerCase()
+    .replace(/(?:^|[^\p{L}\p{N}])(\p{L})/gu, (match, letter) =>
+      match.slice(0, -letter.length) + letter.toUpperCase()
+    );
+};
+
+
+const getInitials = (firstName?: string, middleName?: string, lastName?: string) => {
+  const f = firstName?.trim().charAt(0) || '';
+  const m = middleName?.trim().charAt(0) || lastName?.trim().charAt(0) || '';
+  return `${f}${m}`.toUpperCase();
+};
 
 export default function InactiveStudentsPage() {
   const { language, theme, getText } = useSettings();
@@ -191,7 +209,7 @@ export default function InactiveStudentsPage() {
         `${process.env.NEXT_PUBLIC_API_URL}/payments/student/${student._id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setStudentHistory(response.data);
+      setStudentHistory(sortPaymentsByAcademicDate<Payment>(response.data, 'desc'));
     } catch {
       toast.error(getText('Failed to fetch payment history', 'የክፍያ ታሪክ መጫን አልተሳካም'));
     } finally {
@@ -220,14 +238,16 @@ export default function InactiveStudentsPage() {
     
     const tableData = filteredStudents.map(student => [
       student.studentId,
-      `${student.firstName} ${student.middleName} ${student.lastName}`,
+      language === 'am' && student.firstNameAmharic
+        ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
+        : [toTitleCase(student.firstName), toTitleCase(student.middleName), toTitleCase(student.lastName)].filter(Boolean).join(' '),
       student.class,
       student.section || '-',
       student.gender,
       student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : '-',
       student.paymentCode || '-',
       student.fatherPhone || '-',
-      student.motherName || '-',
+      toTitleCase(student.motherName) || '-',
       student.motherPhone || '-',
       student.email || '-'
     ]);
@@ -394,7 +414,7 @@ export default function InactiveStudentsPage() {
                                 <img src={student.photo} alt="" className="h-8 w-8 rounded-full object-cover opacity-60" />
                               ) : (
                                 <span className="text-xs font-medium text-white">
-                                  {student.firstName.charAt(0)}{student.lastName.charAt(0)}
+                                  {getInitials(student.firstName, student.middleName, student.lastName)}
                                 </span>
                               )}
                             </div>
@@ -402,7 +422,7 @@ export default function InactiveStudentsPage() {
                               <div className={`text-sm font-medium truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                                 {language === 'am' && student.firstNameAmharic 
                                   ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-                                  : `${student.firstName} ${student.middleName} ${student.lastName}`
+                                  : [toTitleCase(student.firstName), toTitleCase(student.middleName), toTitleCase(student.lastName)].filter(Boolean).join(' ')
                                 }
                               </div>
                               {student.email && (
@@ -678,17 +698,36 @@ export default function InactiveStudentsPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {studentHistory.map((payment) => (
+                {studentHistory.map((payment, index) => (
                   <div
                     key={payment._id}
-                    className={`p-4 rounded-lg border ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}
+                    className={`p-4 rounded-lg border transition-all ${
+                      index === 0
+                        ? theme === 'dark'
+                          ? 'bg-gray-700 border-blue-500/70 ring-1 ring-blue-500/30'
+                          : 'bg-blue-50/40 border-blue-300 ring-1 ring-blue-200'
+                        : theme === 'dark'
+                        ? 'bg-gray-700 border-gray-600'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                        payment.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {payment.month} {payment.year} E.C
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                          payment.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {getEthiopianMonthDisplay(payment.month, language)} {payment.year} {getText('E.C', 'ዓ.ም')}
+                        </span>
+                        {index === 0 && (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            theme === 'dark'
+                              ? 'bg-blue-900/60 text-blue-300 border border-blue-700'
+                              : 'bg-blue-100 text-blue-700 border border-blue-300'
+                          }`}>
+                            {getText('Latest', 'የቅርብ ጊዜ')}
+                          </span>
+                        )}
+                      </div>
                       <span className={`text-lg font-bold ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
                         {payment.amount} ETB
                       </span>

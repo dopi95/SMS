@@ -49,6 +49,17 @@ const STATUS_BADGE: Record<string, string> = {
   rejected: 'bg-red-100 text-red-600',
 }
 
+const toTitleCase = (str?: string): string => {
+  if (!str) return ''
+  const s = String(str).trim().replace(/\s+/g, ' ')
+  if (!s) return ''
+  return s
+    .toLowerCase()
+    .replace(/(?:^|[^\p{L}\p{N}])(\p{L})/gu, (match, letter) =>
+      match.slice(0, -letter.length) + letter.toUpperCase()
+    )
+}
+
 export default function PendingStudentsPage() {
   const [students, setStudents] = useState<PendingStudent[]>([])
   const [totalStudents, setTotalStudents] = useState<number>(0)
@@ -241,14 +252,14 @@ export default function PendingStudentsPage() {
       head: [['#', 'Student Name', 'Gender', 'Class', 'Type', 'Status', 'Father Name', 'Father Phone', 'Mother Name', 'Mother Phone', 'Registered Date']],
       body: filtered.map((s, i) => [
         i + 1,
-        `${s.firstName} ${s.middleName} ${s.lastName}`,
+        [toTitleCase(s.firstName), toTitleCase(s.middleName), toTitleCase(s.lastName)].filter(Boolean).join(' '),
         s.gender ? s.gender.charAt(0).toUpperCase() + s.gender.slice(1) : '—',
         s.class.replace(/\s*\(.*?\)/, '').trim(),
         s.studentType === 'new' ? 'New' : 'Existing',
         s.status.charAt(0).toUpperCase() + s.status.slice(1),
-        s.fatherName || '—',
+        toTitleCase(s.fatherName) || '—',
         s.fatherPhone || '—',
-        s.motherName || '—',
+        toTitleCase(s.motherName) || '—',
         s.motherPhone || '—',
         new Date(s.createdAt).toLocaleDateString(),
       ]),

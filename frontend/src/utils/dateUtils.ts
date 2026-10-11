@@ -61,6 +61,41 @@ export function getEthiopianMonthDisplay(monthValue: string, lang: string = 'en'
   return lang === 'am' ? `${matched.am} (${matched.en})` : `${matched.en} (${matched.am})`
 }
 
+export function getAcademicMonthIndex(month: string): number {
+  if (!month) return 0
+  const normalized = month.trim().toLowerCase()
+  const matched = ETHIOPIAN_ACADEMIC_MONTHS.find(
+    m => m.value.toLowerCase() === normalized || m.en.toLowerCase() === normalized || m.am === month.trim()
+  )
+  if (matched) return matched.ecIndex
+  if (normalized === 'july' || normalized === 'hamle' || month.trim() === 'ሐምሌ') return 11
+  if (normalized === 'august' || normalized === 'nehase' || month.trim() === 'ነሐሴ') return 12
+  if (normalized === 'pagume' || normalized === 'pagumien' || month.trim() === 'ጳጉሜ') return 13
+  return 0
+}
+
+export function sortPaymentsByAcademicDate<T extends Record<string, any>>(
+  payments: T[],
+  order: 'desc' | 'asc' = 'desc'
+): T[] {
+  if (!Array.isArray(payments)) return []
+  return [...payments].sort((a, b) => {
+    const yearA = Number(a.year) || 0
+    const yearB = Number(b.year) || 0
+    if (yearA !== yearB) {
+      return order === 'desc' ? yearB - yearA : yearA - yearB
+    }
+    const monthA = getAcademicMonthIndex(a.month || '')
+    const monthB = getAcademicMonthIndex(b.month || '')
+    if (monthA !== monthB) {
+      return order === 'desc' ? monthB - monthA : monthA - monthB
+    }
+    const timeA = a.paymentDate ? new Date(a.paymentDate).getTime() : 0
+    const timeB = b.paymentDate ? new Date(b.paymentDate).getTime() : 0
+    return order === 'desc' ? timeB - timeA : timeA - timeB
+  })
+}
+
 export function calcAgeFromECString(dob: string): number | null {
   // dob format: dd/mm/yyyy (Ethiopian Calendar)
   const parts = dob.split('/')
