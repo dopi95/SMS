@@ -810,7 +810,7 @@ export default function StudentsPage() {
     autoTable(doc, {
       startY: 31,
       head: [['#', 'Full Name', 'Class', 'Sec.', 'Username', 'Password']],
-      body: list.map((c, i) => [i + 1, c.name, c.class || '', c.section || '', c.username, c.password]),
+      body: list.map((c, i) => [String(i + 1), c.name, c.class || '', c.section || '', c.username, c.password]),
       styles: { fontSize: 8, cellPadding: 3 },
       headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold', fontSize: 8 },
       alternateRowStyles: { fillColor: [239, 246, 255] },
@@ -1210,7 +1210,7 @@ export default function StudentsPage() {
         valign: 'middle'
       },
       columnStyles: {
-        0: { cellWidth: 7, halign: 'center' },
+        0: { cellWidth: 9, halign: 'center' },
         1: { cellWidth: isAm ? 44 : 38, halign: 'left' },
         2: { cellWidth: 9, halign: 'center' },
         3: { cellWidth: 10, halign: 'center' }
@@ -1405,7 +1405,7 @@ export default function StudentsPage() {
 
     const headRow = ['#', ...activeFields.map(f => getText(f.labelEn, f.labelAm))];
     const bodyRows = exportList.map((s, i) => [
-      i + 1,
+      String(i + 1),
       ...activeFields.map(f => {
         const val = f.getValue(s);
         return val ? String(val) : '—';
@@ -1413,10 +1413,12 @@ export default function StudentsPage() {
     ]);
 
     const columnStyles: Record<number, any> = {
-      0: { cellWidth: 8, halign: 'center' }
+      0: { cellWidth: 10, halign: 'center' }
     };
     activeFields.forEach((f, idx) => {
-      if (f.id === 'section') {
+      if (f.id === 'studentId') {
+        columnStyles[idx + 1] = { cellWidth: 24, halign: 'center' };
+      } else if (f.id === 'section') {
         columnStyles[idx + 1] = { halign: 'center' };
       }
     });
