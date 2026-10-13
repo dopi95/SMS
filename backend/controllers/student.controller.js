@@ -393,7 +393,7 @@ const bulkDelete = async (req, res) => {
 
 const bulkImport = async (req, res) => {
   try {
-    const { students } = req.body;
+    const { students, mode = 'all' } = req.body;
     if (!Array.isArray(students) || students.length === 0)
       return res.status(400).json({ message: 'No students provided' });
 
@@ -401,15 +401,183 @@ const bulkImport = async (req, res) => {
     const validSections = ['A', 'B', 'C', 'D'];
     const validGenders = ['Male', 'Female'];
 
-    const results = { created: 0, failed: [], students: [] };
+    const cleanName = (s) => {
+      if (!s) return '';
+      return String(s)
+        .trim()
+        .toLowerCase()
+        .replace(/[,\.]/g, '')
+        .replace(/\s+/g, ' ');
+    };
+
+    // Load existing students to check against imported full names
+    const existingStudents = await Student.find({}, {
+      _id: 1,
+      firstName: 1,
+      middleName: 1,
+      lastName: 1,
+      firstNameAmharic: 1,
+      middleNameAmharic: 1,
+      lastNameAmharic: 1,
+      studentId: 1,
+      paymentCode: 1,
+      class: 1,
+      section: 1,
+    });
+
+    const studentsWithNames = existingStudents.map(s => ({
+      doc: s,
+      firstName: cleanName(s.firstName),
+      middleName: cleanName(s.middleName),
+      lastName: cleanName(s.lastName),
+      firstNameAmharic: cleanName(s.firstNameAmharic),
+      middleNameAmharic: cleanName(s.middleNameAmharic),
+      lastNameAmharic: cleanName(s.lastNameAmharic),
+      full3En: cleanName(`${s.firstName} ${s.middleName} ${s.lastName}`),
+      full2En: cleanName(`${s.firstName} ${s.middleName}`),
+      full3Am: cleanName(`${s.firstNameAmharic || ''} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`),
+      full2Am: cleanName(`${s.firstNameAmharic || ''} ${s.middleNameAmharic || ''}`),
+      class: cleanName(s.class)
+    }));
+
+    const isLooseEnglishMatch = (a, b) => {
+      if (!a || !b) return false;
+      const s1 = String(a).toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+      const s2 = String(b).toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+      if (!s1 || !s2) return false;
+      if (s1 === s2) return true;
+      const collapse = (s) => s.replace(/(.)\1+/g, '$1');
+      if (collapse(s1) === collapse(s2)) return true;
+      const phonetic = (s) => collapse(s).replace(/[ie]/g, 'e').replace(/[uo]/g, 'o').replace(/c/g, 'k').replace(/ph/g, 'f');
+      if (phonetic(s1) === phonetic(s2)) return true;
+      if (s1.length >= 4 && s2.length >= 4 && (s1.startsWith(s2) || s2.startsWith(s1))) return true;
+      const len = Math.max(s1.length, s2.length);
+      const dist = (x, y) => {
+        const dp = [];
+        for (let i = 0; i <= y.length; i++) dp[i] = [i];
+        for (let j = 0; j <= x.length; j++) dp[0][j] = j;
+        for (let i = 1; i <= y.length; i++) {
+          for (let j = 1; j <= x.length; j++) {
+            dp[i][j] = y.charAt(i - 1) === x.charAt(j - 1)
+              ? dp[i - 1][j - 1]
+              : Math.min(dp[i - 1][j - 1] + 1, dp[i][j - 1] + 1, dp[i - 1][j] + 1);
+          }
+        }
+        return dp[y.length][x.length];
+      };
+      const d = dist(s1, s2);
+      return (len <= 5 && d <= 1) || (len > 5 && d <= 2);
+    };
+
+    const results = { created: 0, updated: 0, failed: [], students: [] };
 
     for (const row of students) {
       try {
-        // Flexible class matching: "nursery", "NURSERY", "lkg", "ukg" etc.
+        const paymentCodeInput = String(row.paymentCode || row.studentCode || row.code || '').trim();
+
+        const rowFirst = cleanName(row.firstName);
+        const rowMiddle = cleanName(row.middleName);
+        const rowLast = cleanName(row.lastName);
+        const rowFirstAm = cleanName(row.firstNameAmharic);
+        const rowMiddleAm = cleanName(row.middleNameAmharic);
+        const rowLastAm = cleanName(row.lastNameAmharic);
+
+        const rowFullName = cleanName(row.fullName);
+        const rowClass = cleanName(row.class);
+
+        // Check if student exists in the system by English First Name, Middle Name, and Last Name
+        let match = null;
+
+        // 1. Direct matched student ID from frontend preview confirmation
+        if (row.matchedStudentId) {
+          match = studentsWithNames.find(s => s.doc._id.toString() === String(row.matchedStudentId));
+        }
+
+        // 2. Exact match on English First Name, Middle Name, and Last Name
+        if (!match && rowFirst && rowMiddle) {
+          const matches = studentsWithNames.filter(s =>
+            s.firstName === rowFirst &&
+            s.middleName === rowMiddle &&
+            (rowLast ? s.lastName === rowLast : true)
+          );
+          if (matches.length === 1) {
+            match = matches[0];
+          } else if (matches.length > 1) {
+            match = (rowClass && matches.find(s => s.class === rowClass)) || matches[0];
+          }
+        }
+
+        // 3. Flexible/loose English spelling match on First Name, Middle Name, and Last Name
+        if (!match && rowFirst && rowMiddle) {
+          const matches = studentsWithNames.filter(s =>
+            isLooseEnglishMatch(rowFirst, s.firstName) &&
+            isLooseEnglishMatch(rowMiddle, s.middleName) &&
+            ((rowLast && s.lastName) ? isLooseEnglishMatch(rowLast, s.lastName) : true)
+          );
+          if (matches.length === 1) {
+            match = matches[0];
+          } else if (matches.length > 1) {
+            match = (rowClass && matches.find(s => s.class === rowClass)) || matches[0];
+          }
+        }
+
+        // 3b. Swapped First and Middle name check (e.g. Father Name column placed before First Name)
+        if (!match && rowFirst && rowMiddle) {
+          const swapped = studentsWithNames.filter(s =>
+            isLooseEnglishMatch(rowMiddle, s.firstName) &&
+            isLooseEnglishMatch(rowFirst, s.middleName) &&
+            ((rowLast && s.lastName) ? isLooseEnglishMatch(rowLast, s.lastName) : true)
+          );
+          if (swapped.length === 1) {
+            match = swapped[0];
+          } else if (swapped.length > 1) {
+            match = (rowClass && swapped.find(s => s.class === rowClass)) || swapped[0];
+          }
+        }
+
+        // 4. Combined full name matching fallback
+        if (!match && (rowFullName || (rowFirst && rowMiddle))) {
+          const rowCombined = rowFullName || `${rowFirst} ${rowMiddle} ${rowLast}`.trim();
+          const matches = studentsWithNames.filter(s =>
+            s.full3En === rowCombined ||
+            s.full2En === rowCombined ||
+            isLooseEnglishMatch(rowCombined, s.full3En) ||
+            isLooseEnglishMatch(rowCombined, s.full2En)
+          );
+          if (matches.length === 1) {
+            match = matches[0];
+          } else if (matches.length > 1) {
+            match = (rowClass && matches.find(s => s.class === rowClass)) || matches[0];
+          }
+        }
+
+        // IF MATCHED: update paymentCode in the system for this existing student (only this field, no additional changes)
+        if (match) {
+          if (paymentCodeInput) {
+            const studentToUpdate = await Student.findById(match.doc._id);
+            if (studentToUpdate) {
+              // ONLY update paymentCode field in the system
+              studentToUpdate.paymentCode = paymentCodeInput;
+              await studentToUpdate.save();
+              match.doc.paymentCode = paymentCodeInput;
+              results.updated++;
+              results.students.push(studentToUpdate);
+            }
+          } else {
+            results.updated++;
+          }
+          continue;
+        }
+
+        // IF NOT MATCHED: If mode is 'only_matched', do NOT register as new student
+        if (mode === 'only_matched' || mode === 'matched_only') {
+          results.skipped = (results.skipped || 0) + 1;
+          continue;
+        }
+
+        // IF NOT MATCHED and mode is 'all': Try registering as new student if all required fields are provided
         const classVal = validClasses.find(c => c.toLowerCase() === (row.class || '').toLowerCase().trim()) || null;
-        // Flexible section: strip spaces
         const sectionVal = validSections.find(s => s.toLowerCase() === (row.section || '').toLowerCase().trim()) || undefined;
-        // Flexible gender: accept "m"/"f" shorthand too
         let genderInput = (row.gender || '').toLowerCase().trim();
         if (genderInput === 'm') genderInput = 'male';
         if (genderInput === 'f') genderInput = 'female';
@@ -419,21 +587,23 @@ const bulkImport = async (req, res) => {
         if (!row.firstName) missing.push('firstName');
         if (!row.middleName) missing.push('middleName');
         if (!row.lastName) missing.push('lastName');
-        if (!classVal) missing.push(`class (got: "${row.class}")`);
-        if (!genderVal) missing.push(`gender (got: "${row.gender}")`);
+        if (!classVal) missing.push(`class (got: "${row.class || ''}")`);
+        if (!genderVal) missing.push(`gender (got: "${row.gender || ''}")`);
         if (!row.joinedYear) missing.push('joinedYear');
 
         if (missing.length > 0) {
-          results.failed.push({ row, reason: `Missing or invalid: ${missing.join(', ')}` });
+          const displayName = row.fullName || [row.firstName, row.middleName, row.lastName].filter(Boolean).join(' ') || 'Unknown';
+          results.failed.push({
+            row,
+            reason: `Student "${displayName}" not found in system and cannot be created (missing ${missing.join(', ')})`
+          });
           continue;
         }
 
         const parseDateToEC = (val) => {
           if (!val) return undefined;
           const s = String(val).trim();
-          // Already dd/mm/yyyy
           if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return s;
-          // Try to parse and convert to dd/mm/yyyy
           const dmyMatch = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
           if (dmyMatch) return `${dmyMatch[1].padStart(2,'0')}/${dmyMatch[2].padStart(2,'0')}/${dmyMatch[3]}`;
           const d = new Date(s);
@@ -455,7 +625,7 @@ const bulkImport = async (req, res) => {
           class: classVal,
           section: sectionVal,
           address: row.address || '',
-          paymentCode: row.paymentCode || '',
+          paymentCode: paymentCodeInput,
           fatherName: row.fatherName || '',
           fatherPhone: String(row.fatherPhone || ''),
           motherName: row.motherName || '',
@@ -465,12 +635,33 @@ const bulkImport = async (req, res) => {
         await student.save();
         results.created++;
         results.students.push(student);
+
+        // Keep local cache up-to-date
+        studentsWithNames.push({
+          doc: student,
+          firstName: cleanName(student.firstName),
+          middleName: cleanName(student.middleName),
+          lastName: cleanName(student.lastName),
+          firstNameAmharic: cleanName(student.firstNameAmharic),
+          middleNameAmharic: cleanName(student.middleNameAmharic),
+          lastNameAmharic: cleanName(student.lastNameAmharic),
+          full3En: cleanName(`${student.firstName} ${student.middleName} ${student.lastName}`),
+          full2En: cleanName(`${student.firstName} ${student.middleName}`),
+          full3Am: cleanName(`${student.firstNameAmharic || ''} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`),
+          full2Am: cleanName(`${student.firstNameAmharic || ''} ${student.middleNameAmharic || ''}`),
+          class: cleanName(student.class)
+        });
       } catch (err) {
         results.failed.push({ row, reason: err.message });
       }
     }
 
-    await logActivity(req.user, 'Bulk Imported', 'Student', `Imported ${results.created} students`);
+    const logDetails = [
+      results.created > 0 ? `Imported ${results.created} new students` : '',
+      results.updated > 0 ? `Updated payment code for ${results.updated} students` : ''
+    ].filter(Boolean).join(', ') || 'Bulk import processed';
+
+    await logActivity(req.user, 'Bulk Imported', 'Student', logDetails);
     res.status(201).json(results);
   } catch (error) {
     res.status(500).json({ message: error.message });

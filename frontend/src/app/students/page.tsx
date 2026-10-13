@@ -131,6 +131,7 @@ export default function StudentsPage() {
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
+  const [importMode, setImportMode] = useState<'only_matched' | 'all'>('only_matched');
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [sectionClass, setSectionClass] = useState('');
   const [numSections, setNumSections] = useState(2);
@@ -617,30 +618,85 @@ export default function StudentsPage() {
   const normalizeRow = (raw: Record<string, any>) => {
     const get = (...keys: string[]) => {
       for (const k of keys) {
-        const found = Object.keys(raw).find(rk => rk.toLowerCase().replace(/[^a-z]/g, '') === k.toLowerCase().replace(/[^a-z]/g, ''));
+        const found = Object.keys(raw).find(rk => {
+          const cleanRk = rk.toLowerCase().replace(/[\s_\-\.\/\\:'"]/g, '');
+          const cleanK = k.toLowerCase().replace(/[\s_\-\.\/\\:'"]/g, '');
+          return cleanRk === cleanK || cleanRk === cleanK + 's' || cleanRk + 's' === cleanK;
+        });
         if (found && raw[found] !== undefined && raw[found] !== null && String(raw[found]).trim() !== '') return String(raw[found]).trim();
       }
       return '';
     };
+
+    let firstName = get('firstname', 'first name', 'firstnames', 'first names', 'fname', 'givenname', 'given name', 'የመጀመሪያ ስም');
+    // "middle name" and "middle names" are treated identically (as father's name)
+    let middleName = get('middlename', 'middle name', 'middlenames', 'middle names', 'mname', 'fathername', 'father name', 'fathernames', 'father names', 'father', 'fathers', 'fathersname', "father's name", 'የአባት ስም');
+    let lastName = get('lastname', 'last name', 'lastnames', 'last names', 'lname', 'grandfathername', 'grandfather name', 'grandfather names', 'grand father name', 'grandfather', 'grandfathers', "grandfather's name", 'የአያት ስም');
+    const fullNameRaw = get(
+      'fullname', 'full name', 'studentname', 'student name', 'name',
+      'student_name', 'student_fullname', 'ሙሉ ስም', 'የተማሪ ስም', 'የተማሪው ስም', 'ስም'
+    );
+
+    // If separate first/middle names are missing, split full name
+    if ((!firstName || !middleName) && fullNameRaw) {
+      const parts = fullNameRaw.trim().split(/\s+/);
+      if (parts.length >= 3) {
+        firstName = firstName || parts[0];
+        middleName = middleName || parts[1];
+        lastName = lastName || parts.slice(2).join(' ');
+      } else if (parts.length === 2) {
+        firstName = firstName || parts[0];
+        middleName = middleName || parts[1];
+        lastName = lastName || parts[1];
+      } else if (parts.length === 1) {
+        firstName = firstName || parts[0];
+      }
+    }
+
+    let firstNameAmharic = get('firstnameamharic', 'first name amharic', 'fname amharic');
+    let middleNameAmharic = get('middlenameamharic', 'middle name amharic');
+    let lastNameAmharic = get('lastnameamharic', 'last name amharic');
+    const amharicFullName = get('የተማሪ ስም', 'ሙሉ ስም', 'የተማሪው ስም');
+    if ((!firstNameAmharic || !middleNameAmharic) && amharicFullName) {
+      const parts = amharicFullName.trim().split(/\s+/);
+      if (parts.length >= 3) {
+        firstNameAmharic = firstNameAmharic || parts[0];
+        middleNameAmharic = middleNameAmharic || parts[1];
+        lastNameAmharic = lastNameAmharic || parts.slice(2).join(' ');
+      } else if (parts.length === 2) {
+        firstNameAmharic = firstNameAmharic || parts[0];
+        middleNameAmharic = middleNameAmharic || parts[1];
+        lastNameAmharic = lastNameAmharic || parts[1];
+      }
+    }
+
+    const paymentCode = get(
+      'paymentcode', 'payment code', 'paycode', 'pay code',
+      'studentcode', 'student code', 'student_code', 'student-code',
+      'code', 'student id', 'studentid', 'student_id', 'student no', 'studentno',
+      'የተማሪ ኮድ', 'የክፍያ ኮድ', 'ኮድ'
+    );
+
     return {
-      firstName: get('firstname', 'first name', 'fname'),
-      middleName: get('middlename', 'middle name', 'mname', 'fathername'),
-      lastName: get('lastname', 'last name', 'lname', 'grandfathername'),
-      firstNameAmharic: get('firstnameamharic', 'first name amharic', 'fname amharic'),
-      middleNameAmharic: get('middlenameamharic', 'middle name amharic'),
-      lastNameAmharic: get('lastnameamharic', 'last name amharic'),
-      gender: get('gender', 'sex'),
-      dateOfBirth: get('dateofbirth', 'date of birth', 'dob', 'birthdate'),
-      joinedYear: get('joinedyear', 'joined year', 'batch', 'year'),
-      class: get('class', 'grade', 'level'),
+      fullName: fullNameRaw || [firstName, middleName, lastName].filter(Boolean).join(' '),
+      firstName,
+      middleName,
+      lastName,
+      firstNameAmharic,
+      middleNameAmharic,
+      lastNameAmharic,
+      gender: get('gender', 'sex', 'ጾታ'),
+      dateOfBirth: get('dateofbirth', 'date of birth', 'dob', 'birthdate', 'የትውልድ ቀን'),
+      joinedYear: get('joinedyear', 'joined year', 'batch', 'year', 'የትምህርት ዘመን', 'ዓ.ም'),
+      class: get('class', 'grade', 'level', 'ክፍል'),
       section: get('section', 'sec'),
       email: get('email'),
-      address: get('address'),
-      paymentCode: get('paymentcode', 'payment code', 'code'),
-      fatherName: get('fathername', 'father name', 'father'),
-      fatherPhone: get('fatherphone', 'father phone', 'fathercontact'),
-      motherName: get('mothername', 'mother name', 'mother'),
-      motherPhone: get('motherphone', 'mother phone', 'mothercontact'),
+      address: get('address', 'አድራሻ'),
+      paymentCode,
+      fatherName: get('fathername', 'father name', 'father', 'የአባት ስም'),
+      fatherPhone: get('fatherphone', 'father phone', 'fathercontact', 'የአባት ስልክ'),
+      motherName: get('mothername', 'mother name', 'mother', 'የእናት ስም'),
+      motherPhone: get('motherphone', 'mother phone', 'mothercontact', 'የእናት ስልክ'),
     };
   };
 
@@ -670,18 +726,69 @@ export default function StudentsPage() {
     e.target.value = '';
   };
 
-  const handleImportConfirm = async () => {
+  const handleImportConfirm = async (selectedMode?: 'only_matched' | 'all') => {
     if (importPreview.length === 0) return;
+    const modeToUse = selectedMode || importMode;
     setImporting(true);
-    const loadingToast = toast.loading(getText('Importing students...', 'ተማሪዎችን እያስገባ ነው...'));
+    const loadingToast = toast.loading(
+      modeToUse === 'only_matched'
+        ? getText('Updating payment codes for matched students...', 'የተዛመዱ ተማሪዎችን የክፍያ ኮድ እያዘመነ ነው...')
+        : getText('Importing students...', 'ተማሪዎችን እያስገባ ነው...')
+    );
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/bulk/import`, { students: importPreview }, {
+      // In only_matched mode, filter to only rows that matched existing system students
+      const targetRows = modeToUse === 'only_matched'
+        ? importPreview.filter(row => !!checkImportRowMatch(row))
+        : importPreview;
+
+      const payload = targetRows.map(row => {
+        const matched = checkImportRowMatch(row);
+        return {
+          ...row,
+          matchedStudentId: matched ? matched._id : undefined
+        };
+      });
+
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/students/bulk/import`, {
+        students: payload,
+        mode: modeToUse
+      }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.dismiss(loadingToast);
-      const { created, failed } = res.data;
-      toast.success(getText(`${created} students imported successfully!`, `${created} ተማሪዎች በተሳካ ሁኔታ ገብተዋል!`));
+      const { created = 0, updated = 0, failed = [] } = res.data;
+
+      if (modeToUse === 'only_matched') {
+        if (updated > 0) {
+          toast.success(getText(
+            `Payment code updated for ${updated} matched students! Only the payment code field was modified.`,
+            `የ ${updated} ተዛማጅ ተማሪዎች የክፍያ ኮድ ብቻ በተሳካ ሁኔታ ተዘምኗል! ሌላ ምንም መስክ አልተቀየረም።`
+          ));
+        } else {
+          toast(getText('No matched students were updated.', 'ምንም ተዛማጅ ተማሪዎች አልተዘመኑም።'));
+        }
+      } else {
+        if (updated > 0 && created > 0) {
+          toast.success(getText(
+            `${created} new students imported, ${updated} students updated with payment code!`,
+            `${created} አዳዲስ ተማሪዎች ገብተዋል፣ የ ${updated} ተማሪዎች የክፍያ ኮድ ተዘምኗል!`
+          ));
+        } else if (updated > 0) {
+          toast.success(getText(
+            `${updated} students updated with payment code!`,
+            `የ ${updated} ተማሪዎች የክፍያ ኮድ በተሳካ ሁኔታ ተዘምኗል!`
+          ));
+        } else if (created > 0) {
+          toast.success(getText(
+            `${created} students imported successfully!`,
+            `${created} ተማሪዎች በተሳካ ሁኔታ ገብተዋል!`
+          ));
+        } else if (failed.length === 0) {
+          toast(getText('No changes made', 'ምንም ለውጥ አልተደረገም'));
+        }
+      }
+
       if (failed.length > 0) {
         toast.error(failed[0]?.reason ? "Row failed: " + failed[0].reason : failed.length + " rows failed");
         console.error('Import failures:', failed);
@@ -695,6 +802,112 @@ export default function StudentsPage() {
     } finally {
       setImporting(false);
     }
+  };
+
+  // Flexible English spelling comparison (double consonants, phonetic transliteration, minor typos)
+  const isLooseEnglishMatch = (importedStr?: string, systemStr?: string): boolean => {
+    if (!importedStr || !systemStr) return false;
+    const a = importedStr.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+    const b = systemStr.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+    if (!a || !b) return false;
+    if (a === b) return true;
+
+    // Collapse duplicate adjacent letters: "Tadesse" vs "Tadese", "Kasahun" vs "Kassahun", "Mohammed" vs "Mohamed"
+    const collapse = (s: string) => s.replace(/(.)\1+/g, '$1');
+    const ca = collapse(a);
+    const cb = collapse(b);
+    if (ca === cb) return true;
+
+    // Common Ethiopian transliteration vowel/consonant equivalence
+    const phonetic = (s: string) =>
+      collapse(s)
+        .replace(/[iey]/g, 'e')
+        .replace(/[uo]/g, 'o')
+        .replace(/c/g, 'k')
+        .replace(/ph/g, 'f')
+        .replace(/w/g, 'v')
+        .replace(/tch/g, 'ch')
+        .replace(/ts/g, 's')
+        .replace(/sh/g, 's');
+    if (phonetic(a) === phonetic(b)) return true;
+
+    // Prefix / startsWith for names (e.g. "Abebe" vs "Abeb")
+    if (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a))) return true;
+
+    // Levenshtein edit distance check: allow 1 edit for small words, 2 edits for longer words
+    const len = Math.max(a.length, b.length);
+    const dist = (s1: string, s2: string): number => {
+      const dp: number[][] = [];
+      for (let i = 0; i <= s2.length; i++) dp[i] = [i];
+      for (let j = 0; j <= s1.length; j++) dp[0][j] = j;
+      for (let i = 1; i <= s2.length; i++) {
+        for (let j = 1; j <= s1.length; j++) {
+          dp[i][j] = s2.charAt(i - 1) === s1.charAt(j - 1)
+            ? dp[i - 1][j - 1]
+            : Math.min(dp[i - 1][j - 1] + 1, dp[i][j - 1] + 1, dp[i - 1][j] + 1);
+        }
+      }
+      return dp[s2.length][s1.length];
+    };
+    const d = dist(a, b);
+    return (len <= 4 && d <= 1) || (len > 4 && d <= 2);
+  };
+
+  const checkImportRowMatch = (row: any) => {
+    const rowFirst = (row.firstName || '').trim();
+    const rowMiddle = (row.middleName || '').trim();
+    const rowLast = (row.lastName || '').trim();
+
+    if (!rowFirst) return null;
+
+    // 1. Exact match on English First Name, Middle Name, and Last Name
+    const exactMatch = students.find(s => {
+      const sFirst = (s.firstName || '').trim().toLowerCase();
+      const sMiddle = (s.middleName || '').trim().toLowerCase();
+      const sLast = (s.lastName || '').trim().toLowerCase();
+      const rFirst = rowFirst.toLowerCase();
+      const rMiddle = rowMiddle.toLowerCase();
+      const rLast = rowLast.toLowerCase();
+      const firstMatches = sFirst === rFirst;
+      const middleMatches = sMiddle === rMiddle;
+      const lastMatches = (rLast && sLast) ? sLast === rLast : true;
+      return firstMatches && middleMatches && lastMatches;
+    });
+    if (exactMatch) return exactMatch;
+
+    // 2. Loose / flexible English spelling match on First Name, Middle Name, and Last Name
+    if (rowMiddle) {
+      const fuzzyMatch = students.find(s => {
+        const matchFirst = isLooseEnglishMatch(rowFirst, s.firstName);
+        const matchMiddle = isLooseEnglishMatch(rowMiddle, s.middleName);
+        const matchLast = (rowLast && s.lastName) ? isLooseEnglishMatch(rowLast, s.lastName) : true;
+        return matchFirst && matchMiddle && matchLast;
+      });
+      if (fuzzyMatch) return fuzzyMatch;
+
+      // 2b. Check if First and Middle names were swapped in the Excel
+      const swappedMatch = students.find(s => {
+        const matchFirst = isLooseEnglishMatch(rowMiddle, s.firstName);
+        const matchMiddle = isLooseEnglishMatch(rowFirst, s.middleName);
+        const matchLast = (rowLast && s.lastName) ? isLooseEnglishMatch(rowLast, s.lastName) : true;
+        return matchFirst && matchMiddle && matchLast;
+      });
+      if (swappedMatch) return swappedMatch;
+    }
+
+    // 3. Match on combined full name with flexible spelling
+    const rowCombined = [rowFirst, rowMiddle, rowLast].filter(Boolean).join(' ');
+    const rowFirstTwo = [rowFirst, rowMiddle].filter(Boolean).join(' ');
+    const combinedMatch = students.find(s => {
+      const sCombined = [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' ');
+      const sFirstTwo = [s.firstName, s.middleName].filter(Boolean).join(' ');
+      return (
+        isLooseEnglishMatch(rowCombined, sCombined) ||
+        isLooseEnglishMatch(rowFirstTwo, sFirstTwo) ||
+        isLooseEnglishMatch(rowCombined, sFirstTwo)
+      );
+    });
+    return combinedMatch || null;
   };
 
   const formatDOB = (dob?: string) => {
@@ -2759,75 +2972,328 @@ export default function StudentsPage() {
                   </div>
                   
                   <div className={`mt-8 p-4 rounded-lg text-left max-w-2xl mx-auto ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                    <h4 className={`text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Required Columns', 'የሚያስፈልጉ አምዶች')}:</h4>
-                    <ul className={`text-xs space-y-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                      <li>• <strong>firstName</strong>, <strong>middleName</strong>, <strong>lastName</strong> ({getText('required', 'ያስፈልጋል')})</li>
-                      <li>• <strong>gender</strong> (Male/Female) ({getText('required', 'ያስፈልጋል')})</li>
-                      <li>• <strong>class</strong> (Nursery/LKG/UKG) ({getText('required', 'ያስፈልጋል')})</li>
-                      <li>• <strong>joinedYear</strong> (e.g. 2017) ({getText('required', 'ያስፈልጋል')})</li>
-                      <li>• <strong>section</strong> (A/B/C/D), <strong>email</strong>, <strong>dateOfBirth</strong>, <strong>address</strong>, <strong>paymentCode</strong>, <strong>fatherName</strong>, <strong>fatherPhone</strong>, <strong>motherName</strong>, <strong>motherPhone</strong> ({getText('optional', 'አማራጭ')})</li>
+                    <h4 className={`text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Supported Import Modes', 'የሚደገፉ የማስገቢያ መንገዶች')}:</h4>
+                    <ul className={`text-xs space-y-1.5 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <li>• <strong>{getText('Update Student Payment Codes', 'የተማሪዎች የክፍያ ኮድ ማዘመኛ')}</strong>: {getText('Excel with "Name" / "Full Name" and "Student Code" / "Payment Code". If the full name exists in the system, its payment code will automatically be updated!', 'የተማሪ ስም እና የተማሪ/ክፍያ ኮድ የያዘ Excel። ተማሪው በሲስተሙ ውስጥ በስሙ ተፈልጎ የክፍያ ኮዱ በራስ-ሰር ይዘምናል!')}</li>
+                      <li>• <strong>{getText('Full Student Import', 'ሙሉ የተማሪ ምዝገባ')}</strong>: firstName, middleName, lastName, gender, class, joinedYear ({getText('required for new students', 'ለአዳዲስ ተማሪዎች ያስፈልጋል')})</li>
+                      <li>• <strong>{getText('Optional Columns', 'ተጨማሪ አምዶች')}</strong>: section, paymentCode / studentCode, email, dateOfBirth, address, fatherPhone, motherPhone</li>
                     </ul>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Preview', 'ቅድመ እይታ')}: <strong>{importPreview.length}</strong> {getText('rows', 'ረድፎች')}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {getText('Preview', 'ቅድመ እይታ')}: <strong>{importPreview.length}</strong> {getText('rows', 'ረድፎች')}
+                      {importPreview.length > 0 && (() => {
+                        const matches = importPreview.filter(r => checkImportRowMatch(r)).length;
+                        const newOnes = importPreview.length - matches;
+                        return (
+                          <span className="ml-2 text-xs font-normal">
+                            ({matches > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-medium">{matches} {getText('matching existing (will set code)', 'ያሉ ተማሪዎች (ኮድ ይዘምናል)')}</span>}
+                            {matches > 0 && newOnes > 0 && ', '}
+                            {newOnes > 0 && <span className="text-blue-600 dark:text-blue-400 font-medium">{newOnes} {getText('new students', 'አዳዲስ ተማሪዎች')}</span>})
+                          </span>
+                        );
+                      })()}
+                    </p>
                     <label className="cursor-pointer">
                       <input type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={handleImportFile} className="hidden" />
                       <span className={`text-sm px-4 py-2 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>{getText('Choose Different File', 'ሌላ ፋይል ምረጥ')}</span>
                     </label>
                   </div>
                   
-                  <div className="overflow-x-auto border rounded-lg">
-                    <table className="w-full text-xs">
-                      <thead className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                        <tr>
-                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>#</th>
-                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('First Name', 'የመጀመሪያ ስም')}</th>
-                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Middle Name', 'የአባት ስም')}</th>
-                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Last Name', 'የአያት ስም')}</th>
-                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Gender', 'ጾታ')}</th>
-                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Class', 'ክፍል')}</th>
-                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Section', 'ክፍል')}</th>
-                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Batch', 'ቡድን')}</th>
-                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Father Phone', 'የአባት ስልክ')}</th>
-                          <th className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Mother Phone', 'የእናት ስልክ')}</th>
+                  {/* Explanatory banner emphasizing side-by-side comparison and Middle Name / Middle Names equivalence */}
+                  <div className={`p-3 rounded-lg mb-3 flex items-start gap-2.5 text-xs ${theme === 'dark' ? 'bg-indigo-950/40 border border-indigo-800/70 text-indigo-200' : 'bg-indigo-50 border border-indigo-200 text-indigo-900'}`}>
+                    <span className="text-base select-none">📋</span>
+                    <div>
+                      <p className="font-semibold mb-0.5">
+                        {getText('Side-by-Side Verification (English Names):', 'የጎን ለጎን ማነጻጸሪያ ቅድመ እይታ (የእንግሊዝኛ ስሞች):')}
+                      </p>
+                      <p className="text-[11px] leading-relaxed opacity-90">
+                        {getText(
+                          'Comparing English First, Middle, and Last Name side by side. "Middle Name" and "Middle Names" in Excel are both recognized identically. Minor transliteration variations & double consonants are automatically matched.',
+                          'ከፋይል የገቡትን እና በሲስተም ያሉትን የእንግሊዝኛ ስሞች ጎን ለጎን ያወዳድሩ። "Middle Name" እና "Middle Names" እኩል ናቸው። የፊደል አጻጻፍ ልዩነቶች በራስ-ሰር ይዛመዳሉ።'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto border rounded-lg shadow-sm">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        {/* Tier 1 Header: Section grouping */}
+                        <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-100'}`}>
+                          <th rowSpan={2} className={`px-2.5 py-2 text-center w-10 border-r ${theme === 'dark' ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>#</th>
+                          
+                          {/* Imported Section Header */}
+                          <th colSpan={4} className={`px-3 py-2 text-center border-r font-bold ${theme === 'dark' ? 'border-gray-700 bg-blue-950/40 text-blue-300' : 'border-gray-200 bg-blue-50 text-blue-800'}`}>
+                            📥 {getText('In Imported File Says...', 'ከገባው ፋይል ውስጥ ያለው...')}
+                          </th>
+
+                          {/* In System Section Header */}
+                          <th colSpan={2} className={`px-3 py-2 text-center border-r font-bold ${theme === 'dark' ? 'border-gray-700 bg-emerald-950/40 text-emerald-300' : 'border-gray-200 bg-emerald-50 text-emerald-800'}`}>
+                            🏫 {getText('In System Says...', 'በሲስተሙ ውስጥ ያለው...')}
+                          </th>
+
+                          {/* Match & Action Header */}
+                          <th rowSpan={2} className={`px-3 py-2 text-center font-bold ${theme === 'dark' ? 'bg-purple-950/30 text-purple-300' : 'bg-purple-50 text-purple-800'}`}>
+                            ⚡ {getText('Match & Action', 'ውጤት እና እርምጃ')}
+                          </th>
+                        </tr>
+
+                        {/* Tier 2 Header: Individual columns */}
+                        <tr className={`text-[11px] border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800/80 text-gray-300' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+                          {/* Imported Columns */}
+                          <th className={`px-2 py-2 text-left font-semibold ${theme === 'dark' ? 'text-blue-200' : 'text-blue-900'}`}>
+                            {getText('First Name', 'የመጀመሪያ ስም')}
+                          </th>
+                          <th className={`px-2 py-2 text-left font-semibold ${theme === 'dark' ? 'text-blue-200' : 'text-blue-900'}`}>
+                            {getText('Middle Name(s)', 'የአባት ስም')}
+                          </th>
+                          <th className={`px-2 py-2 text-left font-semibold ${theme === 'dark' ? 'text-blue-200' : 'text-blue-900'}`}>
+                            {getText('Last Name', 'የአያት ስም')}
+                          </th>
+                          <th className={`px-2 py-2 text-left font-semibold border-r ${theme === 'dark' ? 'border-gray-700 text-blue-200' : 'border-gray-200 text-blue-900'}`}>
+                            {getText('Imported Code', 'የተማሪ ኮድ')}
+                          </th>
+
+                          {/* In System Columns */}
+                          <th className={`px-3 py-2 text-left font-semibold ${theme === 'dark' ? 'text-emerald-200' : 'text-emerald-900'}`}>
+                            {getText('Matched Student Name', 'የተገኘው ተማሪ ሙሉ ስም')}
+                          </th>
+                          <th className={`px-2 py-2 text-left font-semibold border-r ${theme === 'dark' ? 'border-gray-700 text-emerald-200' : 'border-gray-200 text-emerald-900'}`}>
+                            {getText('ID & Class', 'መታወቂያና ክፍል')}
+                          </th>
                         </tr>
                       </thead>
                       <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
-                        {importPreview.slice(0, 100).map((row, i) => (
-                          <tr key={i} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
-                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{i + 1}</td>
-                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.firstName || '-'}</td>
-                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.middleName || '-'}</td>
-                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.lastName || '-'}</td>
-                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.gender || '-'}</td>
-                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.class || '-'}</td>
-                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.section || '-'}</td>
-                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.joinedYear || '-'}</td>
-                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.fatherPhone || '-'}</td>
-                            <td className={`px-2 py-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{row.motherPhone || '-'}</td>
-                          </tr>
-                        ))}
+                        {importPreview.map((row, i) => {
+                          const matched = checkImportRowMatch(row);
+                          return (
+                            <tr key={i} className={`transition-colors ${theme === 'dark' ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50/80'}`}>
+                              <td className={`px-2.5 py-2.5 text-center font-mono text-[11px] border-r ${theme === 'dark' ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
+                                {i + 1}
+                              </td>
+
+                              {/* Imported File Data */}
+                              <td className={`px-2 py-2.5 font-medium ${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>
+                                {row.firstName || <span className="text-gray-400 italic font-normal">-</span>}
+                              </td>
+                              <td className={`px-2 py-2.5 font-medium ${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>
+                                {row.middleName || <span className="text-gray-400 italic font-normal">-</span>}
+                              </td>
+                              <td className={`px-2 py-2.5 font-medium ${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>
+                                {row.lastName || <span className="text-gray-400 italic font-normal">-</span>}
+                              </td>
+                              <td className={`px-2 py-2.5 border-r ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+                                {row.paymentCode ? (
+                                  <span className="font-mono font-bold px-2 py-0.5 rounded text-[11px] bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    {row.paymentCode}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </td>
+
+                              {/* In System Matched Student */}
+                              <td className={`px-3 py-2.5 ${theme === 'dark' ? 'bg-emerald-950/10' : 'bg-emerald-50/20'}`}>
+                                {matched ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Matched in system"></span>
+                                    <div>
+                                      <span className={`font-semibold text-xs ${theme === 'dark' ? 'text-emerald-300' : 'text-emerald-900'}`}>
+                                        {matched.firstName} {matched.middleName} {matched.lastName}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400 italic text-[11px]">
+                                    {getText('— Not in system', '— በሲስተም አልተገኘም')}
+                                  </span>
+                                )}
+                              </td>
+                              <td className={`px-2 py-2.5 border-r ${theme === 'dark' ? 'border-gray-700 bg-emerald-950/10' : 'border-gray-200 bg-emerald-50/20'}`}>
+                                {matched ? (
+                                  <div className="flex flex-col text-[11px]">
+                                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                      {matched.studentId || '-'}
+                                    </span>
+                                    <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
+                                      {matched.class} {matched.section ? `(${matched.section})` : ''}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </td>
+
+                              {/* Match Status & Action */}
+                              <td className="px-3 py-2.5">
+                                {matched ? (
+                                  <div className="flex flex-col items-start gap-0.5">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                                      ✓ {getText('Matched', 'ተዛምዷል')}
+                                    </span>
+                                    {row.paymentCode && (
+                                      <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
+                                        → {getText('Sets code', 'ኮድ ይዘምናል')}: <strong className="font-mono">{row.paymentCode}</strong>
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (row.class && row.gender && row.joinedYear) ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
+                                    + {getText('New Student (Will register)', 'አዲስ ተማሪ (ይመዘገባል)')}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                                    ⚠ {getText('No system match', 'በሲስተም አልተገኘም')}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
-                  {importPreview.length > 100 && (
-                    <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Showing first 100 rows. All rows will be imported.', 'የመጀመሪያዎቹ 100 ረድፎች እየታዩ ነው። ሁሉም ረድፎች ይገባሉ።')}</p>
-                  )}
+
+                  {/* Options: Choose whether to ONLY set matched codes OR also add new students */}
+                  {importPreview.length > 0 && (() => {
+                    const matchedCount = importPreview.filter(r => !!checkImportRowMatch(r)).length;
+                    return (
+                      <div className={`mt-4 p-4 rounded-xl border ${theme === 'dark' ? 'bg-gray-800/90 border-gray-700' : 'bg-gray-50/90 border-gray-200'}`}>
+                        <h4 className={`text-xs font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                          <span>⚙️</span>
+                          <span>{getText('Choose Import Option:', 'የማስገቢያ ምርጫ ይምረጡ:')}</span>
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {/* Option 1: Only set payment codes for matched students */}
+                          <div
+                            onClick={() => setImportMode('only_matched')}
+                            className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                              importMode === 'only_matched'
+                                ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 shadow-sm ring-1 ring-emerald-500/30'
+                                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="importMode"
+                                id="mode_only_matched"
+                                checked={importMode === 'only_matched'}
+                                onChange={() => setImportMode('only_matched')}
+                                className="text-emerald-600 focus:ring-emerald-500"
+                              />
+                              <label htmlFor="mode_only_matched" className="text-xs font-bold cursor-pointer text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                                <span>💳</span>
+                                <span>{getText('Only Set Payment Codes for Matched Students', 'የተዛመዱ ተማሪዎችን የክፍያ ኮድ ብቻ አዘምን')}</span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-200 font-bold">
+                                  {matchedCount}
+                                </span>
+                              </label>
+                            </div>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5 pl-5 leading-normal">
+                              {getText(
+                                'Recommended: strictly updates ONLY the paymentCode field for matched students. Unmatched rows are ignored and NO new students will be added.',
+                                'የሚመከር: በሲስተም ውስጥ ላሉ ተዛማጅ ተማሪዎች የክፍያ ኮድ ብቻ ይቀይራል። ምንም አዲስ ተማሪ አይጨመርም፣ ሌላ ምንም መረጃ አይነካም።'
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Option 2: Add new students + update codes */}
+                          <div
+                            onClick={() => setImportMode('all')}
+                            className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                              importMode === 'all'
+                                ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 shadow-sm ring-1 ring-indigo-500/30'
+                                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="importMode"
+                                id="mode_all"
+                                checked={importMode === 'all'}
+                                onChange={() => setImportMode('all')}
+                                className="text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <label htmlFor="mode_all" className="text-xs font-bold cursor-pointer text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
+                                <span>👥</span>
+                                <span>{getText('Add New Students & Set Matched Codes', 'አዳዲስ ተማሪዎችን መዝግብ እና ኮድ አዘምን')}</span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-200 dark:bg-indigo-900 text-indigo-900 dark:text-indigo-200 font-bold">
+                                  {importPreview.length}
+                                </span>
+                              </label>
+                            </div>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5 pl-5 leading-normal">
+                              {getText(
+                                'Updates matched students with payment codes AND registers new students who have all required columns (Class, Gender, Year).',
+                                'የተዛመዱ ተማሪዎችን ኮድ ያዘምናል እንዲሁም የተሟላ መረጃ ያላቸውን አዳዲስ ተማሪዎች ይመዘግባል።'
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
             
-            {importPreview.length > 0 && (
-              <div className={`px-6 py-4 border-t flex justify-end gap-3 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-                <button onClick={() => { setShowImportModal(false); setImportPreview([]); }} className={`px-4 py-2 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>{getText('Cancel', 'ሰርዝ')}</button>
-                <button onClick={handleImportConfirm} disabled={importing} className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2">
-                  {importing ? getText('Importing...', 'እያስገባ ነው...') : getText('Import Students', 'ተማሪዎችን አስገባ')}
-                </button>
-              </div>
-            )}
+            {importPreview.length > 0 && (() => {
+              const matchedCount = importPreview.filter(r => !!checkImportRowMatch(r)).length;
+              return (
+                <div className={`px-6 py-4 border-t flex flex-wrap items-center justify-between gap-3 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <button
+                    onClick={() => { setShowImportModal(false); setImportPreview([]); }}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                  >
+                    {getText('Cancel', 'ሰርዝ')}
+                  </button>
+                  
+                  <div className="flex items-center gap-2.5">
+                    {/* Primary Button: Only update matched payment codes */}
+                    <button
+                      onClick={() => handleImportConfirm('only_matched')}
+                      disabled={importing || matchedCount === 0}
+                      className={`px-5 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
+                        importMode === 'only_matched'
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md ring-2 ring-emerald-400/50'
+                          : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-300 dark:hover:bg-emerald-900'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      <span>💳</span>
+                      <span>
+                        {importing && importMode === 'only_matched'
+                          ? getText('Updating Codes...', 'ኮድ እያዘመነ ነው...')
+                          : getText(`Set Codes Only for Matched (${matchedCount})`, `የተዛመዱትን ኮድ ብቻ አዘምን (${matchedCount})`)}
+                      </span>
+                    </button>
+
+                    {/* Secondary Button: Import all (new + matched) */}
+                    <button
+                      onClick={() => handleImportConfirm('all')}
+                      disabled={importing}
+                      className={`px-5 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
+                        importMode === 'all'
+                          ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md ring-2 ring-indigo-400/50'
+                          : 'bg-indigo-100 hover:bg-indigo-200 text-indigo-900 dark:bg-indigo-950/70 dark:text-indigo-300 dark:hover:bg-indigo-900'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      <span>👥</span>
+                      <span>
+                        {importing && importMode === 'all'
+                          ? getText('Importing All...', 'ሁሉንም እያስገባ ነው...')
+                          : getText(`Add New & Set Codes (${importPreview.length})`, `አዳዲሶችን ጨምርና ኮድ አዘምን (${importPreview.length})`)}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
