@@ -1028,7 +1028,12 @@ export default function StudentsPage() {
       headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold', fontSize: 8 },
       alternateRowStyles: { fillColor: [239, 246, 255] },
       columnStyles: {
-        0: { cellWidth: 10, halign: 'center' },
+        0: {
+          cellWidth: list.length >= 100 ? 14 : 10,
+          halign: 'center',
+          cellPadding: { top: 3, bottom: 3, left: 1, right: 1 },
+          overflow: 'visible'
+        },
         1: { cellWidth: 55 },
         2: { cellWidth: 20, halign: 'center' },
         3: { cellWidth: 12, halign: 'center' },
@@ -1423,7 +1428,12 @@ export default function StudentsPage() {
         valign: 'middle'
       },
       columnStyles: {
-        0: { cellWidth: 9, halign: 'center' },
+        0: {
+          cellWidth: list.length >= 100 ? 14 : 10,
+          halign: 'center',
+          cellPadding: { top: 1.5, bottom: 1.5, left: 1, right: 1 },
+          overflow: 'visible'
+        },
         1: { cellWidth: isAm ? 44 : 38, halign: 'left' },
         2: { cellWidth: 9, halign: 'center' },
         3: { cellWidth: 10, halign: 'center' }
@@ -1625,8 +1635,22 @@ export default function StudentsPage() {
       })
     ]);
 
+    const isCompact = activeFields.length >= 10;
+    const maxRollDigits = String(exportList.length).length;
+    const rollColWidth = Math.max(14, maxRollDigits >= 4 ? 18 : maxRollDigits >= 3 ? 15 : 12);
+
     const columnStyles: Record<number, any> = {
-      0: { cellWidth: 10, halign: 'center' }
+      0: {
+        cellWidth: rollColWidth,
+        halign: 'center',
+        cellPadding: {
+          top: isCompact ? 2.5 : 3.5,
+          bottom: isCompact ? 2.5 : 3.5,
+          left: 1,
+          right: 1
+        },
+        overflow: 'visible'
+      }
     };
     activeFields.forEach((f, idx) => {
       if (f.id === 'studentId') {
@@ -1635,8 +1659,6 @@ export default function StudentsPage() {
         columnStyles[idx + 1] = { halign: 'center' };
       }
     });
-
-    const isCompact = activeFields.length >= 10;
 
     autoTable(doc, {
       startY: 22,

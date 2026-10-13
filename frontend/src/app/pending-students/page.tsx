@@ -267,7 +267,12 @@ export default function PendingStudentsPage() {
       headStyles: { fillColor: [29, 78, 216], textColor: 255, fontStyle: 'bold', fontSize: 8 },
       alternateRowStyles: { fillColor: [245, 247, 255] },
       columnStyles: {
-        0: { cellWidth: 8, halign: 'center' },
+        0: {
+          cellWidth: filtered.length >= 100 ? 14 : 10,
+          halign: 'center',
+          cellPadding: { top: 3, bottom: 3, left: 1, right: 1 },
+          overflow: 'visible'
+        },
         1: { cellWidth: 38 },
         2: { cellWidth: 16 },
         3: { cellWidth: 22 },
