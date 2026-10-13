@@ -625,8 +625,8 @@ export default function PendingStudentsPage() {
             <div className="p-6 space-y-4">
               <Section title="Student Information">
                 <DetailRow label="Gender" value={detail.gender} />
-                <DetailRow label="Date of Birth" value={detail.dateOfBirth} />
-                <DetailRow label="Age (ዕድሜ)" value={calcAgeFromECString(detail.dateOfBirth || '') !== null ? `${calcAgeFromECString(detail.dateOfBirth || '')} yrs` : '—'} />
+                <DetailRow label="Date of Birth" value={detail.dateOfBirth && detail.dateOfBirth !== 'Invalid Date' ? detail.dateOfBirth : '—'} />
+                <DetailRow label="Age (ዕድሜ)" value={detail.dateOfBirth && detail.dateOfBirth !== 'Invalid Date' && calcAgeFromECString(detail.dateOfBirth) !== null ? `${calcAgeFromECString(detail.dateOfBirth)} yrs` : '—'} />
                 <DetailRow label="Class" value={detail.class} />
                 <DetailRow label="Joined Year" value={`${detail.joinedYear} E.C`} />
                 <DetailRow label="Student Type" value={detail.studentType === 'new' ? 'New · አዲስ' : 'Existing · ነባር'} />
@@ -912,7 +912,7 @@ export default function PendingStudentsPage() {
                       <option value="female">Female</option>
                     </select>
                   </div>
-                  <EditField label="Date of Birth" value={editForm.dateOfBirth || ''} onChange={v => setEditForm(f => ({ ...f, dateOfBirth: v }))} />
+                  <EditField label="Date of Birth" value={editForm.dateOfBirth === 'Invalid Date' ? '' : (editForm.dateOfBirth || '')} onChange={v => setEditForm(f => ({ ...f, dateOfBirth: v }))} />
                   <div className="flex gap-3 items-center text-sm">
                     <span className="text-gray-400 w-28 flex-shrink-0">Class</span>
                     <select value={editForm.class || ''} onChange={e => setEditForm(f => ({ ...f, class: e.target.value }))}

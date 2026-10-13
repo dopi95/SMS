@@ -70,6 +70,18 @@ export default function EditStudentPage() {
       });
       const student = response.data;
       
+      const formatDOBForInput = (dob?: string) => {
+        if (!dob || dob === 'Invalid Date') return '';
+        const s = String(dob).trim();
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return s;
+        const d = new Date(s);
+        if (isNaN(d.getTime())) return '';
+        const dd = String(d.getUTCDate()).padStart(2, '0');
+        const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = d.getUTCFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+      };
+
       setFormData({
         studentId: student.studentId || '',
         firstName: student.firstName || '',
@@ -81,7 +93,7 @@ export default function EditStudentPage() {
         paymentCode: student.paymentCode || '',
         gender: student.gender || '',
         email: student.email || '',
-        dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString('en-GB') : '',
+        dateOfBirth: formatDOBForInput(student.dateOfBirth),
         joinedYear: student.joinedYear || '',
         class: student.class || '',
         section: student.section || '',
@@ -199,7 +211,9 @@ export default function EditStudentPage() {
         if (photoFields.includes(key)) {
           if (value) submitData.append(key, value as File);
         } else {
-          submitData.append(key, value ? value.toString() : '');
+          let val = value ? value.toString() : '';
+          if (key === 'dateOfBirth' && val === 'Invalid Date') val = '';
+          submitData.append(key, val);
         }
       });
       // Signal removal if photo was cleared

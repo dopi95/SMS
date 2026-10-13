@@ -3,11 +3,14 @@ const PendingStudent = require('../models/PendingStudent.model');
 const User = require('../models/User.model');
 const cloudinary = require('../config/cloudinary.config');
 const logActivity = require('../utils/logActivity');
+const { sanitizeName, isValidEnglishName, isValidAmharicName, isValidParentName, isValidPhone } = require('../utils/validation');
 
 const generateRandomPassword = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 };
+
+const getStudentFullName = (s) => (s ? [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' ') : '');
 
 const upsertStudentCredential = async (student) => {
   const username = student.studentId;
@@ -51,13 +54,13 @@ const getInactiveStudents = async (req, res) => {
 };
 
 const normalizeDOB = (dob) => {
-  if (!dob) return dob;
-  const s = String(dob);
+  if (!dob || dob === 'Invalid Date') return '';
+  const s = String(dob).trim();
   // Already dd/mm/yyyy
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s.trim())) return s.trim();
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return s;
   // ISO or any parseable date → convert to dd/mm/yyyy
   const d = new Date(s);
-  if (isNaN(d.getTime())) return s;
+  if (isNaN(d.getTime())) return '';
   const dd = String(d.getUTCDate()).padStart(2, '0');
   const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   const yyyy = d.getUTCFullYear();
@@ -80,6 +83,51 @@ const getStudent = async (req, res) => {
 
 const createStudent = async (req, res) => {
   try {
+    const firstName = sanitizeName(req.body.firstName);
+    const middleName = sanitizeName(req.body.middleName);
+    const lastName = sanitizeName(req.body.lastName);
+    const firstNameAmharic = sanitizeName(req.body.firstNameAmharic);
+    const middleNameAmharic = sanitizeName(req.body.middleNameAmharic);
+    const lastNameAmharic = sanitizeName(req.body.lastNameAmharic);
+    const fatherName = sanitizeName(req.body.fatherName);
+    const motherName = sanitizeName(req.body.motherName);
+    const fatherPhone = req.body.fatherPhone ? String(req.body.fatherPhone).trim() : '';
+    const motherPhone = req.body.motherPhone ? String(req.body.motherPhone).trim() : '';
+
+    if (!isValidEnglishName(firstName)) {
+      return res.status(400).json({ message: 'First name must contain only English letters and cannot be empty, symbols, or numbers' });
+    }
+    if (!isValidEnglishName(middleName)) {
+      return res.status(400).json({ message: 'Middle name must contain only English letters and cannot be empty, symbols, or numbers' });
+    }
+    if (!isValidEnglishName(lastName)) {
+      return res.status(400).json({ message: 'Last name must contain only English letters and cannot be empty, symbols, or numbers' });
+    }
+
+    if (firstNameAmharic && !isValidAmharicName(firstNameAmharic)) {
+      return res.status(400).json({ message: 'Amharic first name must contain only Amharic letters and cannot be symbols or numbers' });
+    }
+    if (middleNameAmharic && !isValidAmharicName(middleNameAmharic)) {
+      return res.status(400).json({ message: 'Amharic middle name must contain only Amharic letters and cannot be symbols or numbers' });
+    }
+    if (lastNameAmharic && !isValidAmharicName(lastNameAmharic)) {
+      return res.status(400).json({ message: 'Amharic last name must contain only Amharic letters and cannot be symbols or numbers' });
+    }
+
+    if (fatherName && !isValidParentName(fatherName)) {
+      return res.status(400).json({ message: "Father's name must contain only letters (no numbers or symbols)" });
+    }
+    if (motherName && !isValidParentName(motherName)) {
+      return res.status(400).json({ message: "Mother's name must contain only letters (no numbers or symbols)" });
+    }
+
+    if (fatherPhone && !isValidPhone(fatherPhone)) {
+      return res.status(400).json({ message: 'Father phone must be a 10-digit number starting with 09 or 07' });
+    }
+    if (motherPhone && !isValidPhone(motherPhone)) {
+      return res.status(400).json({ message: 'Mother phone must be a 10-digit number starting with 09 or 07' });
+    }
+
     const uploadPhoto = async (fileArr, folder) => {
       if (!fileArr?.[0]) return '';
       const result = await cloudinary.uploader.upload(fileArr[0].path, {
@@ -92,9 +140,24 @@ const createStudent = async (req, res) => {
     const photoUrl = await uploadPhoto(files.photo, 'students');
     const fatherPhotoUrl = await uploadPhoto(files.fatherPhoto, 'students/parents');
     const motherPhotoUrl = await uploadPhoto(files.motherPhoto, 'students/parents');
-    const student = new Student({ ...req.body, photo: photoUrl, fatherPhoto: fatherPhotoUrl, motherPhoto: motherPhotoUrl });
+    const student = new Student({
+      ...req.body,
+      firstName,
+      middleName,
+      lastName,
+      firstNameAmharic,
+      middleNameAmharic,
+      lastNameAmharic,
+      fatherName,
+      motherName,
+      fatherPhone,
+      motherPhone,
+      photo: photoUrl,
+      fatherPhoto: fatherPhotoUrl,
+      motherPhoto: motherPhotoUrl,
+    });
     await student.save();
-    await logActivity(req.user, 'Added', 'Student', `Added student ${student.firstName} ${student.lastName} (ID: ${student.studentId})`);
+    await logActivity(req.user, 'Added', 'Student', `Added student ${getStudentFullName(student)} (ID: ${student.studentId})`);
     res.status(201).json(student);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -121,6 +184,49 @@ const updateStudent = async (req, res) => {
     if (updateData.section === '') delete updateData.section;
     if (updateData.gender === '') delete updateData.gender;
     if (updateData.class === '') delete updateData.class;
+    if (updateData.dateOfBirth === 'Invalid Date') delete updateData.dateOfBirth;
+    if (updateData.dateOfBirth) updateData.dateOfBirth = normalizeDOB(updateData.dateOfBirth);
+
+    if (updateData.firstName !== undefined) {
+      updateData.firstName = sanitizeName(updateData.firstName);
+      if (!isValidEnglishName(updateData.firstName)) return res.status(400).json({ message: 'First name must contain only English letters and cannot be empty, symbols, or numbers' });
+    }
+    if (updateData.middleName !== undefined) {
+      updateData.middleName = sanitizeName(updateData.middleName);
+      if (!isValidEnglishName(updateData.middleName)) return res.status(400).json({ message: 'Middle name must contain only English letters and cannot be empty, symbols, or numbers' });
+    }
+    if (updateData.lastName !== undefined) {
+      updateData.lastName = sanitizeName(updateData.lastName);
+      if (!isValidEnglishName(updateData.lastName)) return res.status(400).json({ message: 'Last name must contain only English letters and cannot be empty, symbols, or numbers' });
+    }
+    if (updateData.firstNameAmharic !== undefined && updateData.firstNameAmharic.trim()) {
+      updateData.firstNameAmharic = sanitizeName(updateData.firstNameAmharic);
+      if (!isValidAmharicName(updateData.firstNameAmharic)) return res.status(400).json({ message: 'Amharic first name must contain only Amharic letters and cannot be symbols or numbers' });
+    }
+    if (updateData.middleNameAmharic !== undefined && updateData.middleNameAmharic.trim()) {
+      updateData.middleNameAmharic = sanitizeName(updateData.middleNameAmharic);
+      if (!isValidAmharicName(updateData.middleNameAmharic)) return res.status(400).json({ message: 'Amharic middle name must contain only Amharic letters and cannot be symbols or numbers' });
+    }
+    if (updateData.lastNameAmharic !== undefined && updateData.lastNameAmharic.trim()) {
+      updateData.lastNameAmharic = sanitizeName(updateData.lastNameAmharic);
+      if (!isValidAmharicName(updateData.lastNameAmharic)) return res.status(400).json({ message: 'Amharic last name must contain only Amharic letters and cannot be symbols or numbers' });
+    }
+    if (updateData.fatherName !== undefined && updateData.fatherName.trim()) {
+      updateData.fatherName = sanitizeName(updateData.fatherName);
+      if (!isValidParentName(updateData.fatherName)) return res.status(400).json({ message: "Father's name must contain only letters (no numbers or symbols)" });
+    }
+    if (updateData.motherName !== undefined && updateData.motherName.trim()) {
+      updateData.motherName = sanitizeName(updateData.motherName);
+      if (!isValidParentName(updateData.motherName)) return res.status(400).json({ message: "Mother's name must contain only letters (no numbers or symbols)" });
+    }
+    if (updateData.fatherPhone !== undefined && updateData.fatherPhone.trim()) {
+      updateData.fatherPhone = updateData.fatherPhone.trim();
+      if (!isValidPhone(updateData.fatherPhone)) return res.status(400).json({ message: 'Father phone must be a 10-digit number starting with 09 or 07' });
+    }
+    if (updateData.motherPhone !== undefined && updateData.motherPhone.trim()) {
+      updateData.motherPhone = updateData.motherPhone.trim();
+      if (!isValidPhone(updateData.motherPhone)) return res.status(400).json({ message: 'Mother phone must be a 10-digit number starting with 09 or 07' });
+    }
 
     const photoUrl = await uploadPhoto(files.photo, 'students');
     const fatherPhotoUrl = await uploadPhoto(files.fatherPhoto, 'students/parents');
@@ -142,7 +248,11 @@ const updateStudent = async (req, res) => {
     if (student.studentId) {
       const pendingUpdate = {};
       const syncFields = ['firstName','middleName','lastName','firstNameAmharic','middleNameAmharic','lastNameAmharic','email','dateOfBirth','joinedYear','address','fatherName','fatherPhone','motherName','motherPhone'];
-      syncFields.forEach(k => { if (updateData[k] !== undefined) pendingUpdate[k] = updateData[k]; });
+      syncFields.forEach(k => {
+        if (updateData[k] !== undefined && updateData[k] !== 'Invalid Date') {
+          pendingUpdate[k] = updateData[k];
+        }
+      });
       if (updateData.gender) pendingUpdate.gender = updateData.gender.toLowerCase();
       if (updateData.class) {
         const reverseClassMap = { 'Nursery': 'Nursery (ጀማሪ)', 'LKG': 'LKG (ደረጃ 1)', 'UKG': 'UKG (ደረጃ 2)' };
@@ -151,7 +261,7 @@ const updateStudent = async (req, res) => {
       if (Object.keys(pendingUpdate).length) await PendingStudent.findOneAndUpdate({ studentId: student.studentId, status: 'approved' }, pendingUpdate);
     }
 
-    await logActivity(req.user, 'Edited', 'Student', `Edited student ${student.firstName} ${student.lastName} (ID: ${student.studentId})`);
+    await logActivity(req.user, 'Edited', 'Student', `Edited student ${getStudentFullName(student)} (ID: ${student.studentId})`);
     res.json(student);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -166,7 +276,7 @@ const deleteStudent = async (req, res) => {
     }
     // Also delete the approved pending record for this student
     await PendingStudent.deleteOne({ studentId: student.studentId, status: 'approved' });
-    await logActivity(req.user, 'Deleted', 'Student', `Deleted student ${student.firstName} ${student.lastName} (ID: ${student.studentId})`);
+    await logActivity(req.user, 'Deleted', 'Student', `Deleted student ${getStudentFullName(student)} (ID: ${student.studentId})`);
     res.json({ message: 'Student deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -183,7 +293,7 @@ const inactiveStudent = async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
-    await logActivity(req.user, 'Deactivated', 'Student', `Marked student ${student.firstName} ${student.lastName} as inactive`);
+    await logActivity(req.user, 'Deactivated', 'Student', `Marked student ${getStudentFullName(student)} as inactive`);
     res.json({ message: 'Student marked as inactive successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -200,7 +310,7 @@ const activateStudent = async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
-    await logActivity(req.user, 'Activated', 'Student', `Reactivated student ${student.firstName} ${student.lastName}`);
+    await logActivity(req.user, 'Activated', 'Student', `Reactivated student ${getStudentFullName(student)}`);
     res.json({ message: 'Student activated successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -464,7 +574,7 @@ const generateCredentialSingle = async (req, res) => {
     if (!student) return res.status(404).json({ message: 'Student not found' });
     if (!student.studentId) return res.status(400).json({ message: 'Student has no ID yet' });
     const result = await upsertStudentCredential(student);
-    await logActivity(req.user, 'Generated Credential', 'Student', `Generated credential for ${student.firstName} ${student.lastName}`);
+    await logActivity(req.user, 'Generated Credential', 'Student', `Generated credential for ${getStudentFullName(student)}`);
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });

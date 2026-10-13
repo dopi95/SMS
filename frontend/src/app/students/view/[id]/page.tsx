@@ -365,12 +365,12 @@ export default function ViewStudentPage() {
                     </div>
                     <div>
                       <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Date of Birth (E.C)', 'የተወልድ ቀን')}</label>
-                      <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.dateOfBirth || '-'}</p>
+                      <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{student.dateOfBirth && student.dateOfBirth !== 'Invalid Date' ? student.dateOfBirth : '-'}</p>
                     </div>
                     <div>
                       <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Age', 'ዕድሜ')}</label>
                       <p className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>
-                        {student.dateOfBirth && calcAgeFromDOB(student.dateOfBirth) !== null
+                        {student.dateOfBirth && student.dateOfBirth !== 'Invalid Date' && calcAgeFromDOB(student.dateOfBirth) !== null
                           ? `${calcAgeFromDOB(student.dateOfBirth)} yrs`
                           : '-'}
                       </p>

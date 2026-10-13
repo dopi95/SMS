@@ -244,7 +244,9 @@ export default function InactiveStudentsPage() {
       student.class,
       student.section || '-',
       student.gender,
-      student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : '-',
+      student.dateOfBirth && student.dateOfBirth !== 'Invalid Date'
+        ? (student.dateOfBirth.includes('/') ? student.dateOfBirth : new Date(student.dateOfBirth).toLocaleDateString())
+        : '-',
       student.paymentCode || '-',
       student.fatherPhone || '-',
       toTitleCase(student.motherName) || '-',

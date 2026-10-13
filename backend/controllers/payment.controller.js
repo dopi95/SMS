@@ -3,6 +3,8 @@ const Student = require('../models/Student.model');
 const asyncHandler = require('../utils/asyncHandler');
 const logActivity = require('../utils/logActivity');
 
+const formatStudentName = (s) => (s ? [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' ') : '');
+
 // Create payment
 exports.createPayment = asyncHandler(async (req, res) => {
   const { studentId, month, year, amount, description, paymentDate } = req.body;
@@ -29,7 +31,7 @@ exports.createPayment = asyncHandler(async (req, res) => {
   });
 
   const populatedPayment = await Payment.findById(payment._id).populate('studentId');
-  const sName = populatedPayment.studentId ? `${populatedPayment.studentId.firstName} ${populatedPayment.studentId.lastName}` : studentId;
+  const sName = formatStudentName(populatedPayment.studentId) || studentId;
   await logActivity(req.user, 'Payment Added', 'Payment', `Marked ${month} ${year} as paid for ${sName}`);
   res.status(201).json(populatedPayment);
 });
@@ -85,12 +87,12 @@ exports.updatePayment = asyncHandler(async (req, res) => {
 exports.deletePayment = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const payment = await Payment.findByIdAndDelete(id);
+  const payment = await Payment.findByIdAndDelete(id).populate('studentId');
 
   if (!payment) {
     return res.status(404).json({ message: 'Payment not found' });
   }
-  const sName = payment.studentId ? `${payment.studentId.firstName} ${payment.studentId.lastName}` : '';
+  const sName = formatStudentName(payment.studentId);
   await logActivity(req.user, 'Payment Deleted', 'Payment', `Removed ${payment.month} ${payment.year} payment for ${sName}`);
   res.json({ message: 'Payment deleted successfully' });
 });

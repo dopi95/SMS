@@ -4,15 +4,20 @@ import { useState } from 'react'
 import React from 'react'
 import Image from 'next/image'
 import axios from 'axios'
+import { getCurrentEthiopianYear } from '@/utils/dateUtils'
 
 const CLASSES = [
   'Nursery (ጀማሪ)',
   'LKG (ደረጃ 1)',
   'UKG (ደረጃ 2)',
 ]
-const EC_YEARS = [2017, 2018, 2019, 2020]
 
 export default function RegistrationFormPage() {
+  const currentECYear = getCurrentEthiopianYear()
+  const baseStartYear = 2016
+  const maxYear = Math.max(currentECYear + 4, 2023)
+  const ecYears = Array.from({ length: maxYear - baseStartYear + 1 }, (_, i) => baseStartYear + i)
+
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [fatherPhotoPreview, setFatherPhotoPreview] = useState<string | null>(null)
   const [motherPhotoPreview, setMotherPhotoPreview] = useState<string | null>(null)
@@ -21,7 +26,7 @@ export default function RegistrationFormPage() {
   const handleStudentTypeChange = (type: 'new' | 'existing') => {
     setStudentType(type)
     if (type === 'new') {
-      setJoinedYear('2019')
+      setJoinedYear(String(currentECYear))
       setJoinedYearError('')
     } else {
       setJoinedYear('')
@@ -35,22 +40,22 @@ export default function RegistrationFormPage() {
     try {
       const formData = new FormData()
       formData.append('studentType', studentType)
-      formData.append('firstName', enNames.first)
-      formData.append('middleName', enNames.middle)
-      formData.append('lastName', enNames.last)
-      formData.append('firstNameAmharic', amNames.first)
-      formData.append('middleNameAmharic', amNames.middle)
-      formData.append('lastNameAmharic', amNames.last)
+      formData.append('firstName', enNames.first.trim().replace(/\s+/g, ' '))
+      formData.append('middleName', enNames.middle.trim().replace(/\s+/g, ' '))
+      formData.append('lastName', enNames.last.trim().replace(/\s+/g, ' '))
+      formData.append('firstNameAmharic', amNames.first.trim().replace(/\s+/g, ' '))
+      formData.append('middleNameAmharic', amNames.middle.trim().replace(/\s+/g, ' '))
+      formData.append('lastNameAmharic', amNames.last.trim().replace(/\s+/g, ' '))
       formData.append('gender', gender)
-      formData.append('email', email)
-      formData.append('dateOfBirth', dob)
-      formData.append('joinedYear', joinedYear)
+      formData.append('email', email.trim())
+      formData.append('dateOfBirth', dob.trim())
+      formData.append('joinedYear', studentType === 'new' ? String(currentECYear) : joinedYear)
       formData.append('class', classVal)
-      formData.append('address', address)
-      formData.append('fatherName', fatherName)
-      formData.append('fatherPhone', fatherPhone)
-      formData.append('motherName', motherName)
-      formData.append('motherPhone', motherPhone)
+      formData.append('address', address.trim())
+      formData.append('fatherName', fatherName.trim().replace(/\s+/g, ' '))
+      formData.append('fatherPhone', fatherPhone.trim())
+      formData.append('motherName', motherName.trim().replace(/\s+/g, ' '))
+      formData.append('motherPhone', motherPhone.trim())
       if (photoInputRef.current?.files?.[0]) {
         formData.append('photo', photoInputRef.current.files[0])
       }
@@ -62,8 +67,9 @@ export default function RegistrationFormPage() {
       }
       await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/pending-students`, formData)
       setSubmitted(true)
-    } catch {
-      alert('Submission failed. Please try again.')
+    } catch (err: any) {
+      const serverMsg = err.response?.data?.message || 'Submission failed. Please try again.'
+      alert(serverMsg)
     } finally {
       setSubmitting(false)
     }
@@ -77,7 +83,7 @@ export default function RegistrationFormPage() {
   const [amErrors, setAmErrors] = useState({ first: '', middle: '', last: '' })
   const [gender, setGender] = useState('')
   const [genderError, setGenderError] = useState('')
-  const [joinedYear, setJoinedYear] = useState('2019')
+  const [joinedYear, setJoinedYear] = useState(String(currentECYear))
   const [joinedYearError, setJoinedYearError] = useState('')
   const [classVal, setClassVal] = useState('')
   const [classError, setClassError] = useState('')
@@ -139,24 +145,24 @@ export default function RegistrationFormPage() {
   }
 
   function handleDob(value: string) {
-    const parts = value.split('/')
-    if (parts[2] !== undefined && parts[2].trim().length > 4) return
-    setDob(value)
-    if (!value.trim()) { setDobError(''); setAge(null); return }
-    const dd = parseInt(parts[0]?.trim())
-    const mm = parseInt(parts[1]?.trim())
-    const yyyy = parts[2]?.trim()
-    if (parts.length !== 3 || isNaN(dd) || isNaN(mm) || !yyyy) {
+    const cleanVal = value.replace(/[^\d/]/g, '')
+    const parts = cleanVal.split('/')
+    if (parts.length > 3) return
+    if (parts[0] && parts[0].length > 2) return
+    if (parts[1] && parts[1].length > 2) return
+    if (parts[2] && parts[2].length > 4) return
+    setDob(cleanVal)
+    if (!cleanVal.trim()) { setDobError(''); setAge(null); return }
+    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2] || parts[2].length !== 4) {
       setDobError('Please enter a valid date (dd / mm / yyyy)'); setAge(null)
       return
     }
-    if (String(parts[0].trim()).length > 2) { setDobError('Day must be 1 or 2 digits'); setAge(null); return }
-    if (dd < 0 || dd > 30) { setDobError('Day must be between 0 and 30'); setAge(null); return }
-    if (String(parts[1].trim()).length > 2) { setDobError('Month must be 1 or 2 digits'); setAge(null); return }
-    if (mm < 0 || mm > 13) { setDobError('Month must be between 0 and 13'); setAge(null); return }
-    if (yyyy.length !== 4) { setDobError('Year must be exactly 4 digits'); setAge(null); return }
-    const yy = parseInt(yyyy)
-    if (isNaN(yy) || yy < 2000 || yy > 2019) { setDobError('Year must be between 2000 and 2019'); setAge(null); return }
+    const dd = parseInt(parts[0])
+    const mm = parseInt(parts[1])
+    const yy = parseInt(parts[2])
+    if (isNaN(dd) || dd < 1 || dd > 30) { setDobError('Day must be between 1 and 30'); setAge(null); return }
+    if (isNaN(mm) || mm < 1 || mm > 13) { setDobError('Month must be between 1 and 13'); setAge(null); return }
+    if (isNaN(yy) || yy < 2000 || yy > currentECYear) { setDobError(`Year must be between 2000 and ${currentECYear}`); setAge(null); return }
     setDobError('')
     setAge(calcAgeFromEC(dd, mm, yy))
   }
@@ -168,25 +174,88 @@ export default function RegistrationFormPage() {
     setEmailError(valid ? '' : 'Please enter a valid email address')
   }
 
-  const AMHARIC_RE = /[\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF\uAB01-\uAB2F]/
-  const ENGLISH_RE = /[A-Za-z]/
+  const AMHARIC_LETTERS_ONLY_RE = /^[\u1200-\u135A\u1380-\u139F\u2D80-\u2DDF\uAB01-\uAB2F\s]*$/
+  const AMHARIC_HAS_LETTER_RE = /[\u1200-\u135A\u1380-\u139F\u2D80-\u2DDF\uAB01-\uAB2F]/
+  const ENGLISH_LETTERS_ONLY_RE = /^[A-Za-z\s]*$/
+  const ENGLISH_HAS_LETTER_RE = /[A-Za-z]/
+  const PARENT_LETTERS_ONLY_RE = /^[A-Za-z\u1200-\u135A\u1380-\u139F\u2D80-\u2DDF\uAB01-\uAB2F\s]*$/
+  const PARENT_HAS_LETTER_RE = /[A-Za-z\u1200-\u135A\u1380-\u139F\u2D80-\u2DDF\uAB01-\uAB2F]/
+
+  function validateEnName(v: string): string {
+    if (!v || !v.trim()) return 'This field is required'
+    if (!ENGLISH_HAS_LETTER_RE.test(v)) return 'Must contain letters, not only spaces'
+    if (!ENGLISH_LETTERS_ONLY_RE.test(v)) return 'Only English letters are allowed (no numbers or symbols like . or -)'
+    return ''
+  }
+
+  function validateAmName(v: string): string {
+    if (!v || !v.trim()) return 'ይህ መስክ ያስፈልጋል'
+    if (!AMHARIC_HAS_LETTER_RE.test(v)) return 'ስም ፊደላት ሊኖሩት ይገባል፤ ባዶ ቦታ ብቻ አይፈቀድም'
+    if (!AMHARIC_LETTERS_ONLY_RE.test(v)) return 'የአማርኛ ፊደላት ብቻ ይጠቀሙ (ቁጥሮች እና ምልክቶች እንደ . ወይም - አይፈቀዱም)'
+    return ''
+  }
+
+  function validateParentName(v: string): string {
+    if (!v || !v.trim()) return 'This field is required'
+    if (!PARENT_HAS_LETTER_RE.test(v)) return 'Must contain letters, not only spaces'
+    if (!PARENT_LETTERS_ONLY_RE.test(v)) return 'Only letters are allowed (no numbers or symbols like . or -)'
+    return ''
+  }
 
   function handleEnName(field: 'first' | 'middle' | 'last', value: string) {
-    if (AMHARIC_RE.test(value)) {
-      setEnErrors(prev => ({ ...prev, [field]: 'Only English letters are allowed' }))
-      return
+    const cleanVal = value.replace(/[^A-Za-z\s]/g, '')
+    setEnNames(prev => ({ ...prev, [field]: cleanVal }))
+    if (value !== cleanVal) {
+      setEnErrors(prev => ({ ...prev, [field]: 'Only English letters are allowed (no numbers or symbols like . or -)' }))
+    } else if (!cleanVal) {
+      setEnErrors(prev => ({ ...prev, [field]: '' }))
+    } else if (!cleanVal.trim() && cleanVal.length > 0) {
+      setEnErrors(prev => ({ ...prev, [field]: 'Cannot be only spaces' }))
+    } else {
+      setEnErrors(prev => ({ ...prev, [field]: '' }))
     }
-    setEnNames(prev => ({ ...prev, [field]: value }))
-    setEnErrors(prev => ({ ...prev, [field]: '' }))
   }
 
   function handleAmName(field: 'first' | 'middle' | 'last', value: string) {
-    if (ENGLISH_RE.test(value)) {
-      setAmErrors(prev => ({ ...prev, [field]: 'የአማርኛ ፊደላት ብቻ ይጠቀሙ' }))
-      return
+    const cleanVal = value.replace(/[^\u1200-\u135A\u1380-\u139F\u2D80-\u2DDF\uAB01-\uAB2F\s]/g, '')
+    setAmNames(prev => ({ ...prev, [field]: cleanVal }))
+    if (value !== cleanVal) {
+      setAmErrors(prev => ({ ...prev, [field]: 'የአማርኛ ፊደላት ብቻ ይጠቀሙ (ቁጥሮች እና ምልክቶች እንደ . ወይም - አይፈቀዱም)' }))
+    } else if (!cleanVal) {
+      setAmErrors(prev => ({ ...prev, [field]: '' }))
+    } else if (!cleanVal.trim() && cleanVal.length > 0) {
+      setAmErrors(prev => ({ ...prev, [field]: 'ባዶ ቦታ ብቻ መሆን አይችልም' }))
+    } else {
+      setAmErrors(prev => ({ ...prev, [field]: '' }))
     }
-    setAmNames(prev => ({ ...prev, [field]: value }))
-    setAmErrors(prev => ({ ...prev, [field]: '' }))
+  }
+
+  function handleFatherName(value: string) {
+    const cleanVal = value.replace(/[^A-Za-z\u1200-\u135A\u1380-\u139F\u2D80-\u2DDF\uAB01-\uAB2F\s]/g, '')
+    setFatherName(cleanVal)
+    if (value !== cleanVal) {
+      setFatherNameError('Only letters are allowed (no numbers or symbols like . or -)')
+    } else if (!cleanVal) {
+      setFatherNameError('')
+    } else if (!cleanVal.trim() && cleanVal.length > 0) {
+      setFatherNameError('Cannot be only spaces')
+    } else {
+      setFatherNameError('')
+    }
+  }
+
+  function handleMotherName(value: string) {
+    const cleanVal = value.replace(/[^A-Za-z\u1200-\u135A\u1380-\u139F\u2D80-\u2DDF\uAB01-\uAB2F\s]/g, '')
+    setMotherName(cleanVal)
+    if (value !== cleanVal) {
+      setMotherNameError('Only letters are allowed (no numbers or symbols like . or -)')
+    } else if (!cleanVal) {
+      setMotherNameError('')
+    } else if (!cleanVal.trim() && cleanVal.length > 0) {
+      setMotherNameError('Cannot be only spaces')
+    } else {
+      setMotherNameError('')
+    }
   }
 
   function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -209,6 +278,41 @@ export default function RegistrationFormPage() {
     if (ref.current) ref.current.value = ''
   }
 
+  function handleResetForm() {
+    setStudentType('new')
+    setEnNames({ first: '', middle: '', last: '' })
+    setEnErrors({ first: '', middle: '', last: '' })
+    setAmNames({ first: '', middle: '', last: '' })
+    setAmErrors({ first: '', middle: '', last: '' })
+    setGender('')
+    setGenderError('')
+    setJoinedYear(String(currentECYear))
+    setJoinedYearError('')
+    setClassVal('')
+    setClassError('')
+    setFatherName('')
+    setFatherNameError('')
+    setMotherName('')
+    setMotherNameError('')
+    setFatherPhone('')
+    setFatherPhoneError('')
+    setMotherPhone('')
+    setMotherPhoneError('')
+    setEmail('')
+    setEmailError('')
+    setDob('')
+    setDobError('')
+    setAge(null)
+    setAddress('')
+    setPhotoPreview(null)
+    if (photoInputRef.current) photoInputRef.current.value = ''
+    setFatherPhotoPreview(null)
+    if (fatherPhotoInputRef.current) fatherPhotoInputRef.current.value = ''
+    setMotherPhotoPreview(null)
+    if (motherPhotoInputRef.current) motherPhotoInputRef.current.value = ''
+    setSubmitted(false)
+  }
+
   if (submitted) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -222,7 +326,7 @@ export default function RegistrationFormPage() {
           <p className="text-blue-600 font-medium text-sm mb-3">ምዝገባዎ ተልኳል!</p>
           <p className="text-gray-400 text-sm">We will review your application and contact you soon.</p>
           <button
-            onClick={() => setSubmitted(false)}
+            onClick={handleResetForm}
             className="mt-6 w-full py-2.5 bg-blue-700 text-white rounded-xl hover:bg-blue-800 transition-colors font-semibold text-sm"
           >
             Submit Another · ሌላ ምዝገባ
@@ -251,25 +355,43 @@ export default function RegistrationFormPage() {
 
           <form onSubmit={async (e) => {
             e.preventDefault()
-            const firstErr = !enNames.first.trim() ? 'This field is required' : ''
-            const middleErr = !enNames.middle.trim() ? 'This field is required' : ''
-            const lastErr = !enNames.last.trim() ? 'This field is required' : ''
+            const firstErr = validateEnName(enNames.first)
+            const middleErr = validateEnName(enNames.middle)
+            const lastErr = validateEnName(enNames.last)
             setEnErrors({ first: firstErr, middle: middleErr, last: lastErr })
-            const amFirstErr = !amNames.first.trim() ? 'ይህ መስክ ያስፈልጋል' : ''
-            const amMiddleErr = !amNames.middle.trim() ? 'ይህ መስክ ያስፈልጋል' : ''
-            const amLastErr = !amNames.last.trim() ? 'ይህ መስክ ያስፈልጋል' : ''
+            const amFirstErr = validateAmName(amNames.first)
+            const amMiddleErr = validateAmName(amNames.middle)
+            const amLastErr = validateAmName(amNames.last)
             setAmErrors({ first: amFirstErr, middle: amMiddleErr, last: amLastErr })
             const gErr = !gender ? 'Please select a gender' : ''
             setGenderError(gErr)
-            const dobErr = !dob.trim() ? 'Date of birth is required' : dobError
+            let dobErr = ''
+            if (!dob.trim()) {
+              dobErr = 'Date of birth is required'
+            } else {
+              const parts = dob.trim().split('/')
+              const dd = parseInt(parts[0])
+              const mm = parseInt(parts[1])
+              const yy = parseInt(parts[2])
+              if (parts.length !== 3 || isNaN(dd) || isNaN(mm) || isNaN(yy) || parts[2].length !== 4) {
+                dobErr = 'Please enter a valid date (dd / mm / yyyy)'
+              } else if (dd < 1 || dd > 30) {
+                dobErr = 'Day must be between 1 and 30'
+              } else if (mm < 1 || mm > 13) {
+                dobErr = 'Month must be between 1 and 13'
+              } else if (yy < 2000 || yy > currentECYear) {
+                dobErr = `Year must be between 2000 and ${currentECYear}`
+              }
+            }
             setDobError(dobErr)
-            const yearErr = !joinedYear ? 'Joined year is required' : ''
+            const yearVal = studentType === 'new' ? String(currentECYear) : joinedYear
+            const yearErr = !yearVal ? 'Joined year is required' : ''
             setJoinedYearError(yearErr)
             const clsErr = !classVal ? 'Class is required' : ''
             setClassError(clsErr)
-            const fatherErr = !fatherName.trim() ? 'This field is required' : ''
+            const fatherErr = validateParentName(fatherName)
             setFatherNameError(fatherErr)
-            const motherErr = !motherName.trim() ? 'This field is required' : ''
+            const motherErr = validateParentName(motherName)
             setMotherNameError(motherErr)
             const fPhoneErr = !fatherPhone ? 'This field is required' : fatherPhone.length < 10 ? 'Phone number must be 10 digits' : !(fatherPhone.startsWith('09') || fatherPhone.startsWith('07')) ? 'Phone must start with 09 or 07' : ''
             setFatherPhoneError(fPhoneErr)
@@ -447,8 +569,8 @@ export default function RegistrationFormPage() {
                     <span className="text-xs text-gray-400 leading-tight mt-0.5">ትምሕርት የጀመሩበት ዓመት</span>
                   </div>
                   {studentType === 'new' ? (
-                    <div className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-100 text-gray-500 cursor-not-allowed select-none">
-                      2019 E.C
+                    <div className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-100 text-gray-500 cursor-not-allowed select-none font-medium">
+                      {currentECYear} E.C
                     </div>
                   ) : (
                     <div className="relative">
@@ -460,7 +582,7 @@ export default function RegistrationFormPage() {
                         }`}
                       >
                         <option value="">Select Year</option>
-                        {EC_YEARS.map(y => <option key={y} value={y}>{y} E.C</option>)}
+                        {ecYears.map(y => <option key={y} value={y}>{y} E.C</option>)}
                       </select>
                       <ChevronIcon />
                     </div>
@@ -509,15 +631,9 @@ export default function RegistrationFormPage() {
             <div className="px-6 sm:px-8 py-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <ValidatedField label="Father Full Name" placeholder="Enter father's full name" value={fatherName} error={fatherNameError}
-                  onChange={v => {
-                    if (AMHARIC_RE.test(v)) { setFatherNameError('Only English letters are allowed'); return }
-                    setFatherName(v); setFatherNameError('')
-                  }} />
+                  onChange={v => handleFatherName(v)} />
                 <ValidatedField label="Mother Full Name" placeholder="Enter mother's full name" value={motherName} error={motherNameError}
-                  onChange={v => {
-                    if (AMHARIC_RE.test(v)) { setMotherNameError('Only English letters are allowed'); return }
-                    setMotherName(v); setMotherNameError('')
-                  }} />
+                  onChange={v => handleMotherName(v)} />
                 <PhoneField label="Father Phone" value={fatherPhone} error={fatherPhoneError}
                   onChange={v => handlePhone(v, setFatherPhone, setFatherPhoneError)} />
                 <PhoneField label="Mother Phone" value={motherPhone} error={motherPhoneError}
