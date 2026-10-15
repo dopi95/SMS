@@ -248,8 +248,9 @@ export default function PaymentsPage() {
   const fetchPayments = async () => {
     try {
       const token = localStorage.getItem('token')
+      const monthQuery = selectedMonth !== 'all' ? `month=${selectedMonth}&` : ''
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/payments?month=${selectedMonth}&year=${selectedYear}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/payments?${monthQuery}year=${selectedYear}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       setPayments(response.data)
@@ -331,11 +332,39 @@ export default function PaymentsPage() {
     }
   }
 
+  const getStudentPaymentsForYear = (studentId: string) => {
+    return payments.filter(p => {
+      const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+      return paymentStudentId === studentId && Number(p.year) === Number(selectedYear)
+    })
+  }
+
+  const getStudentPaidMonths = (studentId: string): string[] => {
+    const studentPayments = getStudentPaymentsForYear(studentId)
+    const paidList: string[] = []
+    ETHIOPIAN_ACADEMIC_MONTHS.forEach(m => {
+      if (studentPayments.some(p => p.month && p.month.toLowerCase() === m.value.toLowerCase())) {
+        paidList.push(m.value)
+      }
+    })
+    return paidList
+  }
+
+  const getStudentUnpaidMonths = (studentId: string): string[] => {
+    const paidList = getStudentPaidMonths(studentId).map(m => m.toLowerCase())
+    return ETHIOPIAN_ACADEMIC_MONTHS
+      .filter(m => !paidList.includes(m.value.toLowerCase()))
+      .map(m => m.value)
+  }
+
   const isStudentPaid = (studentId: string) => {
+    if (selectedMonth === 'all') {
+      return getStudentPaidMonths(studentId).length > 0
+    }
     return payments.some(
       p => {
         const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
-        return paymentStudentId === studentId && p.month === selectedMonth && p.year === selectedYear
+        return paymentStudentId === studentId && p.month === selectedMonth && Number(p.year) === Number(selectedYear)
       }
     )
   }
@@ -452,41 +481,264 @@ export default function PaymentsPage() {
     }
   }
 
+  const formatMonthNamesForExport = (months: string[]): string => {
+    if (months.length === 0) return '-'
+    if (months.length === ETHIOPIAN_ACADEMIC_MONTHS.length) {
+      return language === 'am' ? 'ሁሉም 10 ወራት (መስከረም - ሰኔ)' : 'All 10 Months (Meskerem - Sene)'
+    }
+    const formatted = months.map(mVal => {
+      const m = ETHIOPIAN_ACADEMIC_MONTHS.find(item => item.value.toLowerCase() === mVal.toLowerCase())
+      if (!m) return mVal
+      return language === 'am' ? m.am : `${m.en} (${m.am})`
+    })
+    return formatted.join(', ')
+  }
+
   const exportToPDF = async (type: 'paid' | 'unpaid' | 'all') => {
     setShowExportMenu(false)
-    const doc = new jsPDF()
+    const isAllMonths = selectedMonth === 'all'
+
+    const doc = new jsPDF({
+      orientation: isAllMonths ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    })
     const hasNyala = await loadNyalaFont(doc)
     const fontName = hasNyala ? 'Nyala' : 'helvetica'
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
 
     // Title
     doc.setFont(fontName, 'bold')
-    doc.setFontSize(18)
-    doc.text('Bluelight Academy - Payment Report', 14, 20)
+    doc.setFontSize(16)
+    const titleText = isAllMonths
+      ? type === 'paid'
+        ? 'Bluelight Academy - Paid Students Report (All Months)'
+        : type === 'unpaid'
+        ? 'Bluelight Academy - Unpaid Students Report (All Months)'
+        : 'Bluelight Academy - Payment Report (All Months)'
+      : 'Bluelight Academy - Payment Report'
+    doc.text(titleText, 14, 18)
 
     // Period info
     doc.setFont(fontName, 'normal')
-    doc.setFontSize(12)
-    doc.text(`Period: ${getEthiopianMonthDisplay(selectedMonth, 'en')} ${selectedYear} E.C`, 14, 30)
-    let yPosition = 47
+    doc.setFontSize(11)
+    const periodText = isAllMonths
+      ? `Academic Year: ${selectedYear} E.C (${selectedYear} ዓ.ም)  |  Scope: All Months (ሁሉም 10 ወራት)`
+      : `Period: ${getEthiopianMonthDisplay(selectedMonth, 'en')} ${selectedYear} E.C`
+    doc.text(periodText, 14, 26)
+
+    let yPosition = 33
     const extraFilters: string[] = []
     if (classFilter !== 'all') extraFilters.push(`Class: ${formatClassBoth(classFilter)}`)
     if (sectionFilter !== 'all') extraFilters.push(`Section: ${formatSectionBoth(sectionFilter)}`)
     if (extraFilters.length > 0) {
-      doc.setFont(fontName, 'normal')
-      doc.text(extraFilters.join(' | '), 14, 37)
-      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 44)
-      yPosition = 54
-    } else {
-      doc.setFont(fontName, 'normal')
-      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 37)
+      doc.text(extraFilters.join('  |  '), 14, yPosition)
+      yPosition += 7
+    }
+    doc.text(`Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 14, yPosition)
+    yPosition += 10
+
+    if (isAllMonths) {
+      let yearPayments = payments
+      try {
+        const token = localStorage.getItem('token')
+        const res = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/payments?year=${selectedYear}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (Array.isArray(res.data)) {
+          yearPayments = res.data
+        }
+      } catch (e) {
+        console.error('Failed to fetch full year payments for export:', e)
+      }
+
+      const studentAnalysis = filteredStudents.map(student => {
+        const studentPays = yearPayments.filter(p => {
+          const pStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+          return pStudentId === student._id && Number(p.year) === Number(selectedYear)
+        })
+
+        const paidMonthsList: string[] = []
+        let totalAmountPaid = 0
+        ETHIOPIAN_ACADEMIC_MONTHS.forEach(m => {
+          const matchingPay = studentPays.find(pay => pay.month && pay.month.toLowerCase() === m.value.toLowerCase())
+          if (matchingPay) {
+            paidMonthsList.push(m.value)
+            totalAmountPaid += Number(matchingPay.amount) || 0
+          }
+        })
+
+        const unpaidMonthsList = ETHIOPIAN_ACADEMIC_MONTHS
+          .filter(m => !paidMonthsList.some(pm => pm.toLowerCase() === m.value.toLowerCase()))
+          .map(m => m.value)
+
+        return {
+          student,
+          paidMonths: paidMonthsList,
+          unpaidMonths: unpaidMonthsList,
+          paidCount: paidMonthsList.length,
+          unpaidCount: unpaidMonthsList.length,
+          totalAmountPaid
+        }
+      })
+
+      const paidStudentsList = studentAnalysis.filter(s => s.paidCount > 0)
+      const unpaidStudentsList = studentAnalysis.filter(s => s.unpaidCount > 0)
+
+      if (type === 'paid' || type === 'all') {
+        const totalPaidCollected = paidStudentsList.reduce((sum, s) => sum + s.totalAmountPaid, 0)
+        doc.setFont(fontName, 'normal')
+        doc.setFontSize(11)
+        doc.text(
+          `Total Students with Paid Months: ${paidStudentsList.length} of ${filteredStudents.length}  |  Total Amount: ${totalPaidCollected.toLocaleString()} ETB`,
+          14,
+          yPosition
+        )
+        yPosition += 8
+
+        if (paidStudentsList.length > 0) {
+          doc.setFont(fontName, 'bold')
+          doc.setFontSize(13)
+          doc.setTextColor(34, 197, 94)
+          doc.text('Paid Students & Months Paid (የተከፈሉ ተማሪዎችና የወራት ዝርዝር)', 14, yPosition)
+          doc.setTextColor(0, 0, 0)
+
+          const paidTableData = paidStudentsList.map((item, idx) => [
+            String(idx + 1),
+            item.student.studentId || '-',
+            `${item.student.firstName} ${item.student.middleName} ${item.student.lastName}`,
+            formatClassBoth(item.student.class),
+            item.student.section ? formatSectionBoth(item.student.section) : '-',
+            formatMonthNamesForExport(item.paidMonths),
+            `${item.paidCount} / 10`,
+            `${item.totalAmountPaid.toLocaleString()} ETB`,
+            item.student.fatherPhone || item.student.motherPhone || '-'
+          ])
+
+          autoTable(doc, {
+            startY: yPosition + 4,
+            head: [['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Paid Months (የተከፈሉ ወራት)', 'Count', 'Total Paid', 'Parent Phone']],
+            body: paidTableData,
+            showHead: 'firstPage',
+            theme: 'grid',
+            styles: { font: fontName, fontSize: 8, overflow: 'linebreak' },
+            headStyles: { fillColor: [34, 197, 94], font: fontName, fontStyle: 'bold', halign: 'center' },
+            margin: { left: 14, right: 14 },
+            columnStyles: {
+              0: { cellWidth: 10, halign: 'center' },
+              1: { cellWidth: 22, halign: 'center' },
+              2: { cellWidth: 42 },
+              3: { cellWidth: 22 },
+              4: { cellWidth: 16, halign: 'center' },
+              5: { cellWidth: 85 },
+              6: { cellWidth: 18, halign: 'center' },
+              7: { cellWidth: 26, halign: 'right' },
+              8: { cellWidth: 28, halign: 'center' }
+            }
+          })
+
+          yPosition = (doc as any).lastAutoTable.finalY + 12
+        } else {
+          doc.setFont(fontName, 'italic')
+          doc.text('No students with paid months found.', 14, yPosition + 5)
+          yPosition += 15
+        }
+      }
+
+      if (type === 'unpaid' || type === 'all') {
+        if (type === 'all' && (doc as any).lastAutoTable) {
+          doc.addPage()
+          yPosition = 20
+        }
+
+        doc.setFont(fontName, 'normal')
+        doc.setFontSize(11)
+        doc.text(
+          `Total Students with Unpaid Months: ${unpaidStudentsList.length} of ${filteredStudents.length}`,
+          14,
+          yPosition
+        )
+        yPosition += 8
+
+        if (unpaidStudentsList.length > 0) {
+          doc.setFont(fontName, 'bold')
+          doc.setFontSize(13)
+          doc.setTextColor(220, 38, 38)
+          doc.text('Unpaid Students & Months Pending (ያልተከፈሉ ተማሪዎችና የቀሩ ወራት ዝርዝር)', 14, yPosition)
+          doc.setTextColor(0, 0, 0)
+
+          const unpaidTableData = unpaidStudentsList.map((item, idx) => [
+            String(idx + 1),
+            item.student.studentId || '-',
+            `${item.student.firstName} ${item.student.middleName} ${item.student.lastName}`,
+            formatClassBoth(item.student.class),
+            item.student.section ? formatSectionBoth(item.student.section) : '-',
+            formatMonthNamesForExport(item.unpaidMonths),
+            `${item.unpaidCount} / 10`,
+            item.student.fatherPhone || '-',
+            item.student.motherPhone || '-'
+          ])
+
+          autoTable(doc, {
+            startY: yPosition + 4,
+            head: [['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Unpaid Months (ያልተከፈሉ ወራት)', 'Count', 'Father Phone', 'Mother Phone']],
+            body: unpaidTableData,
+            showHead: 'firstPage',
+            theme: 'grid',
+            styles: { font: fontName, fontSize: 8, overflow: 'linebreak' },
+            headStyles: { fillColor: [220, 38, 38], font: fontName, fontStyle: 'bold', halign: 'center' },
+            margin: { left: 14, right: 14 },
+            columnStyles: {
+              0: { cellWidth: 10, halign: 'center' },
+              1: { cellWidth: 22, halign: 'center' },
+              2: { cellWidth: 42 },
+              3: { cellWidth: 22 },
+              4: { cellWidth: 16, halign: 'center' },
+              5: { cellWidth: 85 },
+              6: { cellWidth: 18, halign: 'center' },
+              7: { cellWidth: 27, halign: 'center' },
+              8: { cellWidth: 27, halign: 'center' }
+            }
+          })
+        } else {
+          doc.setFont(fontName, 'italic')
+          doc.text('All students have fully paid all months.', 14, yPosition + 5)
+        }
+      }
+
+      // Page numbers footer
+      const pageCount = (doc as any).internal.getNumberOfPages()
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        doc.setFont(fontName, 'normal')
+        doc.setFontSize(8)
+        doc.setTextColor(156, 163, 175)
+        doc.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth / 2,
+          pageHeight - 6,
+          { align: 'center' }
+        )
+      }
+
+      const fileName = type === 'paid'
+        ? `Paid_Students_All_Months_${selectedYear}EC.pdf`
+        : type === 'unpaid'
+        ? `Unpaid_Students_All_Months_${selectedYear}EC.pdf`
+        : `Payment_Report_All_Months_${selectedYear}EC.pdf`
+
+      doc.save(fileName)
+      toast.success(getText('PDF exported successfully', 'ፒዲኤፍ በተሳካ ሁኔታ ወጥቷል'))
+      return
     }
 
-    // Separate paid and unpaid students
+    // Single Month Export Logic
     const paidStudents = filteredStudents.filter(s => isStudentPaid(s._id))
     const unpaidStudents = filteredStudents.filter(s => !isStudentPaid(s._id))
 
     if (type === 'paid' || type === 'all') {
-      // Summary for paid
       doc.setFont(fontName, 'normal')
       doc.setFontSize(11)
       doc.text(`Total Paid Students: ${paidStudents.length}`, 14, yPosition)
@@ -502,7 +754,7 @@ export default function PaymentsPage() {
         const paidData = paidStudents.map(student => {
           const payment = payments.find(p => {
             const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
-            return paymentStudentId === student._id
+            return paymentStudentId === student._id && p.month === selectedMonth && Number(p.year) === Number(selectedYear)
           })
           return [
             student.studentId,
@@ -585,6 +837,210 @@ export default function PaymentsPage() {
 
     doc.save(fileName)
     toast.success(getText('PDF exported successfully', 'ፒዲኤፍ በተሳካ ሁኔታ ወጥቷል'))
+  }
+
+  const exportToExcel = async (type: 'paid' | 'unpaid' | 'all') => {
+    setShowExportMenu(false)
+    const isAllMonths = selectedMonth === 'all'
+
+    if (isAllMonths) {
+      let yearPayments = payments
+      try {
+        const token = localStorage.getItem('token')
+        const res = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/payments?year=${selectedYear}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (Array.isArray(res.data)) {
+          yearPayments = res.data
+        }
+      } catch (e) {
+        console.error('Failed to fetch payments for Excel export:', e)
+      }
+
+      const studentAnalysis = filteredStudents.map(student => {
+        const studentPays = yearPayments.filter(p => {
+          const pStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+          return pStudentId === student._id && Number(p.year) === Number(selectedYear)
+        })
+
+        const paidMonthsList: string[] = []
+        let totalAmountPaid = 0
+        ETHIOPIAN_ACADEMIC_MONTHS.forEach(m => {
+          const matchingPay = studentPays.find(pay => pay.month && pay.month.toLowerCase() === m.value.toLowerCase())
+          if (matchingPay) {
+            paidMonthsList.push(m.value)
+            totalAmountPaid += Number(matchingPay.amount) || 0
+          }
+        })
+
+        const unpaidMonthsList = ETHIOPIAN_ACADEMIC_MONTHS
+          .filter(m => !paidMonthsList.some(pm => pm.toLowerCase() === m.value.toLowerCase()))
+          .map(m => m.value)
+
+        return {
+          student,
+          paidMonths: paidMonthsList,
+          unpaidMonths: unpaidMonthsList,
+          paidCount: paidMonthsList.length,
+          unpaidCount: unpaidMonthsList.length,
+          totalAmountPaid
+        }
+      })
+
+      let rows: string[][] = []
+      let fileName = ''
+
+      if (type === 'paid') {
+        const list = studentAnalysis.filter(s => s.paidCount > 0)
+        fileName = `Paid_Students_All_Months_${selectedYear}EC.csv`
+        rows = [
+          ['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Paid Months', 'Paid Count', 'Total Paid (ETB)', 'Parent Phone'],
+          ...list.map((item, idx) => [
+            String(idx + 1),
+            item.student.studentId || '',
+            `${item.student.firstName} ${item.student.middleName} ${item.student.lastName}`,
+            item.student.class || '',
+            item.student.section || '',
+            formatMonthNamesForExport(item.paidMonths),
+            `${item.paidCount} / 10`,
+            String(item.totalAmountPaid),
+            item.student.fatherPhone || item.student.motherPhone || ''
+          ])
+        ]
+      } else if (type === 'unpaid') {
+        const list = studentAnalysis.filter(s => s.unpaidCount > 0)
+        fileName = `Unpaid_Students_All_Months_${selectedYear}EC.csv`
+        rows = [
+          ['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Unpaid Months', 'Unpaid Count', 'Father Phone', 'Mother Phone'],
+          ...list.map((item, idx) => [
+            String(idx + 1),
+            item.student.studentId || '',
+            `${item.student.firstName} ${item.student.middleName} ${item.student.lastName}`,
+            item.student.class || '',
+            item.student.section || '',
+            formatMonthNamesForExport(item.unpaidMonths),
+            `${item.unpaidCount} / 10`,
+            item.student.fatherPhone || '',
+            item.student.motherPhone || ''
+          ])
+        ]
+      } else {
+        fileName = `Payment_Report_All_Months_${selectedYear}EC.csv`
+        rows = [
+          ['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Paid Months', 'Paid Count', 'Unpaid Months', 'Unpaid Count', 'Total Paid (ETB)', 'Father Phone', 'Mother Phone'],
+          ...studentAnalysis.map((item, idx) => [
+            String(idx + 1),
+            item.student.studentId || '',
+            `${item.student.firstName} ${item.student.middleName} ${item.student.lastName}`,
+            item.student.class || '',
+            item.student.section || '',
+            formatMonthNamesForExport(item.paidMonths),
+            `${item.paidCount} / 10`,
+            formatMonthNamesForExport(item.unpaidMonths),
+            `${item.unpaidCount} / 10`,
+            String(item.totalAmountPaid),
+            item.student.fatherPhone || '',
+            item.student.motherPhone || ''
+          ])
+        ]
+      }
+
+      const csvContent = '\uFEFF' + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      a.click()
+      window.URL.revokeObjectURL(url)
+      toast.success(getText('Excel (CSV) exported successfully', 'ኤክሴል (CSV) በተሳካ ሁኔታ ወጥቷል'))
+      return
+    }
+
+    // Single Month Excel Export
+    const paidStudents = filteredStudents.filter(s => isStudentPaid(s._id))
+    const unpaidStudents = filteredStudents.filter(s => !isStudentPaid(s._id))
+    let rows: string[][] = []
+    let fileName = ''
+
+    if (type === 'paid') {
+      fileName = `Paid_Students_${selectedMonth}_${selectedYear}EC.csv`
+      rows = [
+        ['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Month', 'Year', 'Amount (ETB)', 'Payment Date', 'Description'],
+        ...paidStudents.map((s, idx) => {
+          const payment = payments.find(p => {
+            const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+            return paymentStudentId === s._id && p.month === selectedMonth && Number(p.year) === Number(selectedYear)
+          })
+          return [
+            String(idx + 1),
+            s.studentId || '',
+            `${s.firstName} ${s.middleName} ${s.lastName}`,
+            s.class || '',
+            s.section || '',
+            selectedMonth,
+            String(selectedYear),
+            payment?.amount ? String(payment.amount) : '',
+            payment?.paymentDate ? payment.paymentDate.split('T')[0] : '',
+            payment?.description || ''
+          ]
+        })
+      ]
+    } else if (type === 'unpaid') {
+      fileName = `Unpaid_Students_${selectedMonth}_${selectedYear}EC.csv`
+      rows = [
+        ['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Month', 'Year', 'Status', 'Father Phone', 'Mother Phone'],
+        ...unpaidStudents.map((s, idx) => [
+          String(idx + 1),
+          s.studentId || '',
+          `${s.firstName} ${s.middleName} ${s.lastName}`,
+          s.class || '',
+          s.section || '',
+          selectedMonth,
+          String(selectedYear),
+          'Unpaid',
+          s.fatherPhone || '',
+          s.motherPhone || ''
+        ])
+      ]
+    } else {
+      fileName = `Payment_Report_${selectedMonth}_${selectedYear}EC.csv`
+      rows = [
+        ['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Month', 'Year', 'Status', 'Amount (ETB)', 'Payment Date', 'Father Phone', 'Mother Phone'],
+        ...filteredStudents.map((s, idx) => {
+          const isPaid = isStudentPaid(s._id)
+          const payment = payments.find(p => {
+            const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+            return paymentStudentId === s._id && p.month === selectedMonth && Number(p.year) === Number(selectedYear)
+          })
+          return [
+            String(idx + 1),
+            s.studentId || '',
+            `${s.firstName} ${s.middleName} ${s.lastName}`,
+            s.class || '',
+            s.section || '',
+            selectedMonth,
+            String(selectedYear),
+            isPaid ? 'Paid' : 'Unpaid',
+            payment?.amount ? String(payment.amount) : '',
+            payment?.paymentDate ? payment.paymentDate.split('T')[0] : '',
+            s.fatherPhone || '',
+            s.motherPhone || ''
+          ]
+        })
+      ]
+    }
+
+    const csvContent = '\uFEFF' + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    a.click()
+    window.URL.revokeObjectURL(url)
+    toast.success(getText('Excel (CSV) exported successfully', 'ኤክሴል (CSV) በተሳካ ሁኔታ ወጥቷል'))
   }
 
   const generateAnnualPaymentReportPDF = async () => {
@@ -830,7 +1286,10 @@ export default function PaymentsPage() {
     // Check if student has payment for current month/year and get payment details
     const studentPayment = payments.find(p => {
       const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
-      return paymentStudentId === student._id && p.month === selectedMonth && p.year === selectedYear
+      if (selectedMonth === 'all') {
+        return paymentStudentId === student._id && Number(p.year) === Number(selectedYear)
+      }
+      return paymentStudentId === student._id && p.month === selectedMonth && Number(p.year) === Number(selectedYear)
     })
     
     const paymentDescription = studentPayment?.description?.toLowerCase() || ''
@@ -859,8 +1318,14 @@ export default function PaymentsPage() {
     
     // Payment status filter
     const isPaid = isStudentPaid(student._id)
-    if (paymentFilter === 'paid' && !isPaid) return false
-    if (paymentFilter === 'unpaid' && isPaid) return false
+    if (selectedMonth === 'all') {
+      const paidMonthsCount = getStudentPaidMonths(student._id).length
+      if (paymentFilter === 'paid' && paidMonthsCount === 0) return false
+      if (paymentFilter === 'unpaid' && paidMonthsCount === ETHIOPIAN_ACADEMIC_MONTHS.length) return false
+    } else {
+      if (paymentFilter === 'paid' && !isPaid) return false
+      if (paymentFilter === 'unpaid' && isPaid) return false
+    }
     
     // Date range filter (only for paid students)
     if (isPaid && studentPayment && (dateFrom || dateTo)) {
@@ -938,7 +1403,9 @@ export default function PaymentsPage() {
                     {getText('Paid Students', 'የተከፈለ ተማሪዎች')}
                   </p>
                   <p className={`text-3xl font-bold mt-2 text-green-600`}>
-                    {filteredStudents.filter(s => isStudentPaid(s._id)).length}
+                    {selectedMonth === 'all'
+                      ? filteredStudents.filter(s => getStudentPaidMonths(s._id).length > 0).length
+                      : filteredStudents.filter(s => isStudentPaid(s._id)).length}
                   </p>
                 </div>
                 <div className="p-3 bg-green-100 rounded-full">
@@ -957,7 +1424,9 @@ export default function PaymentsPage() {
                     {getText('Unpaid Students', 'ያልተከፈለ ተማሪዎች')}
                   </p>
                   <p className={`text-3xl font-bold mt-2 text-red-600`}>
-                    {filteredStudents.filter(s => !isStudentPaid(s._id)).length}
+                    {selectedMonth === 'all'
+                      ? filteredStudents.filter(s => getStudentPaidMonths(s._id).length < ETHIOPIAN_ACADEMIC_MONTHS.length).length
+                      : filteredStudents.filter(s => !isStudentPaid(s._id)).length}
                   </p>
                 </div>
                 <div className="p-3 bg-red-100 rounded-full">
@@ -978,13 +1447,19 @@ export default function PaymentsPage() {
                   </p>
                   <p className={`text-3xl font-bold mt-2 ${theme === 'dark' ? 'text-green-100' : 'text-green-800'}`}>
                     {filteredStudents
-                      .filter(s => isStudentPaid(s._id))
                       .reduce((total, student) => {
+                        if (selectedMonth === 'all') {
+                          const studentPays = payments.filter(p => {
+                            const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+                            return paymentStudentId === student._id && Number(p.year) === Number(selectedYear)
+                          })
+                          return total + studentPays.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+                        }
                         const payment = payments.find(p => {
                           const paymentStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
-                          return paymentStudentId === student._id && p.month === selectedMonth && p.year === selectedYear
+                          return paymentStudentId === student._id && p.month === selectedMonth && Number(p.year) === Number(selectedYear)
                         })
-                        return total + (payment?.amount || 0)
+                        return total + (Number(payment?.amount) || 0)
                       }, 0).toLocaleString()} ETB
                   </p>
                 </div>
@@ -1010,7 +1485,7 @@ export default function PaymentsPage() {
                   </p>
                 </div>
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                  {canManagePayments && selectedStudents.length > 0 && (
+                  {canManagePayments && selectedMonth !== 'all' && selectedStudents.length > 0 && (
                     <button
                       onClick={() => setShowBulkPaymentModal(true)}
                       className="w-full md:w-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
@@ -1021,7 +1496,7 @@ export default function PaymentsPage() {
                       <span>{getText(`Mark ${selectedStudents.length} as Paid`, `${selectedStudents.length} እንደ ተከፍሏል ምልክት አድርግ`)}</span>
                     </button>
                   )}
-                  {canManagePayments && selectedPaidStudents.length > 0 && (
+                  {canManagePayments && selectedMonth !== 'all' && selectedPaidStudents.length > 0 && (
                     <button
                       onClick={handleBulkUnpaid}
                       className="w-full md:w-auto bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
@@ -1057,31 +1532,66 @@ export default function PaymentsPage() {
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <span className="text-sm md:text-base">{getText('Export PDF', 'ፒዲኤፍ አውጣ')}</span>
+                        <span className="text-sm md:text-base">{getText('Export', 'ወደ ውጭ አውጣ')}</span>
+                        <svg className="w-4 h-4 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                       </button>
                       {showExportMenu && (
-                        <div className={`absolute right-0 mt-2 w-56 rounded-lg shadow-xl z-10 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border border-gray-200'}`}>
-                          <div className="py-2">
+                        <div className={`absolute right-0 mt-2 w-64 rounded-xl shadow-2xl z-20 overflow-hidden border ${theme === 'dark' ? 'bg-gray-800 border-gray-700 divide-y divide-gray-700' : 'bg-white border-gray-200 divide-y divide-gray-100'}`}>
+                          {/* PDF Options */}
+                          <div className="p-2">
+                            <p className={`px-3 py-1 text-xs font-semibold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {getText('PDF Reports', 'የፒዲኤፍ ሪፖርቶች')}
+                            </p>
                             <button
                               onClick={() => exportToPDF('paid')}
-                              className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-green-50 text-gray-700'}`}
+                              className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-green-50 text-gray-700'}`}
                             >
-                              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                              <span className="font-medium">{getText('Export Paid Students', 'የተከፈለ ተማሪዎች አውጣ')}</span>
+                              <div className="w-2.5 h-2.5 bg-green-500 rounded-full flex-shrink-0"></div>
+                              <span className="font-medium truncate">{getText('Export Paid Students (PDF)', 'የተከፈለ ተማሪዎች (PDF)')}</span>
                             </button>
                             <button
                               onClick={() => exportToPDF('unpaid')}
-                              className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-red-50 text-gray-700'}`}
+                              className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-red-50 text-gray-700'}`}
                             >
-                              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                              <span className="font-medium">{getText('Export Unpaid Students', 'ያልተከፈለ ተማሪዎች አውጣ')}</span>
+                              <div className="w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0"></div>
+                              <span className="font-medium truncate">{getText('Export Unpaid Students (PDF)', 'ያልተከፈለ ተማሪዎች (PDF)')}</span>
                             </button>
                             <button
                               onClick={() => exportToPDF('all')}
-                              className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-blue-50 text-gray-700'}`}
+                              className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-blue-50 text-gray-700'}`}
                             >
-                              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                              <span className="font-medium">{getText('Export All Students', 'ሁሉንም ተማሪዎች አውጣ')}</span>
+                              <div className="w-2.5 h-2.5 bg-blue-500 rounded-full flex-shrink-0"></div>
+                              <span className="font-medium truncate">{getText('Export All Students (PDF)', 'ሁሉንም ተማሪዎች (PDF)')}</span>
+                            </button>
+                          </div>
+
+                          {/* Excel / CSV Options */}
+                          <div className="p-2">
+                            <p className={`px-3 py-1 text-xs font-semibold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {getText('Excel (CSV) Export', 'ኤክሴል (CSV) አውጣ')}
+                            </p>
+                            <button
+                              onClick={() => exportToExcel('paid')}
+                              className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-green-50 text-gray-700'}`}
+                            >
+                              <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full flex-shrink-0"></div>
+                              <span className="font-medium truncate">{getText('Export Paid (Excel)', 'የተከፈለ (Excel)')}</span>
+                            </button>
+                            <button
+                              onClick={() => exportToExcel('unpaid')}
+                              className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-red-50 text-gray-700'}`}
+                            >
+                              <div className="w-2.5 h-2.5 bg-rose-600 rounded-full flex-shrink-0"></div>
+                              <span className="font-medium truncate">{getText('Export Unpaid (Excel)', 'ያልተከፈለ (Excel)')}</span>
+                            </button>
+                            <button
+                              onClick={() => exportToExcel('all')}
+                              className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-blue-50 text-gray-700'}`}
+                            >
+                              <div className="w-2.5 h-2.5 bg-sky-600 rounded-full flex-shrink-0"></div>
+                              <span className="font-medium truncate">{getText('Export All (Excel)', 'ሁሉንም (Excel)')}</span>
                             </button>
                           </div>
                         </div>
@@ -1125,6 +1635,9 @@ export default function PaymentsPage() {
                       className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                       title={getText('Filter by Ethiopian Month', 'በኢትዮጵያ ወር አጣራ')}
                     >
+                      <option value="all">
+                        {language === 'am' ? 'ሁሉም ወራት (All Months)' : 'All Months (ሁሉም ወራት)'}
+                      </option>
                       {ETHIOPIAN_ACADEMIC_MONTHS.map(m => {
                         const isNow = m.value === currentEcMonth
                         const label = language === 'am'
@@ -1295,13 +1808,17 @@ export default function PaymentsPage() {
                     <thead>
                       <tr className={`border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
                         <th className={`px-6 py-3 text-center text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                          {canManagePayments && (
+                          {selectedMonth === 'all' ? (
+                            '#'
+                          ) : canManagePayments ? (
                             <input
                               type="checkbox"
                               checked={(selectedStudents.length > 0 && selectedStudents.length === filteredStudents.filter(s => !isStudentPaid(s._id)).length && filteredStudents.filter(s => !isStudentPaid(s._id)).length > 0) || (selectedPaidStudents.length > 0 && selectedPaidStudents.length === filteredStudents.filter(s => isStudentPaid(s._id)).length && filteredStudents.filter(s => isStudentPaid(s._id)).length > 0)}
                               onChange={(e) => handleSelectAll(e.target.checked)}
                               className="w-5 h-5 rounded cursor-pointer accent-blue-600"
                             />
+                          ) : (
+                            '#'
                           )}
                         </th>
                         <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -1331,19 +1848,26 @@ export default function PaymentsPage() {
                           </td>
                         </tr>
                       ) : (
-                        paginatedStudents.map((student) => {
+                        paginatedStudents.map((student, idx) => {
                           const isPaid = isStudentPaid(student._id)
                           const isSelected = isPaid ? selectedPaidStudents.includes(student._id) : selectedStudents.includes(student._id)
+                          const paidMonths = getStudentPaidMonths(student._id)
+                          const paidCount = paidMonths.length
+                          const unpaidCount = ETHIOPIAN_ACADEMIC_MONTHS.length - paidCount
                           return (
                             <tr key={student._id} className={`${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} ${isSelected ? theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50' : ''}`}>
                               <td className="px-6 py-4 text-center">
-                                {canManagePayments && (
+                                {selectedMonth === 'all' ? (
+                                  <span className="text-xs font-medium text-gray-500">{startIndex + idx + 1}</span>
+                                ) : canManagePayments ? (
                                   <input
                                     type="checkbox"
                                     checked={isSelected}
                                     onChange={(e) => handleSelectStudent(student._id, e.target.checked, isPaid)}
                                     className="w-5 h-5 rounded cursor-pointer accent-blue-600"
                                   />
+                                ) : (
+                                  <span className="text-xs font-medium text-gray-500">{startIndex + idx + 1}</span>
                                 )}
                               </td>
                               <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
@@ -1361,56 +1885,92 @@ export default function PaymentsPage() {
                                 {student.section ? formatSectionBoth(student.section) : '-'}
                               </td>
                               <td className="px-6 py-4">
-                                <div className="flex items-center justify-center gap-3">
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={isPaid}
-                                      onChange={canManagePayments ? (e) => handleCheckboxClick(student, e.target.checked) : undefined}
-                                      readOnly={!canManagePayments}
-                                      className={`w-5 h-5 rounded focus:ring-2 focus:ring-offset-0 transition-all ${canManagePayments ? 'cursor-pointer' : 'cursor-default'} ${
-                                        isPaid 
-                                          ? 'bg-green-500 border-green-500 text-white accent-green-500' 
-                                          : 'border-gray-300 accent-gray-400'
-                                      }`}
-                                    />
-                                    <span className={`text-sm font-medium ${
-                                      isPaid 
-                                        ? 'text-green-600' 
-                                        : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                                    }`}>
-                                      {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
-                                    </span>
-                                  </div>
-                                  {isPaid && canManagePayments && (
+                                {selectedMonth === 'all' ? (
+                                  <div className="flex items-center justify-center gap-2">
+                                    <div className="flex flex-col items-center gap-1">
+                                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                        paidCount === 10
+                                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                          : paidCount > 0
+                                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                                          : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300'
+                                      }`}>
+                                        {paidCount === 10
+                                          ? getText('10/10 Months Paid', '10/10 ወራት ተከፍሏል')
+                                          : getText(`${paidCount}/10 Months Paid`, `${paidCount}/10 ወራት ተከፍሏል`)}
+                                      </span>
+                                      {paidCount > 0 && paidCount < 10 && (
+                                        <span className="text-[11px] text-red-500 font-medium">
+                                          {getText(`${unpaidCount} Pending`, `${unpaidCount} ያልተከፈለ`)}
+                                        </span>
+                                      )}
+                                    </div>
                                     <button
-                                      onClick={() => handleDeletePayment(student._id)}
+                                      onClick={() => handleShowHistory(student)}
                                       className={`p-2 rounded-lg transition-all hover:scale-110 ${
                                         theme === 'dark' 
-                                          ? 'hover:bg-red-900/30 text-red-400 hover:text-red-300' 
-                                          : 'hover:bg-red-50 text-red-500 hover:text-red-600'
+                                          ? 'hover:bg-gray-600 text-gray-400 hover:text-blue-400' 
+                                          : 'hover:bg-blue-50 text-gray-500 hover:text-blue-600'
                                       }`}
-                                      title={getText('Remove Payment', 'ክፍያ አስወግድ')}
+                                      title={getText('View Payment History', 'የክፍያ ታሪክ ይመልከቱ')}
                                     >
                                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                       </svg>
                                     </button>
-                                  )}
-                                  <button
-                                    onClick={() => handleShowHistory(student)}
-                                    className={`p-2 rounded-lg transition-all hover:scale-110 ${
-                                      theme === 'dark' 
-                                        ? 'hover:bg-gray-600 text-gray-400 hover:text-blue-400' 
-                                        : 'hover:bg-blue-50 text-gray-500 hover:text-blue-600'
-                                    }`}
-                                    title={getText('View Payment History', 'የክፍያ ታሪክ ይመልከቱ')}
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  </button>
-                                </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-3">
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={isPaid}
+                                        onChange={canManagePayments ? (e) => handleCheckboxClick(student, e.target.checked) : undefined}
+                                        readOnly={!canManagePayments}
+                                        className={`w-5 h-5 rounded focus:ring-2 focus:ring-offset-0 transition-all ${canManagePayments ? 'cursor-pointer' : 'cursor-default'} ${
+                                          isPaid 
+                                            ? 'bg-green-500 border-green-500 text-white accent-green-500' 
+                                            : 'border-gray-300 accent-gray-400'
+                                        }`}
+                                      />
+                                      <span className={`text-sm font-medium ${
+                                        isPaid 
+                                          ? 'text-green-600' 
+                                          : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                      }`}>
+                                        {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
+                                      </span>
+                                    </div>
+                                    {isPaid && canManagePayments && (
+                                      <button
+                                        onClick={() => handleDeletePayment(student._id)}
+                                        className={`p-2 rounded-lg transition-all hover:scale-110 ${
+                                          theme === 'dark' 
+                                            ? 'hover:bg-red-900/30 text-red-400 hover:text-red-300' 
+                                            : 'hover:bg-red-50 text-red-500 hover:text-red-600'
+                                        }`}
+                                        title={getText('Remove Payment', 'ክፍያ አስወግድ')}
+                                      >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleShowHistory(student)}
+                                      className={`p-2 rounded-lg transition-all hover:scale-110 ${
+                                        theme === 'dark' 
+                                          ? 'hover:bg-gray-600 text-gray-400 hover:text-blue-400' 
+                                          : 'hover:bg-blue-50 text-gray-500 hover:text-blue-600'
+                                      }`}
+                                      title={getText('View Payment History', 'የክፍያ ታሪክ ይመልከቱ')}
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           )
@@ -1430,9 +1990,12 @@ export default function PaymentsPage() {
                     </div>
                   ) : (
                     <div className="p-4 space-y-4">
-                      {paginatedStudents.map((student) => {
+                      {paginatedStudents.map((student, idx) => {
                         const isPaid = isStudentPaid(student._id)
                         const isSelected = isPaid ? selectedPaidStudents.includes(student._id) : selectedStudents.includes(student._id)
+                        const paidMonths = getStudentPaidMonths(student._id)
+                        const paidCount = paidMonths.length
+                        const unpaidCount = ETHIOPIAN_ACADEMIC_MONTHS.length - paidCount
                         return (
                           <div
                             key={student._id}
@@ -1441,7 +2004,7 @@ export default function PaymentsPage() {
                             {/* Student Info */}
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex items-start gap-3 flex-1">
-                                {canManagePayments && (
+                                {canManagePayments && selectedMonth !== 'all' && (
                                   <input
                                     type="checkbox"
                                     checked={isSelected}
@@ -1490,43 +2053,64 @@ export default function PaymentsPage() {
                               <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                                 {getText('Payment Status', 'የክፍያ ሁኔታ')}
                               </span>
-                              <div className="flex items-center gap-2">
-                                <label className={`flex items-center gap-2 ${canManagePayments ? 'cursor-pointer' : 'cursor-default'}`}>
-                                  <input
-                                    type="checkbox"
-                                    checked={isPaid}
-                                    onChange={canManagePayments ? (e) => handleCheckboxClick(student, e.target.checked) : undefined}
-                                    readOnly={!canManagePayments}
-                                    className={`w-5 h-5 rounded focus:ring-2 focus:ring-offset-0 transition-all ${canManagePayments ? 'cursor-pointer' : 'cursor-default'} ${
-                                      isPaid 
-                                        ? 'bg-green-500 border-green-500 text-white accent-green-500' 
-                                        : 'border-gray-300 accent-gray-400'
-                                    }`}
-                                  />
-                                  <span className={`text-sm font-semibold ${
-                                    isPaid 
-                                      ? 'text-green-600' 
-                                      : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                              {selectedMonth === 'all' ? (
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                    paidCount === 10
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                      : paidCount > 0
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                                      : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300'
                                   }`}>
-                                    {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
+                                    {paidCount === 10
+                                      ? getText('10/10 Months Paid', '10/10 ወራት ተከፍሏል')
+                                      : getText(`${paidCount}/10 Months Paid`, `${paidCount}/10 ወራት ተከፍሏል`)}
                                   </span>
-                                </label>
-                                {isPaid && canManagePayments && (
-                                  <button
-                                    onClick={() => handleDeletePayment(student._id)}
-                                    className={`p-2 rounded-lg transition-all ${
-                                      theme === 'dark' 
-                                        ? 'hover:bg-red-900/30 text-red-400 hover:text-red-300' 
-                                        : 'hover:bg-red-50 text-red-500 hover:text-red-600'
-                                    }`}
-                                    title={getText('Remove Payment', 'ክፍያ አስወግድ')}
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                  </button>
-                                )}
-                              </div>
+                                  {paidCount > 0 && paidCount < 10 && (
+                                    <span className="text-[11px] text-red-500 font-medium">
+                                      ({unpaidCount} {getText('Pending', 'ቀሪ')})
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <label className={`flex items-center gap-2 ${canManagePayments ? 'cursor-pointer' : 'cursor-default'}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={isPaid}
+                                      onChange={canManagePayments ? (e) => handleCheckboxClick(student, e.target.checked) : undefined}
+                                      readOnly={!canManagePayments}
+                                      className={`w-5 h-5 rounded focus:ring-2 focus:ring-offset-0 transition-all ${canManagePayments ? 'cursor-pointer' : 'cursor-default'} ${
+                                        isPaid 
+                                          ? 'bg-green-500 border-green-500 text-white accent-green-500' 
+                                          : 'border-gray-300 accent-gray-400'
+                                      }`}
+                                    />
+                                    <span className={`text-sm font-semibold ${
+                                      isPaid 
+                                        ? 'text-green-600' 
+                                        : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>
+                                      {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
+                                    </span>
+                                  </label>
+                                  {isPaid && canManagePayments && (
+                                    <button
+                                      onClick={() => handleDeletePayment(student._id)}
+                                      className={`p-2 rounded-lg transition-all ${
+                                        theme === 'dark' 
+                                          ? 'hover:bg-red-900/30 text-red-400 hover:text-red-300' 
+                                          : 'hover:bg-red-50 text-red-500 hover:text-red-600'
+                                      }`}
+                                      title={getText('Remove Payment', 'ክፍያ አስወግድ')}
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )

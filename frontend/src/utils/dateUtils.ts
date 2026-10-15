@@ -56,6 +56,10 @@ export function getCurrentEthiopianYear(date: Date = new Date()): number {
 }
 
 export function getEthiopianMonthDisplay(monthValue: string, lang: string = 'en'): string {
+  if (!monthValue) return ''
+  if (monthValue.toLowerCase() === 'all') {
+    return lang === 'am' ? 'ሁሉም ወራት (All Months)' : 'All Months (ሁሉም ወራት)'
+  }
   const matched = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value.toLowerCase() === monthValue.toLowerCase())
   if (!matched) return monthValue
   return lang === 'am' ? `${matched.am} (${matched.en})` : `${matched.en} (${matched.am})`

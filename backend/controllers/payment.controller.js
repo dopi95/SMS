@@ -41,7 +41,7 @@ exports.getPayments = asyncHandler(async (req, res) => {
   const { month, year } = req.query;
   
   let query = {};
-  if (month) query.month = month;
+  if (month && month !== 'all') query.month = month;
   if (year) query.year = parseInt(year);
 
   const payments = await Payment.find(query).populate('studentId').sort({ createdAt: -1 });
