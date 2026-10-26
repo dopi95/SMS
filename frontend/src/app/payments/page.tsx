@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
@@ -17,6 +18,7 @@ import {
   sortPaymentsByAcademicDate
 } from '@/utils/dateUtils'
 import Pagination from '@/components/Pagination'
+import ImportPaymentsModal from '@/components/ImportPaymentsModal'
 
 interface Student {
   _id: string
@@ -148,6 +150,7 @@ export default function PaymentsPage() {
     return sortPaymentsByAcademicDate(studentHistory, 'desc')
   }, [studentHistory])
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
   const [classFilter, setClassFilter] = useState<string>('all')
@@ -1524,6 +1527,19 @@ export default function PaymentsPage() {
                       <span className="text-sm md:text-base font-semibold">{getText('Generate Payment Report', 'የክፍያ ሪፖርት አውጣ')}</span>
                     </button>
 
+                    {canManagePayments && (
+                      <button
+                        onClick={() => setShowImportModal(true)}
+                        className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
+                        title={getText('Import Payments from Excel or PDF', 'ክፍያዎችን ከ Excel ወይም PDF አስገባ')}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        <span className="text-sm md:text-base font-semibold">{getText('Import Payments', 'ክፍያዎችን አስገባ')}</span>
+                      </button>
+                    )}
+
                     <div className="relative w-full sm:w-auto">
                       <button
                         onClick={() => setShowExportMenu(!showExportMenu)}
@@ -2569,6 +2585,49 @@ export default function PaymentsPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Import Payments Modal (Excel / PDF) */}
+      {showImportModal && (
+        <ImportPaymentsModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          selectedYear={selectedYear}
+          selectedMonth={selectedMonth}
+          students={students}
+          existingPayments={allPayments && allPayments.length > 0 ? allPayments : payments}
+          availableYears={availableYears}
+          onImportSuccess={(importedMonth?: string, importedYear?: number) => {
+            const nextYear = importedYear || selectedYear
+            const nextMonth = importedMonth || selectedMonth
+
+            if (importedYear && importedYear !== selectedYear) {
+              setSelectedYear(importedYear)
+            }
+            if (importedMonth && selectedMonth !== 'all' && importedMonth !== selectedMonth) {
+              setSelectedMonth(importedMonth)
+            }
+
+            const fetchFresh = async () => {
+              try {
+                const token = localStorage.getItem('token')
+                const mQuery = nextMonth !== 'all' ? `month=${nextMonth}&` : ''
+                const res = await axios.get(
+                  `${process.env.NEXT_PUBLIC_API_URL}/payments?${mQuery}year=${nextYear}`,
+                  { headers: { Authorization: `Bearer ${token}` } }
+                )
+                setPayments(res.data)
+                const resAll = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/payments`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                })
+                setAllPayments(resAll.data)
+              } catch (e) {
+                console.error('Failed to refresh payments:', e)
+              }
+            }
+            fetchFresh()
+          }}
+        />
       )}
     </DashboardLayout>
   )
