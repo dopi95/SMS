@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, SubmitHandler } from 'react-hook-form'
+import toast from 'react-hot-toast'
+import axios from 'axios'
 
-interface EmailFormData {
-  email: string
+interface PhoneFormData {
+  phone: string
 }
 
 interface OTPFormData {
@@ -16,29 +18,29 @@ interface PasswordFormData {
   password: string
   confirmPassword: string
 }
-import toast from 'react-hot-toast'
-import axios from 'axios'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
 export default function ForgotPassword() {
-  const [step, setStep] = useState(1) // 1: Email, 2: OTP, 3: New Password
+  const [step, setStep] = useState(1) // 1: Phone, 2: OTP, 3: New Password
   const [loading, setLoading] = useState(false)
-  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState('')
+  const [maskedPhone, setMaskedPhone] = useState('')
   const router = useRouter()
-  
-  const emailForm = useForm<EmailFormData>()
+
+  const phoneForm = useForm<PhoneFormData>()
   const otpForm = useForm<OTPFormData>()
   const passwordForm = useForm<PasswordFormData>()
 
-  const sendOTP: SubmitHandler<EmailFormData> = async (data) => {
+  const sendOTP: SubmitHandler<PhoneFormData> = async (data) => {
     setLoading(true)
     try {
-      await axios.post(`${API_URL}/auth/forgot-password`, { email: data.email })
-      setEmail(data.email)
+      const res = await axios.post(`${API_URL}/auth/forgot-password`, { phone: data.phone })
+      setPhone(res.data.phone)
+      setMaskedPhone(res.data.maskedPhone || data.phone)
       setStep(2)
-      toast.success('OTP sent to your email!')
+      toast.success(res.data.message || 'OTP sent to your phone!')
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to send OTP')
     } finally {
@@ -49,7 +51,7 @@ export default function ForgotPassword() {
   const verifyOTP: SubmitHandler<OTPFormData> = async (data) => {
     setLoading(true)
     try {
-      await axios.post(`${API_URL}/auth/verify-otp`, { email, otp: data.otp })
+      await axios.post(`${API_URL}/auth/verify-otp`, { phone, otp: data.otp })
       setOtp(data.otp)
       setStep(3)
       toast.success('OTP verified!')
@@ -65,13 +67,13 @@ export default function ForgotPassword() {
       toast.error('Passwords do not match')
       return
     }
-    
+
     setLoading(true)
     try {
-      await axios.post(`${API_URL}/auth/reset-password`, { 
-        email, 
-        otp, 
-        newPassword: data.password 
+      await axios.post(`${API_URL}/auth/reset-password`, {
+        phone,
+        otp,
+        newPassword: data.password
       })
       toast.success('Password reset successfully!')
       router.push('/login')
@@ -96,36 +98,36 @@ export default function ForgotPassword() {
             Reset Password
           </h2>
           <p className="text-gray-600">
-            {step === 1 && 'Enter your email to receive OTP'}
-            {step === 2 && 'Enter the OTP sent to your email'}
+            {step === 1 && 'Enter your phone number to receive an OTP via SMS'}
+            {step === 2 && `Enter the OTP sent to ${maskedPhone}`}
             {step === 3 && 'Create your new password'}
           </p>
         </div>
 
         {/* Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          {/* Step 1: Email */}
+          {/* Step 1: Phone */}
           {step === 1 && (
-            <form onSubmit={emailForm.handleSubmit(sendOTP)} className="space-y-6">
+            <form onSubmit={phoneForm.handleSubmit(sendOTP)} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
+                  Phone Number
                 </label>
                 <input
-                  {...emailForm.register('email', { 
-                    required: 'Email is required',
+                  {...phoneForm.register('phone', {
+                    required: 'Phone number is required',
                     pattern: {
-                      value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                      message: 'Please enter a valid email'
+                      value: /^[0-9+\s\-()]{7,15}$/,
+                      message: 'Please enter a valid phone number'
                     }
                   })}
-                  type="email"
-                  autoComplete="email"
+                  type="tel"
+                  autoComplete="tel"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white"
-                  placeholder="Enter your email"
+                  placeholder="e.g. 0911234567 or 251911234567"
                 />
-                {emailForm.formState.errors.email && (
-                  <p className="text-red-500 text-sm mt-1">{emailForm.formState.errors.email.message}</p>
+                {phoneForm.formState.errors.phone && (
+                  <p className="text-red-500 text-sm mt-1">{phoneForm.formState.errors.phone.message}</p>
                 )}
               </div>
               <button
@@ -146,7 +148,7 @@ export default function ForgotPassword() {
                   Enter OTP
                 </label>
                 <input
-                  {...otpForm.register('otp', { 
+                  {...otpForm.register('otp', {
                     required: 'OTP is required',
                     pattern: {
                       value: /^[0-9]{6}$/,
@@ -163,7 +165,7 @@ export default function ForgotPassword() {
                   <p className="text-red-500 text-sm mt-1">{otpForm.formState.errors.otp.message}</p>
                 )}
                 <p className="text-sm text-gray-500 mt-2">
-                  OTP sent to {email}
+                  OTP sent via SMS to {maskedPhone}
                 </p>
               </div>
               <button
@@ -184,7 +186,7 @@ export default function ForgotPassword() {
                   New Password
                 </label>
                 <input
-                  {...passwordForm.register('password', { 
+                  {...passwordForm.register('password', {
                     required: 'Password is required',
                     minLength: {
                       value: 6,

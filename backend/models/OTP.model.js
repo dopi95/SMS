@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const otpSchema = new mongoose.Schema({
-  email: { type: String, required: true },
+  phone: { type: String, required: true },   // normalized phone e.g. 251911234567
   otp: { type: String, required: true },
   expiresAt: { type: Date, required: true },
   used: { type: Boolean, default: false }

@@ -16,9 +16,15 @@ router.get('/', auth, async (req, res) => {
 // POST save a notification to history
 router.post('/', auth, async (req, res) => {
   try {
-    const { title, message, recipients, phoneNumbers } = req.body;
+    const { title, message, recipients, phoneNumbers, sent, failed, failedDetails } = req.body;
     const record = await NotificationHistory.create({
-      title, message, recipients, phoneNumbers,
+      title,
+      message,
+      recipients,
+      phoneNumbers,
+      sent: sent !== undefined ? sent : (phoneNumbers || 0),
+      failed: failed !== undefined ? failed : 0,
+      failedDetails: Array.isArray(failedDetails) ? failedDetails : [],
       sentBy: req.user.name,
       sentById: req.user._id,
     });

@@ -27,12 +27,22 @@ interface PhoneContact {
   relation: string
 }
 
+interface FailedRecipient {
+  phone: string
+  studentName?: string
+  parentName?: string
+  error?: string
+}
+
 interface NotificationHistory {
   _id: string
   title: string
   message: string
   recipients: number
   phoneNumbers: number
+  sent?: number
+  failed?: number
+  failedDetails?: FailedRecipient[]
   createdAt?: string
   sentAt?: string
   sentBy: string
@@ -71,6 +81,7 @@ export default function NotificationsPage() {
   const [showVariables, setShowVariables] = useState(false)
   const [notificationHistory, setNotificationHistory] = useState<NotificationHistory[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [selectedFailedNotification, setSelectedFailedNotification] = useState<NotificationHistory | null>(null)
 
   const variables = [
     { label: 'Student Name', value: '{{studentName}}', amharic: 'የተማሪ ስም' },
@@ -143,11 +154,11 @@ export default function NotificationsPage() {
     }
   }
 
-  const saveNotificationToHistory = async (title: string, message: string, recipients: number, phoneNumbers: number) => {
+  const saveNotificationToHistory = async (title: string, message: string, recipients: number, phoneNumbers: number, sentCount: number, failedCount: number, failedList: FailedRecipient[] = []) => {
     try {
       const token = localStorage.getItem('token')
       const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/notification-history`,
-        { title, message, recipients, phoneNumbers },
+        { title, message, recipients, phoneNumbers, sent: sentCount, failed: failedCount, failedDetails: failedList },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       setNotificationHistory(prev => [res.data, ...prev])
@@ -155,6 +166,7 @@ export default function NotificationsPage() {
       // fallback to localStorage
       const newNotification: NotificationHistory = {
         _id: Date.now().toString(), title, message, recipients, phoneNumbers,
+        sent: sentCount, failed: failedCount, failedDetails: failedList,
         sentAt: new Date().toISOString(), sentBy: 'Admin'
       }
       const history = localStorage.getItem('notificationHistory')
@@ -317,25 +329,38 @@ export default function NotificationsPage() {
         })
       })
 
-      const smsRecipients = phoneNumbers.map(p => ({ phone: p.phone, message: p.message }))
+      const smsRecipients = phoneNumbers.map(p => ({
+        phone: p.phone,
+        message: p.message,
+        studentName: p.studentName,
+        parentName: p.parentName
+      }))
       const result = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/sms/send`,
         { recipients: smsRecipients },
         { headers: { Authorization: `Bearer ${token}` }, timeout: 120000 }
       )
 
-      // Save to history
-      saveNotificationToHistory(title, message, selectedStudents.length, phoneNumbers.length)
+      const { sent, failed, errors } = result.data
 
-      const { sent, failed } = result.data
-      if (failed > 0) {
-        toast.success(getText(`Sent: ${sent}, Failed: ${failed}`, `ተልኳል: ${sent}፣ አልተሳካም: ${failed}`))
+      if (sent > 0) {
+        // Record in history ONLY when messages were actually sent
+        saveNotificationToHistory(title, message, selectedStudents.length, phoneNumbers.length, sent, failed, errors || [])
+
+        if (failed > 0) {
+          toast(getText(`Sent: ${sent} succeeded, ${failed} failed`, `ተልኳል: ${sent} ተሳክቷል፣ ${failed} አልተሳካም`), { icon: '⚠️', duration: 6000 })
+        } else {
+          toast.success(getText(`Success: All ${sent} SMS sent successfully`, `ተሳክቷል: ሁሉም ${sent} ኤስኤምኤስ በተሳካ ሁኔታ ተልኳል`))
+        }
+
+        setTitle('')
+        setMessage('')
+        setSelectedStudents([])
       } else {
-        toast.success(getText(`SMS sent to ${sent} phone numbers`, `ኤስኤምኤስ ወደ ${sent} ስልክ ቁጥሮች ተልኳል`))
+        // 0 sent: do NOT record in history! Keep text so user does not lose it.
+        const errDetail = errors?.[0]?.error ? `: ${errors[0].error}` : ''
+        toast.error(getText(`Failed: 0 succeeded, ${failed} failed${errDetail}`, `አልተሳካም: 0 ተሳክቷል፣ ${failed} አልተሳካም${errDetail}`), { duration: 7000 })
       }
-      setTitle('')
-      setMessage('')
-      setSelectedStudents([])
     } catch (error: any) {
       toast.error(error.response?.data?.message || getText('Failed to send notification', 'ማሳወቂያ መላክ አልተሳካም'))
     } finally {
@@ -584,12 +609,32 @@ export default function NotificationsPage() {
                         <div className="flex justify-between items-start gap-4">
                           <div className="flex-1">
                             <div className="flex flex-wrap items-center gap-2 mb-2">
-                              <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-800'}`}>
+                              <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-800'}`}>
                                 {notification.recipients} {getText('students', 'ተማሪዎች')}
                               </span>
-                              <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-800'}`}>
-                                {notification.phoneNumbers} {getText('phone numbers', 'ስልክ ቁጥሮች')}
+                              <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-800'}`}>
+                                {notification.sent !== undefined ? notification.sent : notification.phoneNumbers} {getText('sent', 'ተልኳል')}
                               </span>
+                              {(notification.failed ?? 0) > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedFailedNotification(notification)}
+                                  className={`text-xs px-2.5 py-1 rounded font-medium cursor-pointer transition-all hover:scale-105 flex items-center gap-1 shadow-sm ${
+                                    theme === 'dark' ? 'bg-red-900/80 text-red-200 hover:bg-red-800 border border-red-700' : 'bg-red-100 text-red-800 hover:bg-red-200 border border-red-200'
+                                  }`}
+                                  title={getText('Click to see which students and phone numbers failed', 'ያልተሳኩ ተማሪዎችን እና ስልኮችን ለማየት ጠቅ ያድርጉ')}
+                                >
+                                  <span>{notification.failed} {getText('failed', 'አልተሳካም')}</span>
+                                  <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                </button>
+                              ) : (
+                                <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                                  0 {getText('failed', 'አልተሳካም')}
+                                </span>
+                              )}
                               <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                                 {new Date(notification.createdAt ?? notification.sentAt ?? Date.now()).toLocaleString()}
                               </span>
@@ -807,6 +852,82 @@ export default function NotificationsPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal showing which student name & phone number failed */}
+      {selectedFailedNotification && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className={`w-full max-w-2xl rounded-2xl shadow-2xl border p-6 max-h-[85vh] flex flex-col ${
+            theme === 'dark' ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
+          }`}>
+            <div className="flex justify-between items-start pb-4 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h3 className="text-lg font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  {getText('Failed Deliveries', 'ያልተሳኩ መላኮች')} ({selectedFailedNotification.failed ?? selectedFailedNotification.failedDetails?.length ?? 0})
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {selectedFailedNotification.title}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedFailedNotification(null)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto my-4 space-y-3 flex-1 pr-1">
+              {selectedFailedNotification.failedDetails && selectedFailedNotification.failedDetails.length > 0 ? (
+                selectedFailedNotification.failedDetails.map((f, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${
+                      theme === 'dark' ? 'bg-gray-700/60 border-gray-600' : 'bg-red-50/60 border-red-100'
+                    }`}
+                  >
+                    <div>
+                      <p className="font-semibold text-sm">
+                        {f.studentName || getText('Student', 'ተማሪ')}
+                      </p>
+                      {f.parentName && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {getText('Contact', 'ተቀባይ')}: {f.parentName}
+                        </p>
+                      )}
+                      <p className="text-xs font-mono font-medium text-blue-600 dark:text-blue-400 mt-1">
+                        📞 {f.phone}
+                      </p>
+                    </div>
+                    <div className="sm:text-right">
+                      <span className="inline-block text-xs px-2.5 py-1 rounded-md font-medium bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300">
+                        {f.error || getText('Delivery failed', 'መላክ አልተሳካም')}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <p>{getText('No detailed recipient records for this older entry.', 'ለዚህ የቆየ መዝገብ የተወሰነ ዝርዝር የለም።')}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                onClick={() => setSelectedFailedNotification(null)}
+                className="px-5 py-2 text-sm rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              >
+                {getText('Close', 'ዝጋ')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   )
 }

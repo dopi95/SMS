@@ -1,7 +1,7 @@
 const User = require('../models/User.model');
 const OTP = require('../models/OTP.model');
 const { generateToken } = require('../config/jwt.config');
-const { sendOTPEmail } = require('../utils/emailService');
+const { sendSMS, normalizePhone } = require('../utils/smsService');
 const bcrypt = require('bcryptjs');
 
 const register = async (req, res) => {
@@ -79,46 +79,82 @@ const getMe = (req, res) => {
 
 const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({ message: 'Email is required' });
-    }
-    
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: 'User not found with this email address' });
+    const { phone } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone number is required' });
     }
 
-    await OTP.deleteMany({ email });
+    const normalizedPhone = normalizePhone(phone);
+
+    // Find user by any variant of this phone number
+    const user = await User.findOne({
+      $or: [
+        { phone: normalizedPhone },
+        { phone: phone },
+        { phone: '0' + normalizedPhone.slice(3) } // e.g. 09XXXXXXXX variant
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'No account found with this phone number' });
+    }
+
+    // Clear any previous OTPs for this phone
+    await OTP.deleteMany({ phone: normalizedPhone });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    const otpRecord = new OTP({
-      email,
+
+    await OTP.create({
+      phone: normalizedPhone,
       otp,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000)
     });
-    await otpRecord.save();
 
-    await sendOTPEmail(email, otp, user.name);
-    
-    res.json({ 
-      message: 'OTP sent successfully to your email address',
-      email: email
+    // Mask the phone for display (e.g. 2519****567)
+    const masked = normalizedPhone.length >= 7 
+      ? normalizedPhone.slice(0, 4) + '****' + normalizedPhone.slice(-3)
+      : normalizedPhone;
+
+    // Send OTP via SMS Ethiopia
+    const userName = (user.name || '').trim();
+    const greeting = userName ? `Dear ${userName}, ` : 'Dear User, ';
+    const smsText = `${greeting}your Bluelight Academy password reset OTP is: ${otp}. It expires in 10 minutes. Do not share this code.`;
+    const smsResult = await sendSMS(normalizedPhone, smsText);
+
+    if (!smsResult.success) {
+      // Roll back OTP record so it cannot be used
+      await OTP.deleteOne({ phone: normalizedPhone, otp });
+      return res.status(400).json({
+        message: `Failed to send SMS to ${masked}: ${smsResult.error || 'SMS delivery failed'}`,
+        detail: smsResult.error
+      });
+    }
+
+    res.json({
+      message: `OTP sent successfully to ${masked}`,
+      phone: normalizedPhone,
+      maskedPhone: masked
     });
   } catch (error) {
+    console.error('[forgotPassword]', error);
     res.status(500).json({ message: error.message || 'Server error. Please try again later.' });
   }
 };
 
 const verifyOTP = async (req, res) => {
   try {
-    const { email, otp } = req.body;
-    
-    const otpRecord = await OTP.findOne({ 
-      email, 
-      otp, 
+    const { phone, otp } = req.body;
+
+    if (!phone || !otp) {
+      return res.status(400).json({ message: 'Phone and OTP are required' });
+    }
+
+    const normalizedPhone = normalizePhone(phone);
+
+    const otpRecord = await OTP.findOne({
+      phone: normalizedPhone,
+      otp,
       used: false,
       expiresAt: { $gt: new Date() }
     });
@@ -130,19 +166,26 @@ const verifyOTP = async (req, res) => {
     otpRecord.used = true;
     await otpRecord.save();
 
-    res.json({ message: 'OTP verified successfully' });
+    res.json({ message: 'OTP verified successfully', phone: normalizedPhone });
   } catch (error) {
+    console.error('[verifyOTP]', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 const resetPassword = async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
-    
-    const otpRecord = await OTP.findOne({ 
-      email, 
-      otp, 
+    const { phone, otp, newPassword } = req.body;
+
+    if (!phone || !otp || !newPassword) {
+      return res.status(400).json({ message: 'Phone, OTP, and new password are required' });
+    }
+
+    const normalizedPhone = normalizePhone(phone);
+
+    const otpRecord = await OTP.findOne({
+      phone: normalizedPhone,
+      otp,
       used: true,
       expiresAt: { $gt: new Date() }
     });
@@ -151,7 +194,15 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
-    const user = await User.findOne({ email });
+    // Find user by phone (try all variants)
+    const user = await User.findOne({
+      $or: [
+        { phone: normalizedPhone },
+        { phone: phone },
+        { phone: '0' + normalizedPhone.slice(3) }
+      ]
+    });
+
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -163,6 +214,7 @@ const resetPassword = async (req, res) => {
 
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
+    console.error('[resetPassword]', error);
     res.status(500).json({ message: error.message });
   }
 };

@@ -3,11 +3,10 @@ const cors = require('cors');
 const path = require('path');
 const connectDB = require('./config/db.config');
 
-// Load environment variables based on NODE_ENV
+// Load environment variables (.env first, then .env.production if production)
+require('dotenv').config();
 if (process.env.NODE_ENV === 'production') {
-  require('dotenv').config({ path: path.join(__dirname, '.env.production') });
-} else {
-  require('dotenv').config();
+  require('dotenv').config({ path: path.join(__dirname, '.env.production'), override: true });
 }
 
 const app = express();
