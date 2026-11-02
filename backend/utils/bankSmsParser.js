@@ -10,7 +10,10 @@ function normalizeAccount(acc) {
 
 /**
  * Checks if the account number found in the SMS matches the target configured account.
- * Handles both full account numbers (e.g. 1000437336591) and masked accounts (e.g. 1********6591 or 1000****6591).
+ * Handles:
+ * - Full account numbers (e.g. 1000437336591, 013201401837000)
+ * - Asterisk-masked accounts (CBE: 1********6591 or 1000****6591)
+ * - X-masked accounts (Awash: 01320xxxxxx7000 or 01320XXXXXX7000)
  */
 function isAccountMatching(smsAccount, targetAccount) {
   if (!targetAccount || !targetAccount.trim()) {
@@ -30,10 +33,10 @@ function isAccountMatching(smsAccount, targetAccount) {
   // 2. Substring containment
   if (tAcc.includes(sAcc) || sAcc.includes(tAcc)) return true;
 
-  // 3. Masked matching (e.g. 1********6591 vs 1000437336591)
-  if (sAcc.includes('*')) {
-    const prefixMatch = sAcc.match(/^([0-9]+)\*/);
-    const suffixMatch = sAcc.match(/\*+([0-9]+)$/);
+  // 3. Masked matching (supports both '*' and 'x' / 'X')
+  if (sAcc.includes('*') || sAcc.includes('x')) {
+    const prefixMatch = sAcc.match(/^([0-9]+)[*x]+/);
+    const suffixMatch = sAcc.match(/[*x]+([0-9]+)$/);
 
     const prefix = prefixMatch ? prefixMatch[1] : '';
     const suffix = suffixMatch ? suffixMatch[1] : '';
@@ -73,13 +76,13 @@ function parseCbeSms(text) {
 
   // 2. Receiver Account (School account - avoid matching the sender's account)
   let receiverAccount = '';
-  const receiverAccMatch = text.match(/(?:to\s+(?:your\s+)?account|in\s+(?:your\s+)?account|into\s+(?:your\s+)?account|credited\s+to\s+(?:your\s+)?account|credited\s+to|your\s+account)\s*[:#]?\s*([0-9*]{6,16})/i);
+  const receiverAccMatch = text.match(/(?:to\s+(?:your\s+)?account|in\s+(?:your\s+)?account|into\s+(?:your\s+)?account|credited\s+to\s+(?:your\s+)?account|credited\s+to|your\s+account)\s*[:#]?\s*([0-9*xX]{6,20})/i);
   if (receiverAccMatch) {
     receiverAccount = receiverAccMatch[1];
   } else {
     // Fallback: search any account that is NOT directly after 'from account'
-    const fallbackMatch = text.match(/(?:account|a\/c|acc\.?|acct\.?)\s*(?:no\.?|number|ending\s*with)?\s*[:#]?\s*([0-9*]{6,16})/i)
-      || text.match(/\b(1000[0-9*]{6,12})\b/i);
+    const fallbackMatch = text.match(/(?:account|a\/c|acc\.?|acct\.?)\s*(?:no\.?|number|ending\s*with)?\s*[:#]?\s*([0-9*xX]{6,20})/i)
+      || text.match(/\b(1000[0-9*xX]{6,14})\b/i);
     if (fallbackMatch) {
       receiverAccount = fallbackMatch[1];
     }
@@ -88,7 +91,7 @@ function parseCbeSms(text) {
   // 3. Sender Name (Payer)
   let senderName = '';
   // Check if name is in parentheses e.g. from account 1********5869 (Dagnachew Tesfaye Serbesa)
-  const parenNameMatch = text.match(/(?:from\s+account\s+[0-9*]+|payer)\s*\(([^)]+)\)/i);
+  const parenNameMatch = text.match(/(?:from\s+account\s+[0-9*xX]+|payer)\s*\(([^)]+)\)/i);
   if (parenNameMatch) {
     senderName = parenNameMatch[1].trim();
   } else {
@@ -116,7 +119,7 @@ function parseCbeSms(text) {
 
   // 5. Date
   let transactionDate = new Date();
-  const dateMatch = text.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
+  const dateMatch = text.match(/(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}(?:\s+\d{2}:\d{2}:\d{2})?|\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
   if (dateMatch) {
     const parsed = new Date(dateMatch[1].replace(/[\-\.]/g, '/'));
     if (!isNaN(parsed.getTime())) {
@@ -147,24 +150,32 @@ function parseAwashSms(text) {
     amount = parseFloat(numStr);
   }
 
-  // 2. Receiver Account (School account)
+  // 2. Receiver Account (School account: supports x and * masks, e.g. 01320xxxxxx7000 or 013201401837000)
   let receiverAccount = '';
-  const receiverAccMatch = text.match(/(?:to\s+(?:your\s+)?(?:account|a\/c)|in\s+(?:your\s+)?(?:account|a\/c)|credited\s+to\s+(?:your\s+)?(?:account|a\/c)|credited\s+to|your\s+(?:account|a\/c))\s*[:#]?\s*([0-9*]{6,16})/i);
+  const receiverAccMatch = text.match(/(?:to\s+(?:your\s+)?(?:account|a\/c)|in\s+(?:your\s+)?(?:account|a\/c)|credited\s+to\s+(?:your\s+)?(?:account|a\/c)|credited\s+to|your\s+(?:account|a\/c)|account|a\/c)\s*[:#]?\s*([0-9*xX]{6,20})/i);
   if (receiverAccMatch) {
     receiverAccount = receiverAccMatch[1];
   } else {
-    const accMatch = text.match(/(?:account|a\/c|acc\.?|acct\.?)\s*(?:no\.?|number)?\s*[:#]?\s*([0-9*]{6,16})/i)
-      || text.match(/\b(01[0-9*]{8,14})\b/i);
+    const accMatch = text.match(/\b(01[0-9*xX]{8,18})\b/i);
     if (accMatch) {
       receiverAccount = accMatch[1];
     }
   }
 
-  // 3. Sender Name
+  // 3. Sender Name (Payer)
   let senderName = '';
-  const parenNameMatch = text.match(/(?:from\s+(?:account|a\/c)\s+[0-9*]+|payer)\s*\(([^)]+)\)/i);
+  // Check for parenthesis name: e.g. (Abebe)
+  const parenNameMatch = text.match(/(?:from\s+(?:account|a\/c)\s+[0-9*xX]+|payer)\s*\(([^)]+)\)/i);
+  // Check for "by [Name] via ..." pattern (IPS transfers e.g. by Elias Yenealem Atalay via IPS)
+  const byViaMatch = text.match(/by\s+([A-Za-z\s]{3,35})(?:\s+via|\s+on|\s*\.|\s*Txn|\s*,|\s*$)/i);
+
   if (parenNameMatch) {
     senderName = parenNameMatch[1].trim();
+  } else if (byViaMatch) {
+    const rawName = byViaMatch[1].trim();
+    if (!/^(your|account|etb|awash|the)/i.test(rawName)) {
+      senderName = rawName;
+    }
   } else {
     const senderMatch = text.match(/(?:by|from|payer)\s+([A-Za-z\s]{3,35})(?:\s+on|\s*\.|\s*Txn|\s*,|\s*to\s+your|\s*$)/i);
     if (senderMatch) {
@@ -175,22 +186,39 @@ function parseAwashSms(text) {
     }
   }
 
-  // 4. Reference / Txn ID
+  // 4. Reference / Txn ID / Receipt Link
   let reference = '';
   const refMatch = text.match(/(?:Txn\s*ID|Txn|Ref|Reference|Ref\s*No)\s*[:.]?\s*([A-Za-z0-9]+)/i)
     || text.match(/\b(AWB[A-Za-z0-9]{6,16})\b/i);
+  const shortUrlMatch = text.match(/(?:shorturl\.at|receipt|ref)\/([A-Za-z0-9]+)/i);
+
   if (refMatch) {
     reference = refMatch[1].trim();
+  } else if (shortUrlMatch) {
+    reference = 'AWB-' + shortUrlMatch[1].trim();
   }
 
-  // 5. Date
+  // 5. Date & Time
   let transactionDate = new Date();
+  const dateTimeMatch = text.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
   const dateMatch = text.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
-  if (dateMatch) {
+  if (dateTimeMatch) {
+    const parsed = new Date(dateTimeMatch[1].replace(/-/g, '/'));
+    if (!isNaN(parsed.getTime())) {
+      transactionDate = parsed;
+    }
+  } else if (dateMatch) {
     const parsed = new Date(dateMatch[1].replace(/[\-\.]/g, '/'));
     if (!isNaN(parsed.getTime())) {
       transactionDate = parsed;
     }
+  }
+
+  // If still no reference, create deterministic fallback using date & account suffix
+  if (!reference && dateTimeMatch) {
+    const cleanStamp = dateTimeMatch[1].replace(/[^0-9]/g, '');
+    const accTail = receiverAccount.slice(-4) || 'AWB';
+    reference = `AWB-${cleanStamp}-${accTail}`;
   }
 
   return {
@@ -210,14 +238,23 @@ function detectBank(smsText, sender, settings = null) {
   const s = (sender || '').toLowerCase().trim();
   const t = (smsText || '').toLowerCase();
 
-  // 1. Text-based explicit check (Content takes highest priority)
-  if (t.includes('awash') || t.includes('awb') || /\b01[0-9*]{8,14}\b/.test(t)) {
-    return 'AWASH';
+  // If user explicitly picked bank
+  if (s === 'awash' || s.includes('awash')) return 'AWASH';
+  if (s === 'cbe') return 'CBE';
+
+  // 1. Check strong bank indicators
+  const isAwash = t.includes('awash bank') || t.includes('awashbank') || t.includes('awash_bank') || /\b01[0-9*xX]{8,18}\b/.test(t) || t.includes('awb');
+  const isCbe = t.includes('cbe.com.et') || t.includes('mbreciept') || t.includes('thanks for banking with cbe') || (/\b1000[0-9*xX]{6,14}\b/.test(t) && !isAwash);
+
+  // If both are mentioned (e.g. transfer "via IPS Commercial Bank of Ethiopia" into Awash Bank):
+  if (isAwash && isCbe) {
+    // Check whose account is being credited
+    if (/\b01[0-9*xX]{8,18}\b/.test(t)) return 'AWASH';
+    if (/\b1000[0-9*xX]{6,14}\b/.test(t)) return 'CBE';
   }
 
-  if (t.includes('cbe') || t.includes('commercial bank') || t.includes('cbe.com.et') || t.includes('mbreciept') || /\b1[0-9*]{9,15}\b/.test(t)) {
-    return 'CBE';
-  }
+  if (isAwash) return 'AWASH';
+  if (isCbe) return 'CBE';
 
   // 2. Settings account match check (if SMS text contains account ending)
   if (settings) {
@@ -227,14 +264,6 @@ function detectBank(smsText, sender, settings = null) {
     if (settings.cbeAccount && settings.cbeAccount.length >= 4 && t.includes(settings.cbeAccount.slice(-4))) {
       return 'CBE';
     }
-  }
-
-  // 3. Explicit sender parameter check
-  if (s === 'awash' || s.includes('awash') || s.includes('awb')) {
-    return 'AWASH';
-  }
-  if (s === 'cbe' || s.includes('cbe') || s.includes('commercial')) {
-    return 'CBE';
   }
 
   return 'UNKNOWN';
@@ -257,19 +286,18 @@ function parseBankSms(smsText, sender = '', settings = null) {
   } else if (bank === 'AWASH') {
     parsed = parseAwashSms(smsText);
   } else {
-    // Try CBE parser first, then Awash
-    const cbeCandidate = parseCbeSms(smsText);
-    if (cbeCandidate.amount && (cbeCandidate.reference || cbeCandidate.receiverAccount)) {
-      parsed = cbeCandidate;
-    } else {
+    // Try Awash first if account matches 01, otherwise CBE
+    if (/\b01[0-9*xX]{8,18}\b/.test(smsText)) {
       parsed = parseAwashSms(smsText);
-      if (!parsed.amount && !parsed.reference) {
-        return {
-          success: false,
-          bank: 'UNKNOWN',
-          error: 'Could not determine bank or extract transaction details from SMS'
-        };
-      }
+    } else {
+      parsed = parseCbeSms(smsText);
+    }
+    if (!parsed || (!parsed.amount && !parsed.reference)) {
+      return {
+        success: false,
+        bank: 'UNKNOWN',
+        error: 'Could not determine bank or extract transaction details from SMS'
+      };
     }
   }
 
