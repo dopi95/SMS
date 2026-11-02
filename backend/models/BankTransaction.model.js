@@ -25,6 +25,11 @@ const bankTransactionSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  sourceBank: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   receiverAccount: {
     type: String,
     trim: true,

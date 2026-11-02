@@ -92,6 +92,17 @@ exports.deletePayment = asyncHandler(async (req, res) => {
   if (!payment) {
     return res.status(404).json({ message: 'Payment not found' });
   }
+
+  // When a payment is deleted, revert any linked BankTransaction back to unreconciled (pending approval)
+  try {
+    const BankTransaction = require('../models/BankTransaction.model');
+    await BankTransaction.updateMany(
+      { reconciledPaymentId: id },
+      { $set: { isReconciled: false, reconciledPaymentId: null } }
+    );
+  } catch (syncErr) {
+    console.warn('[PaymentDelete] Could not sync with BankTransaction:', syncErr.message);
+  }
   const sName = formatStudentName(payment.studentId);
   await logActivity(req.user, 'Payment Deleted', 'Payment', `Removed ${payment.month} ${payment.year} payment for ${sName}`);
   res.json({ message: 'Payment deleted successfully' });

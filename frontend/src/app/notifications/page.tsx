@@ -6,6 +6,7 @@ import Pagination from '@/components/Pagination'
 import { useSettings } from '@/contexts/SettingsContext'
 import axios from 'axios'
 import toast from 'react-hot-toast'
+import { getStudentDisplayName } from '@/utils/studentUtils'
 
 interface Student {
   _id: string
@@ -13,6 +14,9 @@ interface Student {
   firstName: string
   middleName: string
   lastName: string
+  firstNameAmharic?: string
+  middleNameAmharic?: string
+  lastNameAmharic?: string
   class: string
   section?: string
   fatherName?: string
@@ -50,7 +54,7 @@ interface NotificationHistory {
 }
 
 export default function NotificationsPage() {
-  const { theme, getText } = useSettings()
+  const { theme, getText, language } = useSettings()
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -217,6 +221,7 @@ export default function NotificationsPage() {
   const filteredStudents = students.filter(student => {
     const searchLower = searchTerm.toLowerCase()
     const studentName = `${student.firstName} ${student.middleName} ${student.lastName}`.toLowerCase()
+    const studentAmharicName = `${student.firstNameAmharic || ''} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.toLowerCase()
     const studentId = student.studentId?.toLowerCase() || ''
     const fatherName = student.fatherName?.toLowerCase() || ''
     const motherName = student.motherName?.toLowerCase() || ''
@@ -226,6 +231,7 @@ export default function NotificationsPage() {
     // Search filter
     const matchesSearch = (
       studentName.includes(searchLower) ||
+      studentAmharicName.includes(searchLower) ||
       studentId.includes(searchLower) ||
       fatherName.includes(searchLower) ||
       motherName.includes(searchLower) ||
@@ -324,7 +330,7 @@ export default function NotificationsPage() {
         
         // Replace variables in message
         let personalizedMessage = message
-          .replace(/{{studentName}}/g, `${student.firstName} ${student.middleName} ${student.lastName}`)
+          .replace(/{{studentName}}/g, getStudentDisplayName(student, language))
           .replace(/{{studentClass}}/g, student.class + (student.section ? ` - ${student.section}` : ''))
           .replace(/{{studentId}}/g, student.studentId || '')
           .replace(/{{studentType}}/g, studentType)
@@ -335,7 +341,7 @@ export default function NotificationsPage() {
         contacts.forEach(contact => {
           phoneNumbers.push({
             phone: contact.phone,
-            studentName: `${student.firstName} ${student.middleName} ${student.lastName}`,
+            studentName: getStudentDisplayName(student, language),
             parentName: contact.name,
             message: personalizedMessage
           })
@@ -761,7 +767,7 @@ export default function NotificationsPage() {
                               </td>
                               <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                                 <div className="font-medium">
-                                  {`${student.firstName} ${student.middleName} ${student.lastName}`}
+                                  {getStudentDisplayName(student, language)}
                                 </div>
                                 <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                                   {student.studentId}
@@ -832,7 +838,7 @@ export default function NotificationsPage() {
                               />
                               <div className="flex-1">
                                 <h3 className={`font-semibold text-base ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {`${student.firstName} ${student.middleName} ${student.lastName}`}
+                                  {getStudentDisplayName(student, language)}
                                 </h3>
                                 <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                                   {getText('ID', 'መታወቂያ')}: <span className="font-medium">{student.studentId}</span>

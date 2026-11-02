@@ -13,6 +13,7 @@ import XLSXStyle from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
 import { calcAgeFromDOB } from '@/utils/dateUtils';
 import Pagination from '@/components/Pagination';
+import { getStudentDisplayName } from '@/utils/studentUtils';
 
 interface Student {
   _id: string;
@@ -403,11 +404,7 @@ export default function StudentsPage() {
 
   const handleInactive = async (id: string) => {
     const student = students.find(s => s._id === id);
-    const studentName = student ? 
-      (language === 'am' && student.firstNameAmharic 
-        ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-        : `${student.firstName} ${student.middleName} ${student.lastName}`
-      ) : 'this student';
+    const studentName = student ? getStudentDisplayName(student, language) : 'this student';
     
     setConfirmDialog({
       isOpen: true,
@@ -419,11 +416,7 @@ export default function StudentsPage() {
 
   const handleDelete = async (id: string) => {
     const student = students.find(s => s._id === id);
-    const studentName = student ? 
-      (language === 'am' && student.firstNameAmharic 
-        ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-        : `${student.firstName} ${student.middleName} ${student.lastName}`
-      ) : 'this student';
+    const studentName = student ? getStudentDisplayName(student, language) : 'this student';
     
     setConfirmDialog({
       isOpen: true,
@@ -939,7 +932,7 @@ export default function StudentsPage() {
         const end = idx + limit;
         sorted.slice(idx, end).forEach(s => preview.push({
           id: s._id,
-          name: language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic||''}`.trim() : `${s.firstName} ${s.middleName}`,
+          name: getStudentDisplayName(s, language),
           section: sections[sec]
         }));
         idx = end;
@@ -948,7 +941,7 @@ export default function StudentsPage() {
       const limit = studentsPerSection ? parseInt(studentsPerSection) : Math.ceil(classStudents.length / numSections);
       preview = sorted.map((s, i) => ({
         id: s._id,
-        name: language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic||''}`.trim() : `${s.firstName} ${s.middleName}`,
+        name: getStudentDisplayName(s, language),
         section: sections[Math.min(Math.floor(i / limit), numSections - 1)]
       }));
     }
@@ -1087,11 +1080,7 @@ export default function StudentsPage() {
   };
 
   const getStudentName = (s: Student, lang: 'am' | 'en') => {
-    if (lang === 'am') {
-      const parts = [s.firstNameAmharic, s.middleNameAmharic, s.lastNameAmharic].filter(Boolean);
-      if (parts.length > 0) return parts.join(' ');
-    }
-    return [toTitleCase(s.firstName), toTitleCase(s.middleName), toTitleCase(s.lastName)].filter(Boolean).join(' ');
+    return getStudentDisplayName(s, lang);
   };
 
   const getAge = (dob?: string) => (dob ? calcAgeFromDOB(dob) : '');
@@ -1478,10 +1467,7 @@ export default function StudentsPage() {
       labelAm: 'ሙሉ ስም',
       excelWidth: 28,
       pdfWidth: 38,
-      getValue: (s: Student) =>
-        language === 'am' && s.firstNameAmharic
-          ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim()
-          : [toTitleCase(s.firstName), toTitleCase(s.middleName), toTitleCase(s.lastName)].filter(Boolean).join(' '),
+      getValue: (s: Student) => getStudentDisplayName(s, language),
     },
     {
       id: 'class',
@@ -2270,10 +2256,7 @@ export default function StudentsPage() {
                             <div className="ml-3 min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <div className={`text-sm font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {language === 'am' && student.firstNameAmharic 
-                                    ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-                                    : [toTitleCase(student.firstName), toTitleCase(student.middleName), toTitleCase(student.lastName)].filter(Boolean).join(' ')
-                                  }
+                                  {getStudentDisplayName(student, language)}
                                 </div>
                                 {siblingStudentIds.has(student._id) && (
                                   <button
@@ -2449,10 +2432,7 @@ export default function StudentsPage() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                    {language === 'am' && student.firstNameAmharic 
-                                      ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-                                      : [toTitleCase(student.firstName), toTitleCase(student.middleName), toTitleCase(student.lastName)].filter(Boolean).join(' ')
-                                    }
+                                    {getStudentDisplayName(student, language)}
                                   </h3>
                                   {siblingStudentIds.has(student._id) && (
                                     <button
@@ -2593,10 +2573,7 @@ export default function StudentsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                              {language === 'am' && student.firstNameAmharic 
-                                ? `${student.firstNameAmharic} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.trim()
-                                : [toTitleCase(student.firstName), toTitleCase(student.middleName), toTitleCase(student.lastName)].filter(Boolean).join(' ')
-                              }
+                              {getStudentDisplayName(student, language)}
                             </h3>
                             {siblingStudentIds.has(student._id) && (
                               <button
@@ -3618,7 +3595,7 @@ export default function StudentsPage() {
                       <div key={s._id} className={`px-4 py-2.5 flex items-center justify-between cursor-pointer ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-white'}`} onClick={() => { setShowAllSiblingsModal(false); router.push(`/students/view/${s._id}`); }}>
                         <div className="flex items-center gap-2">
                           <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                            {language === 'am' && s.firstNameAmharic ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim() : [toTitleCase(s.firstName), toTitleCase(s.middleName), toTitleCase(s.lastName)].filter(Boolean).join(' ')}
+                            {getStudentDisplayName(s, language)}
                           </span>
                         </div>
                         <span className="text-xs text-blue-600 font-medium">{language === 'am' ? s.studentId.replace('BLUE', 'ብሉ') : s.studentId} &bull; {s.class}{s.section ? `/${s.section}` : ''} &bull; {getText(s.gender, s.gender === 'Male' ? 'ወንድ' : 'ሴት')}</span>
@@ -3683,9 +3660,7 @@ export default function StudentsPage() {
                           <div className="flex items-center gap-2">
                             <div>
                               <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                {language === 'am' && s.firstNameAmharic
-                                  ? `${s.firstNameAmharic} ${s.middleNameAmharic || ''} ${s.lastNameAmharic || ''}`.trim()
-                                  : [toTitleCase(s.firstName), toTitleCase(s.middleName), toTitleCase(s.lastName)].filter(Boolean).join(' ')}
+                                {getStudentDisplayName(s, language)}
                               </div>
                               <div className={`text-[11px] ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                                 <span>F: {toTitleCase(s.fatherName) || '—'}</span> &bull; <span>M: {toTitleCase(s.motherName) || '—'}</span>

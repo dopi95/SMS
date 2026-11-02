@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import DashboardLayout from '@/components/DashboardLayout'
+import { useSettings } from '@/contexts/SettingsContext'
 import {
   AcademicCapIcon,
   UserGroupIcon,
@@ -37,6 +38,9 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const router = useRouter()
+  const { theme, getText } = useSettings()
+  const dk = theme === 'dark'
+
   const [stats, setStats] = useState<DashboardStats>({
     totalStudents: 0,
     totalTeachers: 0,
@@ -132,9 +136,20 @@ export default function Dashboard() {
     }
   }
 
+  const formatClassName = (name: string) => {
+    if (name === 'Nursery') return getText('Nursery', 'ጀማሪ (Nursery)')
+    if (name === 'LKG') return getText('LKG', 'ደረጃ 1 (LKG)')
+    if (name === 'UKG') return getText('UKG', 'ደረጃ 2 (UKG)')
+    return name
+  }
+
+  const cardCls = `rounded-lg shadow-sm border p-6 transition-all duration-200 ${
+    dk ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+  }`
+
   if (loading) {
     return (
-      <DashboardLayout pageTitle="Dashboard">
+      <DashboardLayout pageTitle={getText('Dashboard', 'ዳሽቦርድ')}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
@@ -143,78 +158,78 @@ export default function Dashboard() {
   }
 
   return (
-    <DashboardLayout pageTitle="Dashboard">
-      <div className="p-4 lg:p-6">
+    <DashboardLayout pageTitle={getText('Dashboard', 'ዳሽቦርድ')}>
+      <div className={`p-4 lg:p-6 min-h-screen ${dk ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 lg:text-3xl">
-              Welcome back!
+            <h1 className={`text-2xl font-bold lg:text-3xl ${dk ? 'text-white' : 'text-gray-900'}`}>
+              {getText('Welcome back!', 'እንኳን ደህና መጡ!')}
             </h1>
-            <p className="text-gray-600 mt-1">
-              Here's what's happening at Bluelight today.
+            <p className={`mt-1 ${dk ? 'text-gray-400' : 'text-gray-600'}`}>
+              {getText("Here's what's happening at Bluelight today.", 'ዛሬ በብሉላይት ውስጥ ያለው አጠቃላይ ሁኔታ ይህንን ይመስላል።')}
             </p>
           </div>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 transform hover:scale-105 transition-transform duration-200">
+            <div className={`${cardCls} transform hover:scale-105`}>
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <AcademicCapIcon className="h-6 w-6 text-purple-600" />
+                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/40 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <AcademicCapIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">
-                    Active Total Students
+                <div className="ml-4 min-w-0">
+                  <p className={`text-sm font-medium truncate ${dk ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {getText('Active Total Students', 'ንቁ አጠቃላይ ተማሪዎች')}
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className={`text-2xl font-bold ${dk ? 'text-white' : 'text-gray-900'}`}>
                     {stats.totalStudents.toLocaleString()}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 transform hover:scale-105 transition-transform duration-200">
+            <div className={`${cardCls} transform hover:scale-105`}>
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <UsersIcon className="h-6 w-6 text-orange-600" />
+                <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/40 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <UsersIcon className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">
-                    Inactive Students
+                <div className="ml-4 min-w-0">
+                  <p className={`text-sm font-medium truncate ${dk ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {getText('Inactive Students', 'የተቋረጡ ተማሪዎች')}
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className={`text-2xl font-bold ${dk ? 'text-white' : 'text-gray-900'}`}>
                     {stats.totalInactive.toLocaleString()}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 transform hover:scale-105 transition-transform duration-200">
+            <div className={`${cardCls} transform hover:scale-105`}>
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <UserGroupIcon className="h-6 w-6 text-green-600" />
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/40 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <UserGroupIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">
-                    Active Total Employees
+                <div className="ml-4 min-w-0">
+                  <p className={`text-sm font-medium truncate ${dk ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {getText('Active Total Employees', 'ንቁ አጠቃላይ ሰራተኞች')}
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className={`text-2xl font-bold ${dk ? 'text-white' : 'text-gray-900'}`}>
                     {stats.activeTeachers.toLocaleString()}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 transform hover:scale-105 transition-transform duration-200">
+            <div className={`${cardCls} transform hover:scale-105`}>
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                  <UserGroupIcon className="h-6 w-6 text-red-600" />
+                <div className="w-12 h-12 bg-red-100 dark:bg-red-900/40 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <UserGroupIcon className="h-6 w-6 text-red-600 dark:text-red-400" />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">
-                    Inactive Employees
+                <div className="ml-4 min-w-0">
+                  <p className={`text-sm font-medium truncate ${dk ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {getText('Inactive Employees', 'የተቋረጡ ሰራተኞች')}
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className={`text-2xl font-bold ${dk ? 'text-white' : 'text-gray-900'}`}>
                     {stats.inactiveTeachers.toLocaleString()}
                   </p>
                 </div>
@@ -225,9 +240,9 @@ export default function Dashboard() {
           {/* Gender Distribution & Students by Class - Visual Graphs */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Gender Distribution Graph */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6">
-                Gender Distribution
+            <div className={cardCls}>
+              <h3 className={`text-lg font-semibold mb-6 ${dk ? 'text-white' : 'text-gray-900'}`}>
+                {getText('Gender Distribution', 'የጾታ ስርጭት')}
               </h3>
               <div className="space-y-6">
                 {/* Male Students Bar */}
@@ -235,11 +250,13 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center">
                       <div className="w-4 h-4 bg-blue-500 rounded-full mr-3"></div>
-                      <span className="text-gray-700 font-medium">Male Students</span>
+                      <span className={`font-medium ${dk ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {getText('Male Students', 'ወንድ ተማሪዎች')}
+                      </span>
                     </div>
-                    <span className="font-bold text-blue-600 text-lg">{stats.genderCounts.male}</span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400 text-lg">{stats.genderCounts.male}</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-8 overflow-hidden">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-8 overflow-hidden">
                     <div 
                       className="bg-gradient-to-r from-blue-400 to-blue-600 h-8 rounded-full transition-all duration-1000 ease-out flex items-center justify-end pr-3"
                       style={{ 
@@ -259,11 +276,13 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center">
                       <div className="w-4 h-4 bg-pink-500 rounded-full mr-3"></div>
-                      <span className="text-gray-700 font-medium">Female Students</span>
+                      <span className={`font-medium ${dk ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {getText('Female Students', 'ሴት ተማሪዎች')}
+                      </span>
                     </div>
-                    <span className="font-bold text-pink-600 text-lg">{stats.genderCounts.female}</span>
+                    <span className="font-bold text-pink-600 dark:text-pink-400 text-lg">{stats.genderCounts.female}</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-8 overflow-hidden">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-8 overflow-hidden">
                     <div 
                       className="bg-gradient-to-r from-pink-400 to-pink-600 h-8 rounded-full transition-all duration-1000 ease-out flex items-center justify-end pr-3"
                       style={{ 
@@ -279,19 +298,21 @@ export default function Dashboard() {
                 </div>
 
                 {/* Total */}
-                <div className="pt-4 border-t-2 border-gray-300">
+                <div className={`pt-4 border-t-2 ${dk ? 'border-gray-700' : 'border-gray-300'}`}>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-700 font-bold text-lg">Total Students</span>
-                    <span className="font-bold text-gray-900 text-2xl">{stats.totalStudents}</span>
+                    <span className={`font-bold text-lg ${dk ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {getText('Total Students', 'አጠቃላይ ተማሪዎች')}
+                    </span>
+                    <span className={`font-bold text-2xl ${dk ? 'text-white' : 'text-gray-900'}`}>{stats.totalStudents}</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Students by Class - Circular Graph */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6">
-                Students by Class
+            <div className={cardCls}>
+              <h3 className={`text-lg font-semibold mb-6 ${dk ? 'text-white' : 'text-gray-900'}`}>
+                {getText('Students by Class', 'ተማሪዎች በክፍል')}
               </h3>
               <div className="flex flex-col items-center">
                 {/* Circular Chart */}
@@ -347,7 +368,7 @@ export default function Dashboard() {
                               animation: `fadeIn 0.8s ease-out ${index * 0.1}s backwards`
                             }}
                           >
-                            <title>{className}: {count} students ({percentage.toFixed(1)}%)</title>
+                            <title>{formatClassName(className)}: {count} {getText('students', 'ተማሪዎች')} ({percentage.toFixed(1)}%)</title>
                           </path>
                         );
                       });
@@ -356,8 +377,10 @@ export default function Dashboard() {
                   
                   {/* Center Text */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <div className="text-3xl font-bold text-gray-900">{stats.totalStudents}</div>
-                    <div className="text-sm text-gray-600">Total Students</div>
+                    <div className={`text-3xl font-bold ${dk ? 'text-white' : 'text-gray-900'}`}>{stats.totalStudents}</div>
+                    <div className={`text-sm ${dk ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {getText('Total Students', 'አጠቃላይ ተማሪዎች')}
+                    </div>
                   </div>
                 </div>
                 
@@ -381,8 +404,10 @@ export default function Dashboard() {
                       >
                         <div className={`w-4 h-4 rounded-full ${colors[index % colors.length]} flex-shrink-0`}></div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 truncate">{className}</div>
-                          <div className="text-xs text-gray-600">{count} ({percentage}%)</div>
+                          <div className={`text-sm font-medium truncate ${dk ? 'text-white' : 'text-gray-900'}`}>
+                            {formatClassName(className)}
+                          </div>
+                          <div className={`text-xs ${dk ? 'text-gray-400' : 'text-gray-600'}`}>{count} ({percentage}%)</div>
                         </div>
                       </div>
                     );
@@ -409,7 +434,6 @@ export default function Dashboard() {
               }
               to {
                 opacity: 1;
-                transform: scale(1);
               }
             }
             @keyframes slideUp {
@@ -419,55 +443,70 @@ export default function Dashboard() {
               }
               to {
                 opacity: 1;
-                transform: translateY(0);
               }
             }
           `}</style>
 
           {/* All Active Students Class Statistics */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">
-              All Active Students Class Statistics
+          <div className={`${cardCls} mb-8`}>
+            <h2 className={`text-xl font-bold mb-6 ${dk ? 'text-white' : 'text-gray-900'}`}>
+              {getText('All Active Students Class Statistics', 'የሁሉም ንቁ ተማሪዎች የክፍል ስታቲስቲክስ')}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {Object.entries(stats.classDetails).map(([className, details]) => (
-                <div key={className} className="border border-gray-200 rounded-lg p-4">
-                  <h3 className="text-lg font-bold text-blue-600 mb-3">{className}</h3>
+                <div key={className} className={`border rounded-lg p-4 ${dk ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-white'}`}>
+                  <h3 className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-3">{formatClassName(className)}</h3>
                   
                   <div className="space-y-2 mb-4">
                     <div className="flex justify-between">
-                      <span className="text-gray-600 font-medium">Active Students:</span>
-                      <span className="font-bold text-gray-900">{details.total}</span>
+                      <span className={`font-medium ${dk ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {getText('Active Students:', 'ንቁ ተማሪዎች፡')}
+                      </span>
+                      <span className={`font-bold ${dk ? 'text-white' : 'text-gray-900'}`}>{details.total}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Male Students:</span>
-                      <span className="font-semibold text-blue-600">{details.male}</span>
+                      <span className={dk ? 'text-gray-400' : 'text-gray-600'}>
+                        {getText('Male Students:', 'ወንድ ተማሪዎች፡')}
+                      </span>
+                      <span className="font-semibold text-blue-600 dark:text-blue-400">{details.male}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Female Students:</span>
-                      <span className="font-semibold text-pink-600">{details.female}</span>
+                      <span className={dk ? 'text-gray-400' : 'text-gray-600'}>
+                        {getText('Female Students:', 'ሴት ተማሪዎች፡')}
+                      </span>
+                      <span className="font-semibold text-pink-600 dark:text-pink-400">{details.female}</span>
                     </div>
                   </div>
 
                   {Object.keys(details.sections).length > 0 && (
-                    <div className="border-t border-gray-200 pt-3">
-                      <h4 className="font-semibold text-gray-700 mb-2">Sections:</h4>
+                    <div className={`border-t pt-3 ${dk ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <h4 className={`font-semibold mb-2 ${dk ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {getText('Sections:', 'ሴክሽኖች፡')}
+                      </h4>
                       <div className="space-y-3">
                         {Object.entries(details.sections).map(([sectionName, sectionData]: [string, any]) => (
-                          <div key={sectionName} className="bg-gray-50 rounded p-3">
-                            <h5 className="font-semibold text-gray-800 mb-2">Section {sectionName}:</h5>
+                          <div key={sectionName} className={`rounded p-3 ${dk ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                            <h5 className={`font-semibold mb-2 ${dk ? 'text-gray-200' : 'text-gray-800'}`}>
+                              {getText('Section', 'ሴክሽን')} {sectionName}:
+                            </h5>
                             <div className="space-y-1 text-sm">
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Total:</span>
-                                <span className="font-semibold text-gray-900">{sectionData.total}</span>
+                                <span className={dk ? 'text-gray-400' : 'text-gray-600'}>
+                                  {getText('Total:', 'ጠቅላላ፡')}
+                                </span>
+                                <span className={`font-semibold ${dk ? 'text-white' : 'text-gray-900'}`}>{sectionData.total}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Male:</span>
-                                <span className="font-semibold text-blue-600">{sectionData.male}</span>
+                                <span className={dk ? 'text-gray-400' : 'text-gray-600'}>
+                                  {getText('Male:', 'ወንድ፡')}
+                                </span>
+                                <span className="font-semibold text-blue-600 dark:text-blue-400">{sectionData.male}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Female:</span>
-                                <span className="font-semibold text-pink-600">{sectionData.female}</span>
+                                <span className={dk ? 'text-gray-400' : 'text-gray-600'}>
+                                  {getText('Female:', 'ሴት፡')}
+                                </span>
+                                <span className="font-semibold text-pink-600 dark:text-pink-400">{sectionData.female}</span>
                               </div>
                             </div>
                           </div>
@@ -481,45 +520,53 @@ export default function Dashboard() {
           </div>
 
           {/* Quick Actions */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Quick Actions
+          <div className={cardCls}>
+            <h2 className={`text-lg font-semibold mb-4 ${dk ? 'text-white' : 'text-gray-900'}`}>
+              {getText('Quick Actions', 'ፈጣን እርምጃዎች')}
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <button 
                 onClick={() => router.push('/students/add')}
-                className="p-4 text-center rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors transform hover:scale-105"
+                className={`p-4 text-center rounded-lg border transition-all transform hover:scale-105 ${
+                  dk ? 'border-gray-700 hover:bg-gray-700/60' : 'border-gray-200 hover:bg-gray-50'
+                }`}
               >
-                <AcademicCapIcon className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-gray-900">
-                  Add Student
+                <AcademicCapIcon className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+                <span className={`text-sm font-medium block ${dk ? 'text-gray-200' : 'text-gray-900'}`}>
+                  {getText('Add Student', 'ተማሪ መዝግብ')}
                 </span>
               </button>
               <button 
                 onClick={() => router.push('/students')}
-                className="p-4 text-center rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors transform hover:scale-105"
+                className={`p-4 text-center rounded-lg border transition-all transform hover:scale-105 ${
+                  dk ? 'border-gray-700 hover:bg-gray-700/60' : 'border-gray-200 hover:bg-gray-50'
+                }`}
               >
-                <UsersIcon className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-gray-900">
-                  View Students
+                <UsersIcon className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+                <span className={`text-sm font-medium block ${dk ? 'text-gray-200' : 'text-gray-900'}`}>
+                  {getText('View Students', 'ተማሪዎችን ተመልከት')}
                 </span>
               </button>
               <button 
-                onClick={() => router.push('/inactive-students')}
-                className="p-4 text-center rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors transform hover:scale-105"
+                onClick={() => router.push('/students/inactive')}
+                className={`p-4 text-center rounded-lg border transition-all transform hover:scale-105 ${
+                  dk ? 'border-gray-700 hover:bg-gray-700/60' : 'border-gray-200 hover:bg-gray-50'
+                }`}
               >
-                <UserGroupIcon className="h-8 w-8 text-orange-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-gray-900">
-                  Inactive Students
+                <UserGroupIcon className="h-8 w-8 text-orange-600 dark:text-orange-400 mx-auto mb-2" />
+                <span className={`text-sm font-medium block ${dk ? 'text-gray-200' : 'text-gray-900'}`}>
+                  {getText('Inactive Students', 'የተቋረጡ ተማሪዎች')}
                 </span>
               </button>
               <button 
                 onClick={() => router.push('/payments')}
-                className="p-4 text-center rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors transform hover:scale-105"
+                className={`p-4 text-center rounded-lg border transition-all transform hover:scale-105 ${
+                  dk ? 'border-gray-700 hover:bg-gray-700/60' : 'border-gray-200 hover:bg-gray-50'
+                }`}
               >
-                <ChartBarIcon className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-gray-900">
-                  View Payments
+                <ChartBarIcon className="h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
+                <span className={`text-sm font-medium block ${dk ? 'text-gray-200' : 'text-gray-900'}`}>
+                  {getText('View Payments', 'ክፍያዎችን ተመልከት')}
                 </span>
               </button>
             </div>

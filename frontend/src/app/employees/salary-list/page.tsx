@@ -40,7 +40,7 @@ function toEthiopicWords(n: number): string {
 }
 
 export default function SalaryListPage() {
-  const { theme } = useSettings();
+  const { theme, getText } = useSettings();
   const router = useRouter();
   const isDark = theme === 'dark';
 
@@ -195,7 +195,7 @@ export default function SalaryListPage() {
   const inputCls = `w-full bg-transparent outline-none focus:bg-blue-50 focus:dark:bg-blue-900/20 rounded px-1 min-w-0 ${isDark ? 'text-gray-100' : 'text-gray-900'}`;
 
   return (
-    <DashboardLayout pageTitle="የሰራተኞች ደሞዝ ዝርዝር">
+    <DashboardLayout pageTitle={getText('Employee Salary List', 'የሰራተኞች ደሞዝ ዝርዝር')}>
       <div className={`min-h-screen p-4 sm:p-6 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="max-w-5xl mx-auto">
 
@@ -206,17 +206,17 @@ export default function SalaryListPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Back
+              {getText('Back', 'ተመለስ')}
             </button>
             <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              የሰራተኞች ደሞዝ ዝርዝር
+              {getText('Employee Salary List', 'የሰራተኞች ደሞዝ ዝርዝር')}
             </h1>
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-300'}`}>
-              <span className={`text-sm font-medium whitespace-nowrap ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>ወር:</span>
+              <span className={`text-sm font-medium whitespace-nowrap ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Month:', 'ወር:')}</span>
               <input
                 value={currentMonth}
                 onChange={e => updateAllMonths(e.target.value)}
-                placeholder="ወር ያስገቡ"
+                placeholder={getText('Enter month', 'ወር ያስገቡ')}
                 className={`text-sm outline-none bg-transparent w-24 ${isDark ? 'text-gray-100 placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
               />
             </div>
@@ -229,14 +229,14 @@ export default function SalaryListPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              Save
+              {getText('Save', 'አስቀምጥ')}
             </button>
             <button onClick={handlePrint}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
-              Print / Save PDF
+              {getText('Print / Save PDF', 'አትም / ፒዲኤፍ አስቀምጥ')}
             </button>
           </div>
 
@@ -252,14 +252,14 @@ export default function SalaryListPage() {
               {sep}
               <select defaultValue="" onChange={e => { exec('fontSize', e.target.value); (e.target as HTMLSelectElement).value = ''; }}
                 className={`text-sm rounded border px-1.5 py-1 ${isDark ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}>
-                <option value="" disabled>Size</option>
+                <option value="" disabled>{getText('Size', 'መጠን')}</option>
                 {(['1','2','3','4','5','6','7'] as const).map((s, i) => (
                   <option key={s} value={s}>{[8,10,12,14,18,24,36][i]}px</option>
                 ))}
               </select>
               <select defaultValue="" onChange={e => { exec('fontName', e.target.value); (e.target as HTMLSelectElement).value = ''; }}
                 className={`text-sm rounded border px-1.5 py-1 ${isDark ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}>
-                <option value="" disabled>Font</option>
+                <option value="" disabled>{getText('Font', 'ቅርጸ-ቁምፊ')}</option>
                 {['Nyala','serif','sans-serif','Arial','Times New Roman','monospace'].map(f => (
                   <option key={f} value={f}>{f}</option>
                 ))}
@@ -275,11 +275,11 @@ export default function SalaryListPage() {
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 4h16v2H2zm6 4h10v2H8zm-6 4h16v2H2zm6 4h10v2H8z"/></svg>
               </button>
               {sep}
-              <label className={`${btn} cursor-pointer flex items-center gap-1`} title="Text Color">
+              <label className={`${btn} cursor-pointer flex items-center gap-1`} title={getText('Text Color', 'የጽሑፍ ቀለም')}>
                 <span className="text-xs font-bold">A</span>
                 <input type="color" className="w-5 h-4 cursor-pointer p-0 border-0 bg-transparent" onChange={e => exec('foreColor', e.target.value)} />
               </label>
-              <label className={`${btn} cursor-pointer flex items-center gap-1`} title="Highlight">
+              <label className={`${btn} cursor-pointer flex items-center gap-1`} title={getText('Highlight', 'ቀለም መቀቢያ')}>
                 <span className="text-xs">H</span>
                 <input type="color" className="w-5 h-4 cursor-pointer p-0 border-0 bg-transparent" onChange={e => exec('hiliteColor', e.target.value)} />
               </label>
@@ -313,12 +313,12 @@ export default function SalaryListPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                ጠቅላላ ደሞዝ: <span className="font-mono">ብር {totalFormatted}</span>
-                {salaryColIdx === -1 && <span className="text-xs font-normal opacity-70">(salary column removed)</span>}
+                {getText('Total Salary:', 'ጠቅላላ ደሞዝ:')} <span className="font-mono">{getText('Birr', 'ብር')} {totalFormatted}</span>
+                {salaryColIdx === -1 && <span className="text-xs font-normal opacity-70">{getText('(salary column removed)', '(የደመወዝ ዓምድ ተሰርዟል)')}</span>}
               </div>
 
               {/* ── Table title ── */}
-              <p className="text-center font-bold mb-3">ወርሃዊ &nbsp;የሰራተኞች ደሞዝ</p>
+              <p className="text-center font-bold mb-3">{getText('Monthly Employee Salary', 'ወርሃዊ የሰራተኞች ደሞዝ')}</p>
 
               {/* ── Table ── */}
               <div className="overflow-x-auto">
@@ -335,7 +335,7 @@ export default function SalaryListPage() {
                             />
                             <button
                               onClick={() => deleteColumn(ci)}
-                              title="Remove column"
+                              title={getText('Remove column', 'ዓምድ ሰርዝ')}
                               className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 w-5 h-5 rounded bg-red-500 hover:bg-red-600 text-white flex items-center justify-center">
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -363,7 +363,7 @@ export default function SalaryListPage() {
                         <td className={`border px-1 py-1.5 text-center ${isDark ? 'border-gray-600' : 'border-gray-400'}`}>
                           <button
                             onClick={() => deleteRow(row.id)}
-                            title="Remove row"
+                            title={getText('Remove row', 'ረድፍ ሰርዝ')}
                             className="opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded bg-red-500 hover:bg-red-600 text-white flex items-center justify-center mx-auto">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -383,7 +383,7 @@ export default function SalaryListPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add Row
+                {getText('Add Row', 'ረድፍ ጨምር')}
               </button>
 
               {/* ── Letter bottom (rich text) ── */}

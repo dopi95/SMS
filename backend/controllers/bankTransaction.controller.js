@@ -2,7 +2,8 @@ const BankTransaction = require('../models/BankTransaction.model');
 const BankSetting = require('../models/BankSetting.model');
 const Student = require('../models/Student.model');
 const Payment = require('../models/Payment.model');
-const { parseBankSms } = require('../utils/bankSmsParser');
+const { parseBankSms, extractSourceBank } = require('../utils/bankSmsParser');
+const { findMatchingStudent } = require('../utils/studentMatcher');
 
 // Helper to fetch or initialize default BankSetting
 async function getOrCreateSettings() {
@@ -20,32 +21,14 @@ async function getOrCreateSettings() {
   return settings;
 }
 
-// Helper to attempt auto-matching student by payment code or name
+// Helper to attempt auto-matching student by father, mother, or student full name
 async function tryMatchStudent(smsText, senderName) {
   try {
-    // 1. Try matching student by payment code in SMS text
-    const studentsWithCode = await Student.find({
-      paymentCode: { $exists: true, $ne: '' }
-    }).select('_id firstName middleName lastName paymentCode');
+    const students = await Student.find({ status: { $ne: 'inactive' } })
+      .select('_id studentId firstName middleName lastName fatherName motherName paymentCode class section')
+      .lean();
 
-    for (const student of studentsWithCode) {
-      if (student.paymentCode && smsText.toUpperCase().includes(student.paymentCode.toUpperCase())) {
-        return student;
-      }
-    }
-
-    // 2. Try matching by parent or student name if senderName is present
-    if (senderName && senderName.trim().length >= 4) {
-      const cleanSender = senderName.trim().toLowerCase();
-      // Search parents
-      const matchedByParent = await Student.findOne({
-        $or: [
-          { fatherName: { $regex: new RegExp(cleanSender, 'i') } },
-          { motherName: { $regex: new RegExp(cleanSender, 'i') } }
-        ]
-      });
-      if (matchedByParent) return matchedByParent;
-    }
+    return findMatchingStudent(students, senderName, smsText);
   } catch (err) {
     console.warn('[BankSMS] Auto-match student error:', err.message);
   }
@@ -109,7 +92,20 @@ exports.handleWebhook = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No SMS text received' });
     }
 
-    const parsed = parseBankSms(smsText, sender, settings);
+    // Extract original message timestamp sent by Android SMS forwarder
+    const rawTime = req.body.timestamp || req.body.time || req.body.date || req.body.sent_time || req.body.received_at;
+    let fallbackDate = null;
+    if (rawTime) {
+      if (typeof rawTime === 'number' || /^\d+$/.test(rawTime.toString().trim())) {
+        const num = parseInt(rawTime.toString().trim());
+        fallbackDate = new Date(num < 10000000000 ? num * 1000 : num);
+      } else {
+        const d = new Date(rawTime);
+        if (!isNaN(d.getTime())) fallbackDate = d;
+      }
+    }
+
+    const parsed = parseBankSms(smsText, sender, settings, fallbackDate);
 
     // If ignored because it's for another account on the same phone number
     if (parsed.accountIgnored) {
@@ -147,6 +143,7 @@ exports.handleWebhook = async (req, res) => {
       amount: parsed.amount,
       currency: parsed.currency || 'ETB',
       senderName: parsed.senderName || '',
+      sourceBank: parsed.sourceBank || (parsed.rawSms ? extractSourceBank(parsed.rawSms, parsed.bank) : ''),
       receiverAccount: parsed.receiverAccount || '',
       senderPhone: sender || '',
       transactionDate: parsed.transactionDate || new Date(),
@@ -172,9 +169,15 @@ exports.handleWebhook = async (req, res) => {
 // 4. Parse SMS manually (pasting one or multiple SMS)
 exports.parseManual = async (req, res) => {
   try {
-    const { smsText, sender } = req.body;
+    const { smsText, sender, customDate } = req.body;
     if (!smsText || !smsText.trim()) {
       return res.status(400).json({ message: 'Please provide SMS text to parse' });
+    }
+
+    let fallbackDate = null;
+    if (customDate) {
+      const d = new Date(customDate);
+      if (!isNaN(d.getTime())) fallbackDate = d;
     }
 
     const settings = await getOrCreateSettings();
@@ -185,7 +188,7 @@ exports.parseManual = async (req, res) => {
 
     const results = [];
     for (const chunk of chunks) {
-      const parsed = parseBankSms(chunk, sender, settings);
+      const parsed = parseBankSms(chunk, sender, settings, fallbackDate);
       if (parsed.accountIgnored) {
         results.push({
           success: false,
@@ -223,6 +226,7 @@ exports.parseManual = async (req, res) => {
         amount: parsed.amount,
         currency: parsed.currency || 'ETB',
         senderName: parsed.senderName || '',
+        sourceBank: parsed.sourceBank || (parsed.rawSms ? extractSourceBank(parsed.rawSms, parsed.bank) : ''),
         receiverAccount: parsed.receiverAccount || '',
         senderPhone: sender || '',
         transactionDate: parsed.transactionDate || new Date(),
@@ -268,8 +272,16 @@ exports.getTransactions = async (req, res) => {
 
     if (startDate || endDate) {
       query.transactionDate = {};
-      if (startDate) query.transactionDate.$gte = new Date(startDate);
-      if (endDate) query.transactionDate.$lte = new Date(endDate);
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        query.transactionDate.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.transactionDate.$lte = end;
+      }
     }
 
     if (search && search.trim()) {
@@ -295,8 +307,51 @@ exports.getTransactions = async (req, res) => {
       BankTransaction.countDocuments(query)
     ]);
 
+    // Fetch active students to verify/rematch transactions and fix previous false matches
+    let allStudents = null;
+    const sanitizedTransactions = [];
+
+    for (const t of transactions) {
+      const obj = t.toObject();
+      if (!obj.sourceBank && obj.rawSms) {
+        obj.sourceBank = extractSourceBank(obj.rawSms, obj.bank);
+      }
+
+      // Verify or rematch student based on payer name (father, mother, or student)
+      if (obj.senderName && obj.senderName.trim()) {
+        if (!allStudents) {
+          allStudents = await Student.find({ status: { $ne: 'inactive' } })
+            .select('_id studentId firstName middleName lastName fatherName motherName paymentCode class section')
+            .lean();
+        }
+
+        const bestStudent = findMatchingStudent(allStudents, obj.senderName, obj.rawSms);
+        const currentStudentId = obj.matchedStudent ? obj.matchedStudent._id.toString() : null;
+        const newStudentId = bestStudent ? bestStudent._id.toString() : null;
+
+        if (newStudentId && newStudentId !== currentStudentId) {
+          obj.matchedStudent = bestStudent;
+          obj.status = 'matched';
+          BankTransaction.findByIdAndUpdate(obj._id, {
+            matchedStudent: bestStudent._id,
+            status: 'matched'
+          }).catch(e => console.warn('Rematch update error:', e.message));
+        } else if (!bestStudent && obj.matchedStudent && (!obj.notes || !obj.notes.includes('Manual'))) {
+          // If no student matches the payer name and it wasn't manually linked, clear the false match
+          obj.matchedStudent = null;
+          obj.status = 'unmatched';
+          BankTransaction.findByIdAndUpdate(obj._id, {
+            matchedStudent: null,
+            status: 'unmatched'
+          }).catch(e => console.warn('Reset false match error:', e.message));
+        }
+      }
+
+      sanitizedTransactions.push(obj);
+    }
+
     res.json({
-      transactions,
+      transactions: sanitizedTransactions,
       pagination: {
         total,
         page: pageNum,
@@ -373,6 +428,7 @@ exports.linkStudent = async (req, res) => {
 
     transaction.matchedStudent = student._id;
     transaction.status = 'matched';
+    transaction.notes = 'Manually linked';
 
     // Optional: create payment record if requested
     if (createPayment && month && year) {
@@ -404,6 +460,144 @@ exports.linkStudent = async (req, res) => {
     res.json({ success: true, transaction: updated });
   } catch (error) {
     res.status(500).json({ message: 'Failed to link student', error: error.message });
+  }
+};
+
+// 8. Search students for manual linking by name, parent names, phone, studentId, or paymentCode
+exports.searchStudents = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim() || q.trim().length < 2) {
+      return res.json([]);
+    }
+
+    const query = q.trim();
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+
+    const students = await Student.find({
+      status: { $ne: 'inactive' },
+      $or: [
+        { firstName: regex },
+        { middleName: regex },
+        { lastName: regex },
+        { firstNameAmharic: regex },
+        { middleNameAmharic: regex },
+        { lastNameAmharic: regex },
+        { fatherName: regex },
+        { fatherPhone: regex },
+        { motherName: regex },
+        { motherPhone: regex },
+        { studentId: regex },
+        { paymentCode: regex }
+      ]
+    })
+      .select('_id studentId firstName middleName lastName class section fatherName fatherPhone motherName motherPhone paymentCode')
+      .limit(15)
+      .lean();
+
+    res.json(students);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to search students', error: error.message });
+  }
+};
+
+// 9. Approve a bank transaction and create an official Payment record
+exports.approvePayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { month, year, amount, description, paymentDate } = req.body;
+
+    const transaction = await BankTransaction.findById(id).populate('matchedStudent');
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    if (!transaction.matchedStudent) {
+      return res.status(400).json({ message: 'Transaction is not linked to any student. Please link a student first.' });
+    }
+
+    const studentId = transaction.matchedStudent._id;
+    const payMonth = month || 'September';
+    const payYear = parseInt(year) || 2019;
+    const payAmount = amount !== undefined && !isNaN(parseFloat(amount)) ? parseFloat(amount) : transaction.amount;
+    const payDate = paymentDate ? new Date(paymentDate) : (transaction.transactionDate || new Date());
+    const payDesc = description !== undefined && description !== null && description.trim() !== ''
+      ? description.trim()
+      : `Bank payment via ${transaction.bank} (Ref: ${transaction.reference})`;
+
+    // Check if payment record already exists for this student, month, year
+    let payment = await Payment.findOne({
+      studentId,
+      month: payMonth,
+      year: payYear
+    });
+
+    if (payment) {
+      payment.amount = payAmount;
+      payment.description = payDesc;
+      payment.paymentDate = payDate;
+      payment.status = 'paid';
+      await payment.save();
+    } else {
+      payment = await Payment.create({
+        studentId,
+        month: payMonth,
+        year: payYear,
+        amount: payAmount,
+        description: payDesc,
+        paymentDate: payDate,
+        status: 'paid',
+        createdBy: req.user?._id || null
+      });
+    }
+
+    transaction.isReconciled = true;
+    transaction.reconciledPaymentId = payment._id;
+    await transaction.save();
+
+    const updatedTxn = await BankTransaction.findById(id)
+      .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode');
+
+    res.json({
+      success: true,
+      message: `Payment approved and recorded for ${payMonth} ${payYear} E.C.`,
+      transaction: updatedTxn,
+      payment
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to approve payment', error: error.message });
+  }
+};
+
+// 10. Revoke approval / unapprove transaction and delete the associated Payment record
+exports.unapprovePayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const transaction = await BankTransaction.findById(id);
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    if (transaction.reconciledPaymentId) {
+      await Payment.findByIdAndDelete(transaction.reconciledPaymentId);
+    }
+
+    transaction.isReconciled = false;
+    transaction.reconciledPaymentId = null;
+    await transaction.save();
+
+    const updatedTxn = await BankTransaction.findById(id)
+      .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode');
+
+    res.json({
+      success: true,
+      message: 'Payment approval revoked and record removed from Payments page.',
+      transaction: updatedTxn
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to revoke payment approval', error: error.message });
   }
 };
 

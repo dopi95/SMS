@@ -4,8 +4,15 @@ import { useState, useEffect, useCallback } from 'react'
 import DashboardLayout from '@/components/DashboardLayout'
 import Pagination from '@/components/Pagination'
 import { useSettings } from '@/contexts/SettingsContext'
+import { usePermissions } from '@/contexts/PermissionsContext'
 import axios from 'axios'
 import toast from 'react-hot-toast'
+import {
+  ETHIOPIAN_ACADEMIC_MONTHS,
+  getCurrentEthiopianAcademicMonth,
+  getCurrentEthiopianYear
+} from '@/utils/dateUtils'
+import { getStudentDisplayName } from '@/utils/studentUtils'
 import {
   BanknotesIcon,
   ArrowPathIcon,
@@ -18,6 +25,7 @@ import {
   LinkIcon,
   TrashIcon,
   EyeIcon,
+  CalendarDaysIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline'
 
@@ -27,9 +35,16 @@ interface Student {
   firstName: string
   middleName: string
   lastName: string
+  firstNameAmharic?: string
+  middleNameAmharic?: string
+  lastNameAmharic?: string
   class: string
   section?: string
   paymentCode?: string
+  fatherName?: string
+  fatherPhone?: string
+  motherName?: string
+  motherPhone?: string
 }
 
 interface BankTransaction {
@@ -39,6 +54,7 @@ interface BankTransaction {
   amount: number
   currency: string
   senderName: string
+  sourceBank?: string
   receiverAccount: string
   senderPhone: string
   transactionDate: string
@@ -71,7 +87,8 @@ interface BankSettings {
 }
 
 export default function BankReportsPage() {
-  const { theme, getText } = useSettings()
+  const { theme, getText, language } = useSettings()
+  const { canAccess, canDo, loading: permLoading } = usePermissions()
 
   // Transactions State
   const [transactions, setTransactions] = useState<BankTransaction[]>([])
@@ -82,6 +99,10 @@ export default function BankReportsPage() {
   const [bankFilter, setBankFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState<string>('')
+  const [dateFilterMode, setDateFilterMode] = useState<'all' | 'single' | 'range'>('all')
+  const [specificDate, setSpecificDate] = useState<string>('')
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [totalPages, setTotalPages] = useState<number>(1)
   const [totalItems, setTotalItems] = useState<number>(0)
@@ -108,6 +129,7 @@ export default function BankReportsPage() {
   // Manual Import State
   const [importText, setImportText] = useState('')
   const [importSender, setImportSender] = useState('')
+  const [importDate, setImportDate] = useState('')
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<any>(null)
 
@@ -115,24 +137,33 @@ export default function BankReportsPage() {
   const [studentSearch, setStudentSearch] = useState('')
   const [studentList, setStudentList] = useState<Student[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string>('')
-  const [createPaymentRecord, setCreatePaymentRecord] = useState(true)
-  const [paymentMonth, setPaymentMonth] = useState('September')
-  const [paymentYear, setPaymentYear] = useState('2019')
   const [linking, setLinking] = useState(false)
+  const [searchingStudents, setSearchingStudents] = useState(false)
 
-  const months = ['September', 'October', 'November', 'December', 'January', 'February', 'March', 'April', 'May', 'June']
+  // Approval Modal State
+  const [approvingTxn, setApprovingTxn] = useState<BankTransaction | null>(null)
+  const [approveMonth, setApproveMonth] = useState<string>('')
+  const [approveYear, setApproveYear] = useState<number>(2019)
+  const [approveAmount, setApproveAmount] = useState<number>(0)
+  const [approveDate, setApproveDate] = useState<string>('')
+  const [approveDesc, setApproveDesc] = useState<string>('')
+  const [approving, setApproving] = useState<boolean>(false)
 
   // Fetch Transactions
   const fetchTransactions = useCallback(async () => {
     setLoading(true)
     try {
       const token = localStorage.getItem('token')
+      const effStart = dateFilterMode === 'single' ? specificDate : dateFilterMode === 'range' ? startDate : ''
+      const effEnd = dateFilterMode === 'single' ? specificDate : dateFilterMode === 'range' ? endDate : ''
       const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/bank-transactions`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           bank: bankFilter,
           status: statusFilter,
           search: searchTerm,
+          startDate: effStart || undefined,
+          endDate: effEnd || undefined,
           page: currentPage,
           limit: PAGE_SIZE
         }
@@ -145,7 +176,7 @@ export default function BankReportsPage() {
     } finally {
       setLoading(false)
     }
-  }, [bankFilter, statusFilter, searchTerm, currentPage, getText])
+  }, [bankFilter, statusFilter, searchTerm, dateFilterMode, specificDate, startDate, endDate, currentPage, getText])
 
   // Fetch Stats
   const fetchStats = useCallback(async () => {
@@ -181,18 +212,23 @@ export default function BankReportsPage() {
 
   // Search Students for Linking
   const searchStudents = async (query: string) => {
-    if (!query || query.length < 2) {
+    if (!query || query.trim().length < 2) {
       setStudentList([])
       return
     }
+    setSearchingStudents(true)
     try {
       const token = localStorage.getItem('token')
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/students`, {
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/bank-transactions/search-students`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { search: query, limit: 10 }
+        params: { q: query.trim() }
       })
-      setStudentList(res.data.students || [])
-    } catch {}
+      setStudentList(Array.isArray(res.data) ? res.data : [])
+    } catch {
+      setStudentList([])
+    } finally {
+      setSearchingStudents(false)
+    }
   }
 
   useEffect(() => {
@@ -206,7 +242,7 @@ export default function BankReportsPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [bankFilter, statusFilter, searchTerm])
+  }, [bankFilter, statusFilter, searchTerm, dateFilterMode, specificDate, startDate, endDate])
 
   // Save Settings
   const handleSaveSettings = async () => {
@@ -239,7 +275,7 @@ export default function BankReportsPage() {
       const token = localStorage.getItem('token')
       const res = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/bank-transactions/parse-manual`,
-        { smsText: importText, sender: importSender },
+        { smsText: importText, sender: importSender, customDate: importDate || undefined },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       setImportResult(res.data)
@@ -269,12 +305,7 @@ export default function BankReportsPage() {
       const token = localStorage.getItem('token')
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/bank-transactions/${linkingTxn._id}/link-student`,
-        {
-          studentId: selectedStudentId,
-          createPayment: createPaymentRecord,
-          month: paymentMonth,
-          year: paymentYear
-        },
+        { studentId: selectedStudentId },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       toast.success(getText('Student linked successfully', 'ተማሪው በተሳካ ሁኔታ ተያይዟል'))
@@ -288,6 +319,80 @@ export default function BankReportsPage() {
       toast.error(err.response?.data?.message || getText('Failed to link student', 'ተማሪውን ማያያዝ አልተሳካም'))
     } finally {
       setLinking(false)
+    }
+  }
+
+  // Open Approve & Record Payment Modal
+  const handleOpenApproveModal = (txn: BankTransaction) => {
+    setApprovingTxn(txn)
+    setApproveMonth(getCurrentEthiopianAcademicMonth())
+    setApproveYear(getCurrentEthiopianYear())
+    setApproveAmount(txn.amount)
+    const txnDateStr = txn.transactionDate
+      ? new Date(txn.transactionDate).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0]
+    setApproveDate(txnDateStr)
+    setApproveDesc(`Bank payment via ${txn.bank} (Ref: ${txn.reference})`)
+  }
+
+  // Confirm Approval & Record Payment
+  const handleConfirmApprove = async () => {
+    if (!approvingTxn) return
+    setApproving(true)
+    try {
+      const token = localStorage.getItem('token')
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/bank-transactions/${approvingTxn._id}/approve-payment`,
+        {
+          month: approveMonth,
+          year: approveYear,
+          amount: approveAmount,
+          paymentDate: approveDate,
+          description: approveDesc
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      toast.success(getText('Payment approved and recorded on the Payments page!', 'ክፍያው ጸድቆ በክፍያ ገጽ ላይ በተሳካ ሁኔታ ተመዝግቧል!'))
+
+      // Update local transaction state
+      setTransactions(prev => prev.map(t => t._id === approvingTxn._id ? { ...t, isReconciled: true } : t))
+      if (showSmsModal && showSmsModal._id === approvingTxn._id) {
+        setShowSmsModal(prev => prev ? { ...prev, isReconciled: true } : null)
+      }
+      setApprovingTxn(null)
+      fetchTransactions()
+      fetchStats()
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || getText('Failed to approve payment', 'ክፍያውን ማጽደቅ አልተሳካም'))
+    } finally {
+      setApproving(false)
+    }
+  }
+
+  // Revoke Approval & Delete Associated Payment
+  const handleRevokeApprove = async (id: string) => {
+    if (!confirm(getText(
+      'Are you sure you want to remove this approval? This will delete the payment record from the Payments page and return this transaction to pending approval.',
+      'ይህንን ማጽደቅ ማንሳት እርግጠኛ ነዎት? ይህ ከክፍያ ገጽ ላይ መዝገቡን ይሰርዛል እንዲሁም ግብይቱን ወደ ማጽደቂያነት ይመልሰዋል።'
+    ))) return
+
+    try {
+      const token = localStorage.getItem('token')
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/bank-transactions/${id}/unapprove-payment`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      toast.success(getText('Approval removed and payment record deleted', 'ማጽደቅ ተነስቷል እንዲሁም የክፍያ መዝገቡ ተሰርዟል'))
+
+      setTransactions(prev => prev.map(t => t._id === id ? { ...t, isReconciled: false } : t))
+      if (showSmsModal && showSmsModal._id === id) {
+        setShowSmsModal(prev => prev ? { ...prev, isReconciled: false } : null)
+      }
+      fetchTransactions()
+      fetchStats()
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || getText('Failed to remove approval', 'ማጽደቅን ማንሳት አልተሳካም'))
     }
   }
 
@@ -316,13 +421,34 @@ export default function BankReportsPage() {
     toast.success(`${label} ${getText('copied to clipboard', 'ወደ ቅንጥብ ሰሌዳ ተቀድቷል')}`)
   }
 
+  if (!permLoading && !canAccess('bank-reports')) {
+    return (
+      <DashboardLayout pageTitle={getText('Transaction Reports', 'የግብይት ሪፖርት')}>
+        <div className={`min-h-[70vh] flex flex-col items-center justify-center p-6 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/40 rounded-full flex items-center justify-center mb-4 shadow-inner">
+            <XCircleIcon className="w-8 h-8 text-red-600 dark:text-red-400" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">
+            {getText('Access Denied', 'ፍቃድ የለዎትም')}
+          </h2>
+          <p className={`text-sm max-w-md text-center ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+            {getText(
+              'You do not have permission to view Transaction Reports. Please contact the administrator.',
+              'ይህንን የግብይት ሪፖርት ገጽ ለማየት ፍቃድ የለዎትም። እባክዎ ዋና አስተዳዳሪውን ያነጋግሩ።'
+            )}
+          </p>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
   return (
-    <DashboardLayout pageTitle={getText('Bank Reports', 'የባንክ ሪፖርት')}>
-      <div className={`min-h-screen p-4 sm:p-6 lg:p-8 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
-        <div className="max-w-7xl mx-auto space-y-6">
+    <DashboardLayout pageTitle={getText('Transaction Reports', 'የግብይት ሪፖርት')}>
+      <div className={`min-h-screen w-full max-w-full overflow-x-hidden p-3 sm:p-6 lg:p-8 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+        <div className="w-full max-w-7xl mx-auto space-y-6 overflow-hidden">
 
           {/* Header */}
-          <div className={`rounded-2xl p-6 shadow-lg border transition-all ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className={`rounded-2xl p-4 sm:p-6 shadow-lg border transition-all ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div className="flex items-center space-x-3">
                 <div className="p-3 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow-md">
@@ -330,7 +456,7 @@ export default function BankReportsPage() {
                 </div>
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                    {getText('Bank Reports & Transactions', 'የባንክ ሪፖርቶች እና ግብይቶች')}
+                    {getText('Transaction Reports', 'የግብይት ሪፖርት')}
                   </h1>
                   <p className={`text-sm mt-0.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                     {getText('Automated CBE and Awash Bank SMS payment tracking & reconciliation', 'የኢትዮጵያ ንግድ ባንክ እና አዋሽ ባንክ ክፍያዎችን በኤስኤምኤስ በራስ-ሰር መከታተያ')}
@@ -492,7 +618,7 @@ export default function BankReportsPage() {
           </div>
 
           {/* Filter Bar */}
-          <div className={`p-4 rounded-2xl shadow border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className={`p-4 rounded-2xl shadow border space-y-3 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             <div className="flex flex-col md:flex-row gap-3">
               {/* Search */}
               <div className="relative flex-1">
@@ -533,7 +659,129 @@ export default function BankReportsPage() {
                 <option value="matched">{getText('Matched with Student', 'ከተማሪ ጋር የተያያዘ')}</option>
                 <option value="unmatched">{getText('Unmatched / Pending', 'ያልተያያዘ')}</option>
               </select>
+
+              {/* Date Filter Mode Selector */}
+              <select
+                value={dateFilterMode}
+                onChange={(e) => setDateFilterMode(e.target.value as any)}
+                className={`px-4 py-2.5 rounded-xl border text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none ${
+                  dateFilterMode !== 'all'
+                    ? 'border-blue-500 ring-2 ring-blue-500/20 text-blue-600 dark:text-blue-400 font-bold'
+                    : theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'
+                }`}
+              >
+                <option value="all">{getText('All Dates', 'ሁሉም ቀናት')}</option>
+                <option value="single">{getText('Specific Date', 'የተወሰነ ቀን')}</option>
+                <option value="range">{getText('Date Range (From - To)', 'የቀን ክልል (ከ - እስከ)')}</option>
+              </select>
             </div>
+
+            {/* Date Inputs & Presets (Visible when single or range is selected) */}
+            {dateFilterMode !== 'all' && (
+              <div className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-3 ${
+                theme === 'dark' ? 'bg-gray-700/50 border-gray-600' : 'bg-blue-50/50 border-blue-100'
+              }`}>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-600 dark:text-blue-400">
+                    <CalendarDaysIcon className="w-5 h-5 flex-shrink-0" />
+                    <span>
+                      {dateFilterMode === 'single'
+                        ? getText('Specific Date:', 'የተወሰነ ቀን፡')
+                        : getText('Date Range:', 'የቀን ክልል፡')}
+                    </span>
+                  </div>
+
+                  {dateFilterMode === 'single' ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={specificDate}
+                        onChange={(e) => setSpecificDate(e.target.value)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold focus:ring-2 focus:ring-blue-500 outline-none shadow-sm ${
+                          theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'
+                        }`}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="text-gray-500 dark:text-gray-400 font-medium">{getText('From:', 'ከ፡')}</span>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-semibold focus:ring-2 focus:ring-blue-500 outline-none shadow-sm ${
+                            theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'
+                          }`}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="text-gray-500 dark:text-gray-400 font-medium">{getText('To:', 'እስከ፡')}</span>
+                        <input
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-semibold focus:ring-2 focus:ring-blue-500 outline-none shadow-sm ${
+                            theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Date Presets */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const todayStr = new Date().toISOString().split('T')[0]
+                      setDateFilterMode('single')
+                      setSpecificDate(todayStr)
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm ${
+                      dateFilterMode === 'single' && specificDate === new Date().toISOString().split('T')[0]
+                        ? 'bg-blue-600 text-white'
+                        : theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-600' : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-200'
+                    }`}
+                  >
+                    {getText('Today', 'ዛሬ')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const now = new Date()
+                      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+                      const todayStr = now.toISOString().split('T')[0]
+                      setDateFilterMode('range')
+                      setStartDate(firstDay)
+                      setEndDate(todayStr)
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm ${
+                      dateFilterMode === 'range' && startDate && endDate
+                        ? 'bg-blue-600 text-white'
+                        : theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-600' : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-200'
+                    }`}
+                  >
+                    {getText('This Month', 'የዚህ ወር')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDateFilterMode('all')
+                      setSpecificDate('')
+                      setStartDate('')
+                      setEndDate('')
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition"
+                  >
+                    ✕ {getText('Clear', 'ሰርዝ')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Transactions Table & Mobile Cards */}
@@ -567,19 +815,18 @@ export default function BankReportsPage() {
               </div>
             ) : (
               <>
-                {/* Desktop View */}
-                <div className="hidden lg:block overflow-x-auto">
-                  <table className="w-full text-left text-sm">
+                {/* Desktop View (xl and up) */}
+                <div className="hidden xl:block overflow-x-auto w-full">
+                  <table className="w-full text-left text-xs sm:text-sm table-fixed">
                     <thead className={`text-xs uppercase font-semibold border-b ${theme === 'dark' ? 'bg-gray-700/60 border-gray-700 text-gray-300' : 'bg-gray-50 border-gray-100 text-gray-600'}`}>
                       <tr>
-                        <th className="px-6 py-3.5">{getText('Bank', 'ባንክ')}</th>
-                        <th className="px-6 py-3.5">{getText('Reference No.', 'የማጣቀሻ ቁጥር')}</th>
-                        <th className="px-6 py-3.5">{getText('Date & Time', 'ቀን እና ሰዓት')}</th>
-                        <th className="px-6 py-3.5">{getText('Amount', 'መጠን')}</th>
-                        <th className="px-6 py-3.5">{getText('Payer / Sender', 'ከፋይ')}</th>
-                        <th className="px-6 py-3.5">{getText('Account', 'የተላከበት ሂሳብ')}</th>
-                        <th className="px-6 py-3.5">{getText('Matched Student', 'የተያያዘ ተማሪ')}</th>
-                        <th className="px-6 py-3.5 text-right">{getText('Actions', 'ድርጊቶች')}</th>
+                        <th className="px-3.5 py-3 w-20">{getText('Bank', 'ባንክ')}</th>
+                        <th className="px-3.5 py-3 w-40">{getText('Reference No.', 'የማጣቀሻ ቁጥር')}</th>
+                        <th className="px-3.5 py-3 w-32">{getText('Date & Time', 'ቀን እና ሰዓት')}</th>
+                        <th className="px-3.5 py-3 w-28">{getText('Amount', 'መጠን')}</th>
+                        <th className="px-3.5 py-3 w-48">{getText('Payer / Sender', 'ከፋይ')}</th>
+                        <th className="px-3.5 py-3">{getText('Matched Student', 'የተያያዘ ተማሪ')}</th>
+                        <th className="px-3.5 py-3 text-right w-20">{getText('Actions', 'ድርጊቶች')}</th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-700/60' : 'divide-gray-100'}`}>
@@ -588,8 +835,8 @@ export default function BankReportsPage() {
                         return (
                           <tr key={txn._id} className={`transition ${theme === 'dark' ? 'hover:bg-gray-700/40' : 'hover:bg-gray-50/70'}`}>
                             {/* Bank */}
-                            <td className="px-6 py-4">
-                              <span className={`px-2.5 py-1 rounded-full text-xs font-black tracking-wide ${
+                            <td className="px-3.5 py-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-black tracking-wide ${
                                 isCbe ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
                               }`}>
                                 {txn.bank}
@@ -597,12 +844,12 @@ export default function BankReportsPage() {
                             </td>
 
                             {/* Reference */}
-                            <td className="px-6 py-4 font-mono font-semibold">
+                            <td className="px-3.5 py-3 font-mono font-semibold truncate" title={txn.reference}>
                               {txn.reference}
                             </td>
 
                             {/* Date */}
-                            <td className="px-6 py-4 text-xs">
+                            <td className="px-3.5 py-3 text-xs">
                               {new Date(txn.transactionDate).toLocaleDateString()}
                               <span className={`block text-[11px] ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                                 {new Date(txn.transactionDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -610,67 +857,108 @@ export default function BankReportsPage() {
                             </td>
 
                             {/* Amount */}
-                            <td className="px-6 py-4 font-bold text-emerald-600 dark:text-emerald-400">
+                            <td className="px-3.5 py-3 font-bold text-emerald-600 dark:text-emerald-400 truncate">
                               ETB {txn.amount.toLocaleString()}
                             </td>
 
-                            {/* Payer */}
-                            <td className="px-6 py-4">
-                              <div className="font-medium">{txn.senderName || '—'}</div>
-                            </td>
-
-                            {/* Receiver Account */}
-                            <td className="px-6 py-4 font-mono text-xs text-gray-500 dark:text-gray-400">
-                              {txn.receiverAccount || '—'}
+                            {/* Payer & Originating Bank */}
+                            <td className="px-3.5 py-3">
+                              <div className="font-medium truncate" title={txn.senderName || '—'}>{txn.senderName || '—'}</div>
+                              {txn.sourceBank && (
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5 truncate" title={`${getText('From', 'ከ')}: ${txn.sourceBank}`}>
+                                  <span className="font-bold text-blue-600 dark:text-blue-400">{getText('From:', 'ከ፡')}</span>
+                                  <span className="truncate">{txn.sourceBank}</span>
+                                </div>
+                              )}
                             </td>
 
                             {/* Matched Student */}
-                            <td className="px-6 py-4">
+                            <td className="px-3.5 py-3">
                               {txn.matchedStudent ? (
-                                <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-medium">
-                                  <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" />
-                                  <span>
-                                    {txn.matchedStudent.firstName} {txn.matchedStudent.lastName}
-                                  </span>
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200">
-                                    {txn.matchedStudent.class}
-                                  </span>
+                                <div className="flex items-center justify-between gap-2">
+                                  <div
+                                    className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-medium truncate"
+                                    title={getStudentDisplayName(txn.matchedStudent, language)}
+                                  >
+                                    <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" />
+                                    <span className="truncate">
+                                      {getStudentDisplayName(txn.matchedStudent, language)}
+                                    </span>
+                                    <span className="text-[11px] px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 flex-shrink-0">
+                                      {txn.matchedStudent.class}
+                                    </span>
+                                  </div>
+
+                                  {txn.isReconciled ? (
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
+                                        ✓ {getText('Paid', 'የተከፈለ')}
+                                      </span>
+                                      {canDo('bank-reports', 'approve') && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRevokeApprove(txn._id)}
+                                          className="p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition"
+                                          title={getText('Remove approval & return to Approve', 'ማጽደቁን አንሳ')}
+                                        >
+                                          <XCircleIcon className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : canDo('bank-reports', 'approve') ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenApproveModal(txn)}
+                                      className="text-[11px] px-2 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition flex items-center gap-1 flex-shrink-0 shadow-sm"
+                                      title={getText('Approve & record on Payment page', 'ክፍያውን አጽድቅ')}
+                                    >
+                                      <ClipboardDocumentCheckIcon className="w-3.5 h-3.5" />
+                                      <span>{getText('Approve', 'አጽድቅ')}</span>
+                                    </button>
+                                  ) : null}
                                 </div>
-                              ) : (
+                              ) : canDo('bank-reports', 'link') ? (
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setLinkingTxn(txn)
-                                    setStudentSearch(txn.senderName || '')
-                                    if (txn.senderName) searchStudents(txn.senderName)
+                                    setStudentSearch('')
+                                    setSelectedStudentId('')
+                                    setStudentList([])
                                   }}
                                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 transition"
                                 >
                                   <LinkIcon className="w-3.5 h-3.5" />
-                                  <span>{getText('Link Student', 'ተማሪ አያይዝ')}</span>
+                                  <span>{getText('Link', 'አያይዝ')}</span>
                                 </button>
+                              ) : (
+                                <span className="text-xs text-amber-600/70 font-medium">
+                                  {getText('Unmatched', 'ያልተያያዘ')}
+                                </span>
                               )}
                             </td>
 
                             {/* Actions */}
-                            <td className="px-6 py-4 text-right">
+                            <td className="px-3.5 py-3 text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   type="button"
                                   onClick={() => setShowSmsModal(txn)}
-                                  className={`p-1.5 rounded-lg transition ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                                  className={`p-1 rounded-lg transition ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
                                   title={getText('View Raw SMS', 'የኤስኤምኤስ ጽሑፍ ተመልከት')}
                                 >
                                   <EyeIcon className="w-4 h-4" />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteTransaction(txn._id, txn.reference)}
-                                  className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition"
-                                  title={getText('Delete', 'ሰርዝ')}
-                                >
-                                  <TrashIcon className="w-4 h-4" />
-                                </button>
+                                {canDo('bank-reports', 'delete') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteTransaction(txn._id, txn.reference)}
+                                    className="p-1 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition"
+                                    title={getText('Delete', 'ሰርዝ')}
+                                  >
+                                    <TrashIcon className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -680,69 +968,103 @@ export default function BankReportsPage() {
                   </table>
                 </div>
 
-                {/* Mobile Card View */}
-                <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-700/60">
+                {/* Mobile & Tablet Card View (< xl) */}
+                <div className="xl:hidden divide-y divide-gray-100 dark:divide-gray-700/60 w-full max-w-full overflow-hidden">
                   {transactions.map((txn) => {
                     const isCbe = txn.bank === 'CBE'
                     return (
-                      <div key={txn._id} className="p-4 space-y-3">
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-black ${
+                      <div key={txn._id} className="p-3.5 sm:p-4 space-y-2.5 w-full max-w-full overflow-hidden">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-black flex-shrink-0 ${
                               isCbe ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
                             }`}>
                               {txn.bank}
                             </span>
-                            <span className="font-mono text-xs font-bold text-gray-600 dark:text-gray-300">
+                            <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 truncate" title={txn.reference}>
                               {txn.reference}
                             </span>
                           </div>
-                          <span className="font-extrabold text-base text-emerald-600 dark:text-emerald-400">
+                          <span className="font-extrabold text-sm sm:text-base text-emerald-600 dark:text-emerald-400 flex-shrink-0">
                             ETB {txn.amount.toLocaleString()}
                           </span>
                         </div>
 
-                        <div className="text-xs space-y-1">
+                        <div className="text-xs space-y-1 break-words">
                           <p><span className="text-gray-400">{getText('Payer:', 'ከፋይ፡')}</span> <span className="font-medium">{txn.senderName || '—'}</span></p>
+                          {txn.sourceBank && (
+                            <p><span className="text-gray-400">{getText('From:', 'ከ፡')}</span> <span className="font-semibold text-blue-600 dark:text-blue-400">{txn.sourceBank}</span></p>
+                          )}
                           <p><span className="text-gray-400">{getText('Account:', 'ሂሳብ፡')}</span> <span className="font-mono">{txn.receiverAccount || '—'}</span></p>
                           <p><span className="text-gray-400">{getText('Date:', 'ቀን፡')}</span> {new Date(txn.transactionDate).toLocaleString()}</p>
                         </div>
 
-                        <div className="pt-2 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                        <div className="pt-2 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2">
                           {txn.matchedStudent ? (
-                            <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
-                              <CheckCircleIcon className="w-4 h-4 text-green-500" />
-                              {txn.matchedStudent.firstName} {txn.matchedStudent.lastName}
-                            </span>
-                          ) : (
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1 min-w-0 truncate" title={getStudentDisplayName(txn.matchedStudent, language)}>
+                                <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" />
+                                <span className="truncate">{getStudentDisplayName(txn.matchedStudent, language)}</span>
+                              </span>
+                              {txn.isReconciled ? (
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
+                                    ✓ {getText('Paid', 'የተከፈለ')}
+                                  </span>
+                                  {canDo('bank-reports', 'approve') && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevokeApprove(txn._id)}
+                                      className="text-[10px] px-1.5 py-0.5 rounded font-bold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-800 transition"
+                                    >
+                                      {getText('Remove', 'አንሳ')}
+                                    </button>
+                                  )}
+                                </div>
+                              ) : canDo('bank-reports', 'approve') ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenApproveModal(txn)}
+                                  className="text-[10px] px-2 py-0.5 rounded font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition flex items-center gap-1 flex-shrink-0 shadow-sm"
+                                >
+                                  <ClipboardDocumentCheckIcon className="w-3 h-3" />
+                                  <span>{getText('Approve', 'አጽድቅ')}</span>
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : canDo('bank-reports', 'link') ? (
                             <button
                               type="button"
                               onClick={() => {
                                 setLinkingTxn(txn)
-                                setStudentSearch(txn.senderName || '')
-                                if (txn.senderName) searchStudents(txn.senderName)
+                                setStudentSearch('')
+                                setSelectedStudentId('')
+                                setStudentList([])
                               }}
                               className="text-xs px-2.5 py-1 rounded font-semibold text-amber-700 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-300"
                             >
                               {getText('Link Student', 'ተማሪ አያይዝ')}
                             </button>
-                          )}
+                          ) : null}
 
-                          <div className="flex gap-2">
+                          <div className="flex items-center gap-3 ml-auto">
                             <button
                               type="button"
                               onClick={() => setShowSmsModal(txn)}
-                              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 underline"
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                             >
-                              {getText('SMS', 'ኤስኤምኤስ')}
+                              <EyeIcon className="w-3.5 h-3.5" />
+                              <span>{getText('SMS', 'ኤስኤምኤስ')}</span>
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteTransaction(txn._id, txn.reference)}
-                              className="text-xs text-red-500"
-                            >
-                              {getText('Delete', 'ሰርዝ')}
-                            </button>
+                            {canDo('bank-reports', 'delete') && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTransaction(txn._id, txn.reference)}
+                                className="text-xs text-red-500 hover:text-red-700 font-medium"
+                              >
+                                {getText('Delete', 'ሰርዝ')}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1041,6 +1363,26 @@ export default function BankReportsPage() {
                 </p>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold mb-1">
+                  {getText('SMS / Transaction Date (Optional)', 'የተላከበት / የግብይት ቀን (አማራጭ)')}
+                </label>
+                <input
+                  type="date"
+                  value={importDate}
+                  onChange={(e) => setImportDate(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                    theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'
+                  }`}
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {getText(
+                    'CBE SMS messages do not print a date in the text. If you are importing a past message, choose the date here (defaults to today).',
+                    'የንግድ ባንክ (CBE) መልእክቶች ቀኑን በጽሑፉ ውስጥ አያካትቱም። ያለፈ ቀን መልእክት እያስገቡ ከሆነ ቀኑን እዚህ ይምረጡ (ካልተመረጠ የዛሬ ቀን ይሆናል)።'
+                  )}
+                </p>
+              </div>
+
               {/* Sample test button */}
               <div className="flex gap-2">
                 <button
@@ -1134,6 +1476,7 @@ export default function BankReportsPage() {
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Ref: <span className="font-mono font-semibold">{linkingTxn.reference}</span> • ETB {linkingTxn.amount.toLocaleString()}
+                  {linkingTxn.senderName ? ` • Payer: ${linkingTxn.senderName}` : ''}
                 </p>
               </div>
               <button
@@ -1148,89 +1491,102 @@ export default function BankReportsPage() {
             <div className="py-4 space-y-4">
               <div>
                 <label className="block text-xs font-semibold mb-1">
-                  {getText('Search Student (Name or ID)', 'ተማሪ ፈልግ (ስም ወይም መታወቂያ)')} *
+                  {getText('Search Student (Name, Parent, Phone, or ID)', 'ተማሪ ፈልግ (ስም፣ ወላጅ፣ ስልክ፣ ወይም መታወቂያ)')} *
                 </label>
-                <input
-                  type="text"
-                  value={studentSearch}
-                  onChange={(e) => {
-                    setStudentSearch(e.target.value)
-                    searchStudents(e.target.value)
-                  }}
-                  placeholder={getText('Type student name or ID...', 'የተማሪ ስም ወይም መታወቂያ ጻፍ...')}
-                  className={`w-full px-3 py-2.5 rounded-lg border text-sm ${
-                    theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                  }`}
-                />
+                <div className="relative">
+                  <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                  <input
+                    type="text"
+                    value={studentSearch}
+                    autoFocus
+                    onChange={(e) => {
+                      setStudentSearch(e.target.value)
+                      searchStudents(e.target.value)
+                    }}
+                    placeholder={getText('Type student name, father/mother name, phone, or ID...', 'የተማሪ ስም፣ የአባት/እናት ስም፣ ስልክ ወይም መታወቂያ ጻፍ...')}
+                    className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500 ${
+                      theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
+                    }`}
+                  />
+                  {searchingStudents && (
+                    <div className="absolute right-3 top-3">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Student Results */}
-              {studentList.length > 0 && (
-                <div className={`max-h-48 overflow-y-auto rounded-lg border divide-y ${
-                  theme === 'dark' ? 'border-gray-700 divide-gray-700 bg-gray-700/50' : 'border-gray-200 divide-gray-100 bg-gray-50'
-                }`}>
-                  {studentList.map((st) => (
-                    <div
-                      key={st._id}
-                      onClick={() => setSelectedStudentId(st._id)}
-                      className={`p-3 text-xs cursor-pointer flex justify-between items-center transition ${
-                        selectedStudentId === st._id
-                          ? 'bg-blue-600 text-white font-bold'
-                          : theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-white text-gray-800'
-                      }`}
-                    >
-                      <div>
-                        <p className="font-semibold">{st.firstName} {st.middleName} {st.lastName}</p>
-                        <p className="opacity-75">{st.studentId} • {st.class} {st.section && `- ${st.section}`}</p>
-                      </div>
-                      {selectedStudentId === st._id && (
-                        <CheckCircleIcon className="w-5 h-5 text-white" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="space-y-2">
+                <span className="text-xs text-gray-400 font-semibold block">
+                  {getText('Search Results', 'የፍለጋ ውጤቶች')} ({studentList.length})
+                </span>
 
-              {/* Create Payment Option */}
-              <div className="pt-2 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={createPaymentRecord}
-                    onChange={(e) => setCreatePaymentRecord(e.target.checked)}
-                    className="w-4 h-4 rounded text-blue-600"
-                  />
-                  <span>{getText('Also create/mark monthly fee Payment record', 'እንዲሁም የወር ክፍያ መዝገብ ይፈጠር')}</span>
-                </label>
-
-                {createPaymentRecord && (
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div>
-                      <label className="block text-[11px] text-gray-400 mb-0.5">{getText('Month', 'ወር')}</label>
-                      <select
-                        value={paymentMonth}
-                        onChange={(e) => setPaymentMonth(e.target.value)}
-                        className={`w-full px-2.5 py-1.5 rounded-lg border text-xs ${
-                          theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                        }`}
-                      >
-                        {months.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-gray-400 mb-0.5">{getText('Year', 'አመት')}</label>
-                      <select
-                        value={paymentYear}
-                        onChange={(e) => setPaymentYear(e.target.value)}
-                        className={`w-full px-2.5 py-1.5 rounded-lg border text-xs ${
-                          theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                        }`}
-                      >
-                        {[2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map(y => (
-                          <option key={y} value={y}>{y} E.C.</option>
-                        ))}
-                      </select>
-                    </div>
+                {studentList.length > 0 ? (
+                  <div className={`max-h-60 overflow-y-auto rounded-xl border p-2 space-y-2 ${
+                    theme === 'dark' ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'
+                  }`}>
+                    {studentList.map((st) => {
+                      const isSelected = selectedStudentId === st._id
+                      return (
+                        <div
+                          key={st._id}
+                          onClick={() => setSelectedStudentId(st._id)}
+                          className={`p-3 rounded-xl border text-xs cursor-pointer transition ${
+                            isSelected
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-400'
+                              : theme === 'dark'
+                              ? 'bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-200'
+                              : 'bg-white hover:bg-blue-50/50 border-gray-200 text-gray-800'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm">
+                                  {getStudentDisplayName(st, language)}
+                                </span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                                  isSelected
+                                    ? 'bg-blue-700 text-white'
+                                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200'
+                                }`}>
+                                  {st.class} {st.section ? `- ${st.section}` : ''}
+                                </span>
+                              </div>
+                              <p className="text-[11px] opacity-80 font-mono">
+                                ID: {st.studentId || '—'}
+                              </p>
+                              {(st.fatherName || st.fatherPhone) && (
+                                <p className="text-[11px] opacity-75">
+                                  <span className="font-semibold">{getText('Father:', 'አባት፡')}</span> {st.fatherName || '—'} {st.fatherPhone ? `(${st.fatherPhone})` : ''}
+                                </p>
+                              )}
+                              {(st.motherName || st.motherPhone) && (
+                                <p className="text-[11px] opacity-75">
+                                  <span className="font-semibold">{getText('Mother:', 'እናት፡')}</span> {st.motherName || '—'} {st.motherPhone ? `(${st.motherPhone})` : ''}
+                                </p>
+                              )}
+                            </div>
+                            {isSelected && (
+                              <CheckCircleIcon className="w-5 h-5 text-white flex-shrink-0 ml-2" />
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : studentSearch.trim().length >= 2 && !searchingStudents ? (
+                  <div className="text-center py-6 px-3 border border-dashed rounded-xl border-gray-300 dark:border-gray-700">
+                    <p className="text-xs text-gray-400">
+                      {getText('No student found matching your search.', 'በፍለጋዎ የሚዛመድ ተማሪ አልተገኘም።')}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 px-3 border border-dashed rounded-xl border-gray-300 dark:border-gray-700">
+                    <p className="text-xs text-gray-400">
+                      {getText('Type at least 2 characters to search by name, parent, phone, or ID.', 'በስም፣ በወላጅ ስም፣ በስልክ ወይም በመታወቂያ ለመፈለግ ቢያንስ 2 ፊደል ይጻፉ።')}
+                    </p>
                   </div>
                 )}
               </div>
@@ -1302,23 +1658,267 @@ export default function BankReportsPage() {
                   <span className="font-mono">{showSmsModal.receiverAccount || '—'}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 block">{getText('Payer:', 'ከፋይ፡')}</span>
+                  <span className="text-gray-400 block">{getText('Payer / Sender:', 'ከፋይ፡')}</span>
                   <span className="font-medium">{showSmsModal.senderName || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block">{getText('From (Originating Bank):', 'የተላከበት ባንክ / ምንጭ፡')}</span>
+                  <span className="font-bold text-blue-600 dark:text-blue-400">{showSmsModal.sourceBank || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block">{getText('Transaction Date:', 'የግብይት ቀን፡')}</span>
+                  <span>{new Date(showSmsModal.transactionDate).toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-gray-400 block">{getText('Received At:', 'የደረሰበት ሰዓት፡')}</span>
                   <span>{new Date(showSmsModal.createdAt).toLocaleString()}</span>
                 </div>
+                <div className="col-span-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                  <span className="text-gray-400 block font-semibold">{getText('Matched Student:', 'የተያያዘ ተማሪ፡')}</span>
+                  {showSmsModal.matchedStudent ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      <span className="font-bold text-sm text-blue-600 dark:text-blue-400">
+                        {getStudentDisplayName(showSmsModal.matchedStudent, language)}
+                      </span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200">
+                        {showSmsModal.matchedStudent.class} {showSmsModal.matchedStudent.section ? `- ${showSmsModal.matchedStudent.section}` : ''}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium italic mt-0.5 block">{getText('None (Unmatched)', 'ያልተያያዘ')}</span>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-3 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+              {showSmsModal.matchedStudent ? (
+                showSmsModal.isReconciled ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center gap-1.5">
+                      <CheckCircleIcon className="w-4 h-4 text-emerald-600" />
+                      <span>{getText('Approved & Recorded in Payments', 'ጸድቆ በክፍያ ዝርዝር ላይ ተመዝግቧል')}</span>
+                    </span>
+                    {canDo('bank-reports', 'approve') && (
+                      <button
+                        type="button"
+                        onClick={() => handleRevokeApprove(showSmsModal._id)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-800 transition flex items-center gap-1"
+                        title={getText('Remove approval & return to Approve', 'ማጽደቁን አንሳ')}
+                      >
+                        <XCircleIcon className="w-4 h-4" />
+                        <span>{getText('Remove Approval', 'ማጽደቁን አንሳ')}</span>
+                      </button>
+                    )}
+                  </div>
+                ) : canDo('bank-reports', 'approve') ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const txn = showSmsModal
+                      setShowSmsModal(null)
+                      handleOpenApproveModal(txn)
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md flex items-center gap-1.5 transition"
+                  >
+                    <ClipboardDocumentCheckIcon className="w-4 h-4" />
+                    <span>{getText('Approve & Record Payment', 'ክፍያውን አጽድቅና መዝግብ')}</span>
+                  </button>
+                ) : null
+              ) : canDo('bank-reports', 'link') ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const txn = showSmsModal
+                    setShowSmsModal(null)
+                    setLinkingTxn(txn)
+                    setStudentSearch('')
+                    setSelectedStudentId('')
+                    setStudentList([])
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 flex items-center gap-1.5 transition"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  <span>{getText('Link Student to Approve', 'ለማጽደቅ ተማሪ አያይዝ')}</span>
+                </button>
+              ) : null}
+
               <button
                 type="button"
                 onClick={() => setShowSmsModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
               >
                 {getText('Close', 'ዝጋ')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: Approve & Record Payment Modal */}
+      {approvingTxn && approvingTxn.matchedStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className={`w-full max-w-lg rounded-2xl shadow-2xl border p-6 ${
+            theme === 'dark' ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
+          }`}>
+            <div className="flex justify-between items-start pb-4 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                  <ClipboardDocumentCheckIcon className="w-5 h-5" />
+                  <span>{getText('Approve & Record Payment', 'ክፍያውን አጽድቅና መዝግብ')}</span>
+                </h3>
+                <p className="text-xs text-gray-400 font-mono mt-0.5">
+                  {approvingTxn.bank} Ref: {approvingTxn.reference}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApprovingTxn(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4 text-xs">
+              {/* Linked Student Card */}
+              <div className={`p-3 rounded-xl border flex items-center justify-between ${
+                theme === 'dark' ? 'bg-gray-900/60 border-gray-700' : 'bg-blue-50/60 border-blue-100'
+              }`}>
+                <div>
+                  <span className="text-[11px] text-gray-400 uppercase font-semibold block">{getText('Student:', 'ተማሪ፡')}</span>
+                  <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                    {getStudentDisplayName(approvingTxn.matchedStudent, language)}
+                  </p>
+                  <p className="text-[11px] opacity-75">
+                    {approvingTxn.matchedStudent.studentId} • {approvingTxn.matchedStudent.class} {approvingTxn.matchedStudent.section ? `- ${approvingTxn.matchedStudent.section}` : ''}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[11px] text-gray-400 uppercase font-semibold block">{getText('Amount:', 'መጠን፡')}</span>
+                  <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
+                    ETB {approvingTxn.amount.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Form Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Academic Year */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1">
+                    {getText('Academic Year (E.C.):', 'የትምህርት ዘመን (ዓ.ም)፡')} *
+                  </label>
+                  <select
+                    value={approveYear}
+                    onChange={(e) => setApproveYear(parseInt(e.target.value))}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none ${
+                      theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
+                    }`}
+                  >
+                    {[2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map(y => (
+                      <option key={y} value={y}>{y} E.C.</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Academic Month */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1">
+                    {getText('Academic Month:', 'የክፍያ ወር፡')} *
+                  </label>
+                  <select
+                    value={approveMonth}
+                    onChange={(e) => setApproveMonth(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none ${
+                      theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
+                    }`}
+                  >
+                    {ETHIOPIAN_ACADEMIC_MONTHS.map(m => (
+                      <option key={m.value} value={m.value}>
+                        {m.value} ({m.am})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1">
+                    {getText('Amount (ETB):', 'መጠን (ብር)፡')} *
+                  </label>
+                  <input
+                    type="number"
+                    value={approveAmount}
+                    onChange={(e) => setApproveAmount(parseFloat(e.target.value) || 0)}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500 outline-none ${
+                      theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-300'
+                    }`}
+                  />
+                </div>
+
+                {/* Payment Date */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1">
+                    {getText('Payment Date:', 'የክፍያ ቀን፡')} *
+                  </label>
+                  <input
+                    type="date"
+                    value={approveDate}
+                    onChange={(e) => setApproveDate(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none ${
+                      theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Description / Remark */}
+              <div>
+                <label className="block text-xs font-semibold mb-1">
+                  {getText('Description / Remark (Optional):', 'መግለጫ / ማስታወሻ (አማራጭ)፡')}
+                </label>
+                <input
+                  type="text"
+                  value={approveDesc}
+                  onChange={(e) => setApproveDesc(e.target.value)}
+                  placeholder={getText('e.g. November monthly fee via CBE', 'ለምሳሌ፡ የህዳር ወር ክፍያ በንግድ ባንክ')}
+                  className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:ring-2 focus:ring-emerald-500 outline-none ${
+                    theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
+                  }`}
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
+                <InformationCircleIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-600" />
+                <span>
+                  {getText(
+                    'Approving will immediately create an official Payment record in the Payments page and mark this transaction as reconciled.',
+                    'ማጽደቅ በክፍያ ገጽ ላይ ኦፊሴላዊ የክፍያ መዝገብ ይፈጥራል እንዲሁም ይህንን የባንክ ግብይት የተረጋገጠ ያደርገዋል።'
+                  )}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setApprovingTxn(null)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold ${
+                  theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+                }`}
+              >
+                {getText('Cancel', 'ሰርዝ')}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmApprove}
+                disabled={approving}
+                className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg disabled:opacity-50 transition flex items-center gap-2"
+              >
+                <ClipboardDocumentCheckIcon className="w-4 h-4" />
+                <span>{approving ? getText('Recording...', 'በመመዝገብ ላይ...') : getText('Approve Payment', 'ክፍያውን አጽድቅ')}</span>
               </button>
             </div>
           </div>

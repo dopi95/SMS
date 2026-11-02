@@ -11,6 +11,7 @@ const ALL_PAGES: { page: string; label: string; actions: { key: string; label: s
   { page: 'students',         label: 'Students',          actions: [{ key: 'view', label: 'View' }, { key: 'add', label: 'Add' }, { key: 'edit', label: 'Edit' }, { key: 'delete', label: 'Delete' }, { key: 'inactive', label: 'Inactive' }] },
   { page: 'employees',        label: 'Employees',         actions: [{ key: 'view', label: 'View' }, { key: 'add', label: 'Add' }, { key: 'edit', label: 'Edit' }, { key: 'delete', label: 'Delete' }, { key: 'inactive', label: 'Inactive' }] },
   { page: 'payments',         label: 'Payments',          actions: [{ key: 'view', label: 'View' }, { key: 'add', label: 'Add' }, { key: 'delete', label: 'Delete' }] },
+  { page: 'bank-reports',     label: 'Transaction Reports', actions: [{ key: 'view', label: 'View' }, { key: 'link', label: 'Link' }, { key: 'approve', label: 'Approve' }, { key: 'delete', label: 'Delete' }] },
   { page: 'custom-payment',   label: 'Custom Payment',    actions: [{ key: 'view', label: 'View' }, { key: 'add', label: 'Add' }, { key: 'edit', label: 'Edit' }, { key: 'delete', label: 'Delete' }] },
   { page: 'pending-students', label: 'Pending Students',  actions: [{ key: 'view', label: 'View' }, { key: 'approve', label: 'Approve' }, { key: 'reject', label: 'Reject' }, { key: 'delete', label: 'Delete' }] },
   { page: 'notifications',    label: 'Notifications',     actions: [{ key: 'view', label: 'View' }, { key: 'send', label: 'Send' }] },

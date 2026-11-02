@@ -64,7 +64,7 @@ function isAccountMatching(smsAccount, targetAccount) {
 /**
  * Parse CBE (Commercial Bank of Ethiopia) SMS
  */
-function parseCbeSms(text) {
+function parseCbeSms(text, fallbackDate = null) {
   // 1. Amount
   let amount = null;
   const amountMatch = text.match(/(?:ETB|Birr|ብር)\s*([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s*(?:ETB|Birr|ብር)/i)
@@ -118,9 +118,16 @@ function parseCbeSms(text) {
   }
 
   // 5. Date
-  let transactionDate = new Date();
-  const dateMatch = text.match(/(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}(?:\s+\d{2}:\d{2}:\d{2})?|\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
-  if (dateMatch) {
+  let transactionDate = fallbackDate || new Date();
+  const monthNameMatch = text.match(/\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,?\s+\d{2,4}(?:\s+\d{2}:\d{2}(?::\d{2})?)?|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{2,4}(?:\s+\d{2}:\d{2}(?::\d{2})?)?)\b/i);
+  const dateMatch = text.match(/(?:Date|On|at)?\s*[:\s]?\s*(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}(?:\s+\d{2}:\d{2}:\d{2})?|\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}(?:\s+\d{2}:\d{2}(?::\d{2})?)?)/i);
+
+  if (monthNameMatch) {
+    const parsed = new Date(monthNameMatch[1]);
+    if (!isNaN(parsed.getTime())) {
+      transactionDate = parsed;
+    }
+  } else if (dateMatch) {
     const parsed = new Date(dateMatch[1].replace(/[\-\.]/g, '/'));
     if (!isNaN(parsed.getTime())) {
       transactionDate = parsed;
@@ -140,7 +147,7 @@ function parseCbeSms(text) {
 /**
  * Parse Awash Bank SMS
  */
-function parseAwashSms(text) {
+function parseAwashSms(text, fallbackDate = null) {
   // 1. Amount
   let amount = null;
   const amountMatch = text.match(/(?:ETB|Birr)\s*([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s*(?:ETB|Birr)/i)
@@ -167,7 +174,7 @@ function parseAwashSms(text) {
   // Check for parenthesis name: e.g. (Abebe)
   const parenNameMatch = text.match(/(?:from\s+(?:account|a\/c)\s+[0-9*xX]+|payer)\s*\(([^)]+)\)/i);
   // Check for "by [Name] via ..." pattern (IPS transfers e.g. by Elias Yenealem Atalay via IPS)
-  const byViaMatch = text.match(/by\s+([A-Za-z\s]{3,35})(?:\s+via|\s+on|\s*\.|\s*Txn|\s*,|\s*$)/i);
+  const byViaMatch = text.match(/by\s+([A-Za-z\s]{2,35}?)(?:\s+via|\s+on|\s*\.|\s*Txn|\s*,|\s*$)/i);
 
   if (parenNameMatch) {
     senderName = parenNameMatch[1].trim();
@@ -177,7 +184,7 @@ function parseAwashSms(text) {
       senderName = rawName;
     }
   } else {
-    const senderMatch = text.match(/(?:by|from|payer)\s+([A-Za-z\s]{3,35})(?:\s+on|\s*\.|\s*Txn|\s*,|\s*to\s+your|\s*$)/i);
+    const senderMatch = text.match(/(?:by|from|payer)\s+([A-Za-z\s]{2,35}?)(?:\s+via|\s+on|\s*\.|\s*Txn|\s*,|\s*to\s+your|\s*$)/i);
     if (senderMatch) {
       const rawName = senderMatch[1].trim();
       if (!/^(your|account|etb|awash|the)/i.test(rawName)) {
@@ -199,7 +206,7 @@ function parseAwashSms(text) {
   }
 
   // 5. Date & Time
-  let transactionDate = new Date();
+  let transactionDate = fallbackDate || new Date();
   const dateTimeMatch = text.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
   const dateMatch = text.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
   if (dateTimeMatch) {
@@ -229,6 +236,114 @@ function parseAwashSms(text) {
     senderName,
     transactionDate
   };
+}
+
+/**
+ * Extracts the originating bank / payment source (e.g. Commercial Bank of Ethiopia (CBE), Telebirr, CBE Birr, Awash Bank, etc.)
+ */
+function extractSourceBank(smsText, destinationBank = '') {
+  if (!smsText || typeof smsText !== 'string') return '';
+  const text = smsText.trim();
+  const lower = text.toLowerCase();
+
+  // 1. Cross-bank IPS transfer mentions: "via IPS Commercial Bank of Ethiopia", "via IPS Telebirr", etc.
+  const ipsMatch = text.match(/(?:via\s+IPS\s+|from\s+IPS\s+|through\s+IPS\s+)([A-Za-z0-9\s]+?)(?:\.|\s+Your|\s+Ref|\s+Txn|\s+on|\s*$)/i);
+  if (ipsMatch && ipsMatch[1]) {
+    const rawOrigin = ipsMatch[1].trim();
+    const rawLower = rawOrigin.toLowerCase();
+
+    if (rawLower.includes('commercial bank') || rawLower.includes('cbe')) {
+      return 'Commercial Bank of Ethiopia (CBE)';
+    }
+    if (rawLower.includes('telebirr') || rawLower.includes('tele birr')) {
+      return 'Telebirr';
+    }
+    if (rawLower.includes('cbe birr') || rawLower.includes('cbebirr')) {
+      return 'CBE Birr';
+    }
+    if (rawLower.includes('awash')) {
+      return 'Awash Bank';
+    }
+    if (rawLower.includes('dashen')) {
+      return 'Dashen Bank';
+    }
+    if (rawLower.includes('abyssinia') || rawLower.includes('boa')) {
+      return 'Bank of Abyssinia';
+    }
+    if (rawLower.includes('coop') || rawLower.includes('oromia')) {
+      return 'Cooperative Bank of Oromia';
+    }
+    if (rawLower.includes('zemen')) {
+      return 'Zemen Bank';
+    }
+    if (rawLower.includes('hibret') || rawLower.includes('united')) {
+      return 'Hibret Bank';
+    }
+    if (rawLower.includes('nib')) {
+      return 'Nib International Bank';
+    }
+    if (rawLower.includes('wegagen')) {
+      return 'Wegagen Bank';
+    }
+    if (rawLower.includes('amhara')) {
+      return 'Amhara Bank';
+    }
+    if (rawLower.includes('enat')) {
+      return 'Enat Bank';
+    }
+    if (rawLower.includes('siinqee')) {
+      return 'Siinqee Bank';
+    }
+    if (rawLower.includes('tsedey')) {
+      return 'Tsedey Bank';
+    }
+    if (rawLower.includes('berhan')) {
+      return 'Berhan Bank';
+    }
+    if (rawOrigin.length >= 3 && rawOrigin.length <= 40) {
+      return rawOrigin;
+    }
+  }
+
+  // 2. Direct Telebirr mentions
+  if (lower.includes('telebirr') || lower.includes('ቴሌብር') || lower.includes('tele birr')) {
+    return 'Telebirr';
+  }
+
+  // 3. Direct CBE Birr mentions
+  if (lower.includes('cbe birr') || lower.includes('cbebirr')) {
+    return 'CBE Birr';
+  }
+
+  // 4. Direct M-Pesa mentions
+  if (lower.includes('m-pesa') || lower.includes('mpesa')) {
+    return 'M-Pesa';
+  }
+
+  // 5. Look for sender account numbers
+  // CBE sender account (e.g. "from account 1********5869")
+  const cbeSenderAcc = text.match(/(?:from\s+(?:account|a\/c)\s+)(1[0-9*xX]{5,20})/i);
+  if (cbeSenderAcc) {
+    return 'Commercial Bank of Ethiopia (CBE)';
+  }
+
+  // Awash sender account (e.g. "from account 0132...")
+  const awashSenderAcc = text.match(/(?:from\s+(?:account|a\/c)\s+)(01[0-9*xX]{5,20})/i);
+  if (awashSenderAcc) {
+    return 'Awash Bank';
+  }
+
+  // 6. Destination CBE fallback (internal CBE-to-CBE transfer)
+  if (destinationBank === 'CBE' || lower.includes('banking with cbe') || lower.includes('cbe.com.et')) {
+    return 'Commercial Bank of Ethiopia (CBE)';
+  }
+
+  // 7. Destination AWASH fallback (internal Awash-to-Awash transfer)
+  if (destinationBank === 'AWASH' || lower.includes('awash bank') || lower.includes('awashbank')) {
+    return 'Awash Bank';
+  }
+
+  return destinationBank || 'Unknown';
 }
 
 /**
@@ -273,7 +388,7 @@ function detectBank(smsText, sender, settings = null) {
  * Main parse function
  * Takes raw SMS text, sender info, and settings object { cbeAccount, awashAccount }
  */
-function parseBankSms(smsText, sender = '', settings = null) {
+function parseBankSms(smsText, sender = '', settings = null, fallbackDate = null) {
   if (!smsText || typeof smsText !== 'string' || !smsText.trim()) {
     return { success: false, error: 'Empty SMS text provided' };
   }
@@ -282,15 +397,15 @@ function parseBankSms(smsText, sender = '', settings = null) {
   let parsed = null;
 
   if (bank === 'CBE') {
-    parsed = parseCbeSms(smsText);
+    parsed = parseCbeSms(smsText, fallbackDate);
   } else if (bank === 'AWASH') {
-    parsed = parseAwashSms(smsText);
+    parsed = parseAwashSms(smsText, fallbackDate);
   } else {
     // Try Awash first if account matches 01, otherwise CBE
     if (/\b01[0-9*xX]{8,18}\b/.test(smsText)) {
-      parsed = parseAwashSms(smsText);
+      parsed = parseAwashSms(smsText, fallbackDate);
     } else {
-      parsed = parseCbeSms(smsText);
+      parsed = parseCbeSms(smsText, fallbackDate);
     }
     if (!parsed || (!parsed.amount && !parsed.reference)) {
       return {
@@ -352,6 +467,8 @@ function parseBankSms(smsText, sender = '', settings = null) {
     }
   }
 
+  const sourceBank = extractSourceBank(smsText, parsed.bank);
+
   return {
     success: true,
     bank: parsed.bank,
@@ -360,6 +477,7 @@ function parseBankSms(smsText, sender = '', settings = null) {
     receiverAccount: parsed.receiverAccount || targetAccount || '',
     reference: parsed.reference,
     senderName: parsed.senderName || '',
+    sourceBank,
     transactionDate: parsed.transactionDate || new Date(),
     rawSms: smsText.trim()
   };
@@ -368,6 +486,7 @@ function parseBankSms(smsText, sender = '', settings = null) {
 module.exports = {
   detectBank,
   isAccountMatching,
+  extractSourceBank,
   parseCbeSms,
   parseAwashSms,
   parseBankSms

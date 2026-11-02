@@ -90,9 +90,9 @@ export default function ViewEmployeePage() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCredential({ username: res.data.username, password: res.data.password });
-      toast.success('Credential generated!');
+      toast.success(getText('Credential generated!', 'የመግቢያ መረጃ ተዘጋጅቷል!'));
     } catch {
-      toast.error('Failed to generate credential');
+      toast.error(getText('Failed to generate credential', 'የመግቢያ መረጃ ማመንጨት አልተሳካም'));
     } finally {
       setGeneratingSingle(false);
     }
@@ -232,7 +232,7 @@ export default function ViewEmployeePage() {
                   <label className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                     {getText('Gender', 'ጾታ')}
                   </label>
-                  <p className={`mt-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teacher.sex}</p>
+                  <p className={`mt-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teacher.sex === 'Male' ? getText('Male', 'ወንድ') : teacher.sex === 'Female' ? getText('Female', 'ሴት') : teacher.sex}</p>
                 </div>
                 <div>
                   <label className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -337,7 +337,7 @@ export default function ViewEmployeePage() {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className={`text-lg font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                    Portal Credentials
+                    {getText('Portal Credentials', 'የፖርታል መለያ መረጃ')}
                   </h3>
                   <div className="flex gap-2">
                     {credential?.username && (
@@ -361,10 +361,10 @@ export default function ViewEmployeePage() {
                           margin: { left: 10, right: 10 }
                         });
                         doc.save(`credential_${teacher.teacherId}.pdf`);
-                        toast.success('PDF downloaded!');
+                        toast.success(getText('PDF downloaded!', 'ፒዲኤፍ ወርዷል!'));
                       }}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
-                        Download PDF
+                        {getText('Download PDF', 'ፒዲኤፍ አውርድ')}
                       </button>
                     )}
                     <button onClick={handleGenerateCredential} disabled={generatingSingle}
@@ -372,29 +372,29 @@ export default function ViewEmployeePage() {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                      {generatingSingle ? 'Generating...' : 'Regenerate'}
+                      {generatingSingle ? getText('Generating...', 'በማመንጨት ላይ...') : getText('Regenerate', 'እንደገና አመንጭ')}
                     </button>
                   </div>
                 </div>
                 {credLoading ? (
                   <div className="flex items-center gap-2 py-4">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-rose-600"></div>
-                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</span>
+                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Loading...', 'በመጫን ላይ...')}</span>
                   </div>
                 ) : credential?.username ? (
                   <div className={`rounded-xl border p-5 space-y-4 ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-rose-50 border-rose-200'}`}>
                     <div className={`text-xs px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-50 text-yellow-800 border border-yellow-200'}`}>
-                      Keep these credentials secure. Share only with the employee.
+                      {getText('Keep these credentials secure. Share only with the employee.', 'ይህን መረጃ በሚስጥር ይያዙ። ለሰራተኛው ብቻ ያጋሩ።')}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className={`block text-xs font-semibold uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Username</label>
+                        <label className={`block text-xs font-semibold uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Username', 'የተጠቃሚ ስም')}</label>
                         <div className={`flex items-center gap-2 px-4 py-3 rounded-lg border font-mono text-sm ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-blue-300' : 'bg-white border-rose-200 text-blue-700'}`}>
                           <span className="font-semibold">{credential.username}</span>
                         </div>
                       </div>
                       <div>
-                        <label className={`block text-xs font-semibold uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Password</label>
+                        <label className={`block text-xs font-semibold uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Password', 'የይለፍ ቃል')}</label>
                         <div className={`flex items-center gap-2 px-4 py-3 rounded-lg border font-mono text-sm ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-green-300' : 'bg-white border-rose-200 text-green-700'}`}>
                           <span className="flex-1 font-semibold">{showPassword ? credential.password : '•'.repeat(credential.password?.length || 8)}</span>
                           <button onClick={() => setShowPassword(p => !p)} className="opacity-60 hover:opacity-100 transition-opacity">
@@ -409,7 +409,7 @@ export default function ViewEmployeePage() {
                   </div>
                 ) : (
                   <div className={`rounded-xl border border-dashed p-6 text-center ${theme === 'dark' ? 'border-gray-600' : 'border-gray-300'}`}>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>No credentials generated yet. Click Regenerate to create.</p>
+                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('No credentials generated yet. Click Regenerate to create.', 'እስካሁን ምንም የመግቢያ መረጃ አልተፈጠረም። ለመፍጠር እንደገና አመንጭ የሚለውን ይጫኑ።')}</p>
                   </div>
                 )}
               </div>
@@ -442,7 +442,7 @@ export default function ViewEmployeePage() {
                             {salary.year}
                           </td>
                           <td className={`px-4 py-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                            {salary.monthlySalary.toLocaleString()} Birr
+                            {salary.monthlySalary.toLocaleString()} {getText('Birr', 'ብር')}
                           </td>
                         </tr>
                       ))}

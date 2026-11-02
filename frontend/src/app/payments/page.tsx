@@ -19,6 +19,7 @@ import {
 } from '@/utils/dateUtils'
 import Pagination from '@/components/Pagination'
 import ImportPaymentsModal from '@/components/ImportPaymentsModal'
+import { getStudentDisplayName } from '@/utils/studentUtils'
 
 interface Student {
   _id: string
@@ -26,6 +27,9 @@ interface Student {
   firstName: string
   middleName: string
   lastName: string
+  firstNameAmharic?: string
+  middleNameAmharic?: string
+  lastNameAmharic?: string
   class: string
   section?: string
   fatherName?: string
@@ -611,7 +615,7 @@ export default function PaymentsPage() {
           const paidTableData = paidStudentsList.map((item, idx) => [
             String(idx + 1),
             item.student.studentId || '-',
-            `${item.student.firstName} ${item.student.middleName} ${item.student.lastName}`,
+            getStudentDisplayName(item.student, language),
             formatClassBoth(item.student.class),
             item.student.section ? formatSectionBoth(item.student.section) : '-',
             formatMonthNamesForExport(item.paidMonths),
@@ -675,7 +679,7 @@ export default function PaymentsPage() {
           const unpaidTableData = unpaidStudentsList.map((item, idx) => [
             String(idx + 1),
             item.student.studentId || '-',
-            `${item.student.firstName} ${item.student.middleName} ${item.student.lastName}`,
+            getStudentDisplayName(item.student, language),
             formatClassBoth(item.student.class),
             item.student.section ? formatSectionBoth(item.student.section) : '-',
             formatMonthNamesForExport(item.unpaidMonths),
@@ -761,7 +765,7 @@ export default function PaymentsPage() {
           })
           return [
             student.studentId,
-            `${student.firstName} ${student.middleName} ${student.lastName}`,
+            getStudentDisplayName(student, language),
             formatClassBoth(student.class),
             student.section ? formatSectionBoth(student.section) : '-',
             payment?.amount ? `${payment.amount} ETB` : '-',
@@ -811,7 +815,7 @@ export default function PaymentsPage() {
 
         const unpaidData = unpaidStudents.map(student => [
           student.studentId,
-          `${student.firstName} ${student.middleName} ${student.lastName}`,
+          getStudentDisplayName(student, language),
           formatClassBoth(student.class),
           student.section ? formatSectionBoth(student.section) : '-',
           student.fatherPhone || '-',
@@ -902,7 +906,7 @@ export default function PaymentsPage() {
           ...list.map((item, idx) => [
             String(idx + 1),
             item.student.studentId || '',
-            `${item.student.firstName} ${item.student.middleName} ${item.student.lastName}`,
+            getStudentDisplayName(item.student, language),
             item.student.class || '',
             item.student.section || '',
             formatMonthNamesForExport(item.paidMonths),
@@ -919,7 +923,7 @@ export default function PaymentsPage() {
           ...list.map((item, idx) => [
             String(idx + 1),
             item.student.studentId || '',
-            `${item.student.firstName} ${item.student.middleName} ${item.student.lastName}`,
+            getStudentDisplayName(item.student, language),
             item.student.class || '',
             item.student.section || '',
             formatMonthNamesForExport(item.unpaidMonths),
@@ -935,7 +939,7 @@ export default function PaymentsPage() {
           ...studentAnalysis.map((item, idx) => [
             String(idx + 1),
             item.student.studentId || '',
-            `${item.student.firstName} ${item.student.middleName} ${item.student.lastName}`,
+            getStudentDisplayName(item.student, language),
             item.student.class || '',
             item.student.section || '',
             formatMonthNamesForExport(item.paidMonths),
@@ -979,7 +983,7 @@ export default function PaymentsPage() {
           return [
             String(idx + 1),
             s.studentId || '',
-            `${s.firstName} ${s.middleName} ${s.lastName}`,
+            getStudentDisplayName(s, language),
             s.class || '',
             s.section || '',
             selectedMonth,
@@ -997,7 +1001,7 @@ export default function PaymentsPage() {
         ...unpaidStudents.map((s, idx) => [
           String(idx + 1),
           s.studentId || '',
-          `${s.firstName} ${s.middleName} ${s.lastName}`,
+          getStudentDisplayName(s, language),
           s.class || '',
           s.section || '',
           selectedMonth,
@@ -1020,7 +1024,7 @@ export default function PaymentsPage() {
           return [
             String(idx + 1),
             s.studentId || '',
-            `${s.firstName} ${s.middleName} ${s.lastName}`,
+            getStudentDisplayName(s, language),
             s.class || '',
             s.section || '',
             selectedMonth,
@@ -1168,7 +1172,7 @@ export default function PaymentsPage() {
 
         return [
           String(idx + 1),
-          `${student.firstName} ${student.middleName} ${student.lastName}`,
+          getStudentDisplayName(student, language),
           ...monthCells,
           `${studentTotal.toLocaleString()} ETB`
         ]
@@ -1280,6 +1284,7 @@ export default function PaymentsPage() {
   const filteredStudents = students.filter(student => {
     const searchLower = searchTerm.toLowerCase()
     const studentName = `${student.firstName} ${student.middleName} ${student.lastName}`.toLowerCase()
+    const studentAmharicName = `${student.firstNameAmharic || ''} ${student.middleNameAmharic || ''} ${student.lastNameAmharic || ''}`.toLowerCase()
     const studentId = student.studentId?.toLowerCase() || ''
     const fatherName = student.fatherName?.toLowerCase() || ''
     const motherName = student.motherName?.toLowerCase() || ''
@@ -1307,6 +1312,7 @@ export default function PaymentsPage() {
     // Search filter
     const matchesSearch = (
       studentName.includes(searchLower) ||
+      studentAmharicName.includes(searchLower) ||
       studentId.includes(searchLower) ||
       fatherName.includes(searchLower) ||
       motherName.includes(searchLower) ||
@@ -2062,7 +2068,7 @@ export default function PaymentsPage() {
                               </td>
                               <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                                 <div className="font-medium">
-                                  {`${student.firstName} ${student.middleName} ${student.lastName}`}
+                                  {getStudentDisplayName(student, language)}
                                 </div>
                               </td>
                               <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
@@ -2201,7 +2207,7 @@ export default function PaymentsPage() {
                                 )}
                                 <div className="flex-1">
                                   <h3 className={`font-semibold text-base ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                    {`${student.firstName} ${student.middleName} ${student.lastName}`}
+                                    {getStudentDisplayName(student, language)}
                                   </h3>
                                   <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                                     {getText('ID', 'መታወቂያ')}: <span className="font-medium">{student.studentId}</span>
@@ -2411,7 +2417,7 @@ export default function PaymentsPage() {
             </h2>
             <div className={`mb-4 p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-blue-50'}`}>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                {getText('Student', 'ተማሪ')}: <span className="font-semibold">{`${selectedStudent.firstName} ${selectedStudent.middleName} ${selectedStudent.lastName}`}</span>
+                {getText('Student', 'ተማሪ')}: <span className="font-semibold">{getStudentDisplayName(selectedStudent, language)}</span>
               </p>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                 {getText('Period', 'ጊዜ')}: <span className="font-semibold">{getEthiopianMonthDisplay(selectedMonth, language)} {selectedYear} {getText('E.C', 'ዓ.ም')}</span>
@@ -2493,7 +2499,7 @@ export default function PaymentsPage() {
                   {getText('Payment History', 'የክፍያ ታሪክ')}
                 </h2>
                 <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {`${selectedStudent.firstName} ${selectedStudent.middleName} ${selectedStudent.lastName}`} - {selectedStudent.studentId}
+                  {getStudentDisplayName(selectedStudent, language)} - {selectedStudent.studentId}
                 </p>
               </div>
               <button

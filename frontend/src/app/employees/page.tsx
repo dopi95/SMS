@@ -395,18 +395,14 @@ export default function EmployeesPage() {
                       className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-md">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Add Employee
-                    </button>
+                      </svg>{getText('Add Employee', 'ሰራተኛ መዝግብ')}</button>
                   )}
                   {/* Salary List button */}
                   <button onClick={() => router.push('/employees/salary-list')}
                     className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-md">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Employee Salary List
-                  </button>
+                    </svg>{getText('Employee Salary List', 'የሰራተኞች ደመወዝ ዝርዝር')}</button>
                   {/* Action buttons — 2-col grid on mobile, flex-wrap on sm+ */}
                   <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
                     {canDo('employees', 'add') && (
@@ -414,34 +410,26 @@ export default function EmployeesPage() {
                         className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm">
                         <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                        Import
-                      </button>
+                        </svg>{getText('Import', 'አስገባ')}</button>
                     )}
                     <button onClick={exportToPDF}
                       className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm">
                       <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Export PDF
-                    </button>
+                      </svg>{getText('Export PDF', 'ፒዲኤፍ አውርድ')}</button>
                     {userRole === 'superadmin' && (
                       <button onClick={handleGenerateAllCredentials} disabled={generatingCreds}
                         className="bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm">
                         <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                        </svg>
-                        Gen. Creds
-                      </button>
+                        </svg>{getText('Gen. Creds', 'ምስክርነት ፍጠር')}</button>
                     )}
                     {userRole === 'superadmin' && (
                       <button onClick={handleDownloadCredentialsPDF}
                         className="bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm">
                         <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Cred. PDF
-                      </button>
+                        </svg>{getText('Cred. PDF', 'የምስክርነት ፒዲኤፍ')}</button>
                     )}
                   </div>
                 </div>
@@ -483,8 +471,15 @@ export default function EmployeesPage() {
               <table className="w-full">
                 <thead>
                   <tr className={`border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
-                    {['ID', 'Full Name', 'Phone', 'Role', 'Teaching Class', 'Actions'].map(h => (
-                      <th key={h} className={`px-4 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{h}</th>
+                    {[
+                      { key: 'id', en: 'ID', am: 'መለያ' },
+                      { key: 'name', en: 'Full Name', am: 'ሙሉ ስም' },
+                      { key: 'phone', en: 'Phone', am: 'ስልክ' },
+                      { key: 'role', en: 'Role', am: 'ሚና' },
+                      { key: 'class', en: 'Teaching Class', am: 'የሚያስተምሩበት ክፍል' },
+                      { key: 'actions', en: 'Actions', am: 'ተግባራት' },
+                    ].map(h => (
+                      <th key={h.key} className={`px-4 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText(h.en, h.am)}</th>
                     ))}
                   </tr>
                 </thead>
@@ -588,24 +583,24 @@ export default function EmployeesPage() {
           <div className={`rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
             <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
               <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                {getText('Generated Credentials', 'Generated Credentials')} ({credResults.length})
+                {getText('Generated Credentials', 'የተፈጠሩ ምስክርነቶች')} ({credResults.length})
               </h2>
               <button onClick={() => setShowCredModal(false)} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <div className={`px-4 py-2 text-xs ${theme === 'dark' ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-50 text-yellow-800'}`}>
-              Save these credentials now — passwords cannot be recovered later.
+              {getText('Save these credentials now — passwords cannot be recovered later.', 'እነዚህን ምስክርነቶች አሁኑኑ ያስቀምጡ — የይለፍ ቃሎችን በኋላ ማግኘት አይቻልም።')}
             </div>
             <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 160px)' }}>
               <table className="w-full text-sm">
                 <thead className={`sticky top-0 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <tr>
                     <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>#</th>
-                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Name</th>
-                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Role</th>
-                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Username</th>
-                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Password</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Name', 'ስም')}</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Role', 'ሚና')}</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Username', 'የተጠቃሚ ስም')}</th>
+                    <th className={`px-4 py-2 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Password', 'የይለፍ ቃል')}</th>
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-100'}`}>
@@ -626,12 +621,8 @@ export default function EmployeesPage() {
                 className="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Download PDF
-              </button>
-              <button onClick={() => setShowCredModal(false)} className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
-                Close
-              </button>
+                </svg>{getText('Download PDF', 'ፒዲኤፍ አውርድ')}</button>
+              <button onClick={() => setShowCredModal(false)} className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>{getText('Close', 'ዝጋ')}</button>
             </div>
           </div>
         </div>
@@ -642,33 +633,31 @@ export default function EmployeesPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className={`rounded-xl shadow-2xl w-full max-w-sm ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
             <div className={`px-6 py-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-              <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Credential Generated</h2>
+              <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Credential Generated', 'ምስክርነት ተፈጥሯል')}</h2>
               <button onClick={() => setSingleCredResult(null)} className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div className={`text-xs px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-50 text-yellow-800'}`}>
-                Save this password — it cannot be recovered later.
+                {getText('Save this password — it cannot be recovered later.', 'ይህንን የይለፍ ቃል ያስቀምጡ — በኋላ ማግኘት አይቻልም።')}
               </div>
               <div>
-                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Employee</p>
+                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Employee', 'ሰራተኛ')}</p>
                 <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{singleCredResult.name}</p>
                 <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{singleCredResult.role}</p>
               </div>
               <div>
-                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Username</p>
+                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Username', 'የተጠቃሚ ስም')}</p>
                 <span className={`font-mono text-sm px-3 py-1.5 rounded-lg inline-block ${theme === 'dark' ? 'bg-gray-700 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>{singleCredResult.username}</span>
               </div>
               <div>
-                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Password</p>
+                <p className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{getText('Password', 'የይለፍ ቃል')}</p>
                 <span className={`font-mono text-sm px-3 py-1.5 rounded-lg inline-block ${theme === 'dark' ? 'bg-gray-700 text-green-300' : 'bg-green-50 text-green-700'}`}>{singleCredResult.password}</span>
               </div>
             </div>
             <div className={`px-6 py-3 border-t flex justify-end ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-              <button onClick={() => setSingleCredResult(null)} className="bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
-                Close
-              </button>
+              <button onClick={() => setSingleCredResult(null)} className="bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">{getText('Close', 'ዝጋ')}</button>
             </div>
           </div>
         </div>
@@ -730,8 +719,17 @@ export default function EmployeesPage() {
                     <table className="w-full text-xs">
                       <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
                         <tr>
-                          {['#', 'Full Name', 'Phone', 'Role', 'Sex', 'Employment Date', 'Employment Type', 'Teaching Class'].map(h => (
-                            <th key={h} className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{h}</th>
+                          {[
+                            { key: '#', en: '#', am: '#' },
+                            { key: 'name', en: 'Full Name', am: 'ሙሉ ስም' },
+                            { key: 'phone', en: 'Phone', am: 'ስልክ' },
+                            { key: 'role', en: 'Role', am: 'ሚና' },
+                            { key: 'sex', en: 'Sex', am: 'ጾታ' },
+                            { key: 'date', en: 'Employment Date', am: 'የተቀጠሩበት ቀን' },
+                            { key: 'type', en: 'Employment Type', am: 'የቅጥር ዓይነት' },
+                            { key: 'class', en: 'Teaching Class', am: 'የሚያስተምሩበት ክፍል' },
+                          ].map(h => (
+                            <th key={h.key} className={`px-2 py-2 text-left font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText(h.en, h.am)}</th>
                           ))}
                         </tr>
                       </thead>

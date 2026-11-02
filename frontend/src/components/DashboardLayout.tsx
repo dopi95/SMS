@@ -51,7 +51,7 @@ export default function DashboardLayout({
     { name: getText('Students', 'ተማሪዎች'), icon: AcademicCapIcon, href: '/students', page: 'students' },
     { name: getText('Employees', 'ሰራተኞች'), icon: UserGroupIcon, href: '/employees', page: 'employees' },
     { name: getText('Payments', 'ክፍያዎች'), icon: CreditCardIcon, href: '/payments', page: 'payments' },
-    { name: getText('Bank Reports', 'የባንክ ሪፖርት'), icon: BanknotesIcon, href: '/bank-reports', page: 'payments' },
+    { name: getText('Transaction Reports', 'የግብይት ሪፖርት'), icon: BanknotesIcon, href: '/bank-reports', page: 'bank-reports' },
     { name: getText('Send Notifications', 'ማሳወቂያ ላክ'), icon: BellIcon, href: '/notifications', page: 'notifications' },
     { name: getText('Send Notice to Portal', 'ማስታወቂያ ወደ ፖርታል'), icon: ClipboardDocumentListIcon, href: '/notice', page: 'notice' },
     { name: getText('Admins', 'አስተዳዳሪዎች'), icon: ShieldCheckIcon, href: '/admins', page: 'admins' },
