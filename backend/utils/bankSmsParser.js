@@ -206,21 +206,36 @@ function parseAwashSms(text) {
 /**
  * Detect bank type from SMS sender / content
  */
-function detectBank(smsText, sender) {
-  const s = (sender || '').toLowerCase();
+function detectBank(smsText, sender, settings = null) {
+  const s = (sender || '').toLowerCase().trim();
   const t = (smsText || '').toLowerCase();
 
-  if (s.includes('cbe') || s.includes('commercial') || t.includes('cbe') || t.includes('commercial bank') || t.includes('ft2') || t.includes('cbe.com.et')) {
-    return 'CBE';
-  }
-
-  if (s.includes('awash') || t.includes('awash') || t.includes('awb')) {
+  // 1. Text-based explicit check (Content takes highest priority)
+  if (t.includes('awash') || t.includes('awb') || /\b01[0-9*]{8,14}\b/.test(t)) {
     return 'AWASH';
   }
 
-  // Fallback heuristics: CBE accounts start with 1000 or 1*****, Awash with 01
-  if (/\b1[0-9*]{9,15}\b/.test(t) && t.includes('cbe')) return 'CBE';
-  if (/\b01[0-9*]{8,14}\b/.test(t)) return 'AWASH';
+  if (t.includes('cbe') || t.includes('commercial bank') || t.includes('cbe.com.et') || t.includes('mbreciept') || /\b1[0-9*]{9,15}\b/.test(t)) {
+    return 'CBE';
+  }
+
+  // 2. Settings account match check (if SMS text contains account ending)
+  if (settings) {
+    if (settings.awashAccount && settings.awashAccount.length >= 4 && t.includes(settings.awashAccount.slice(-4))) {
+      return 'AWASH';
+    }
+    if (settings.cbeAccount && settings.cbeAccount.length >= 4 && t.includes(settings.cbeAccount.slice(-4))) {
+      return 'CBE';
+    }
+  }
+
+  // 3. Explicit sender parameter check
+  if (s === 'awash' || s.includes('awash') || s.includes('awb')) {
+    return 'AWASH';
+  }
+  if (s === 'cbe' || s.includes('cbe') || s.includes('commercial')) {
+    return 'CBE';
+  }
 
   return 'UNKNOWN';
 }
@@ -234,7 +249,7 @@ function parseBankSms(smsText, sender = '', settings = null) {
     return { success: false, error: 'Empty SMS text provided' };
   }
 
-  const bank = detectBank(smsText, sender);
+  const bank = detectBank(smsText, sender, settings);
   let parsed = null;
 
   if (bank === 'CBE') {

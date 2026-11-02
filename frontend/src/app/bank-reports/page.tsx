@@ -1023,17 +1023,22 @@ export default function BankReportsPage() {
 
               <div>
                 <label className="block text-xs font-semibold mb-1">
-                  {getText('Sender / Bank Name (Optional)', 'የላኪ ስም (አማራጭ)')}
+                  {getText('Bank Detection (Optional)', 'ባንክ መለያ (አማራጭ)')}
                 </label>
-                <input
-                  type="text"
+                <select
                   value={importSender}
                   onChange={(e) => setImportSender(e.target.value)}
-                  placeholder="e.g. CBE or AwashBank"
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                    theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                  className={`w-full px-3 py-2 rounded-lg border text-sm font-medium ${
+                    theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'
                   }`}
-                />
+                >
+                  <option value="">{getText('Auto-Detect from SMS (Recommended)', 'ከመልእክቱ በራስ-ሰር ለይ (ይመረጣል)')}</option>
+                  <option value="AWASH">Awash Bank (አዋሽ ባንክ)</option>
+                  <option value="CBE">CBE (የኢትዮጵያ ንግድ ባንክ)</option>
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {getText('Leave on Auto-Detect so the system detects whether it is CBE or Awash automatically.', 'ሲስተሙ የትኛው ባንክ እንደሆነ ራሱ እንዲለይ በራስ-ሰር ላይ ይተዉት።')}
+                </p>
               </div>
 
               {/* Sample test button */}
