@@ -108,7 +108,7 @@ exports.handleWebhook = async (req, res) => {
     const parsed = parseBankSms(smsText, sender, settings, fallbackDate);
 
     // If ignored because it's for another account on the same phone number
-    if (parsed.accountIgnored) {
+    if (parsed.accountIgnored || parsed.isDebit) {
       return res.json({
         success: true,
         ignored: true,

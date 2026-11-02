@@ -64,11 +64,21 @@ function isAccountMatching(smsAccount, targetAccount) {
 /**
  * Parse CBE (Commercial Bank of Ethiopia) SMS
  */
+/**
+ * Detects if an SMS describes an outgoing debit transaction (money leaving account / withdrawal / fee).
+ */
+function isDebitSms(text) {
+  if (!text) return false;
+  const hasDebitKeyword = /\b(debited|debited from|debited with|withdrawn|withdrawal|service charge|fee charge)\b/i.test(text);
+  const hasCreditKeyword = /\b(credited|credited with|credited to|you have received|received from|transferred to your|into your account|deposit)\b/i.test(text);
+  return hasDebitKeyword && !hasCreditKeyword;
+}
+
 function parseCbeSms(text, fallbackDate = null) {
   // 1. Amount
   let amount = null;
-  const amountMatch = text.match(/(?:ETB|Birr|ብር)\s*([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s*(?:ETB|Birr|ብር)/i)
-    || text.match(/(?:credited with|transferred|received)\s*(?:ETB\s*)?([\d,]+(?:\.\d{1,2})?)/i);
+  const amountMatch = text.match(/(?:ETB|Birr|ብር)\s*(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s*(?:ETB|Birr|ብር)/i)
+    || text.match(/(?:credited with|transferred|received)\s*(?:ETB\s*)?(\d[\d,]*(?:\.\d{1,2})?)/i);
   if (amountMatch) {
     const numStr = (amountMatch[1] || amountMatch[2]).replace(/,/g, '');
     amount = parseFloat(numStr);
@@ -150,7 +160,7 @@ function parseCbeSms(text, fallbackDate = null) {
 function parseAwashSms(text, fallbackDate = null) {
   // 1. Amount
   let amount = null;
-  const amountMatch = text.match(/(?:ETB|Birr)\s*([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s*(?:ETB|Birr)/i)
+  const amountMatch = text.match(/(?:ETB|Birr)\s*(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s*(?:ETB|Birr)/i)
     || text.match(/(?:credited with|credited|transferred|received)\s*(?:ETB\s*)?([\d,]+(?:\.\d{1,2})?)/i);
   if (amountMatch) {
     const numStr = (amountMatch[1] || amountMatch[2]).replace(/,/g, '');
@@ -393,6 +403,17 @@ function parseBankSms(smsText, sender = '', settings = null, fallbackDate = null
     return { success: false, error: 'Empty SMS text provided' };
   }
 
+  // Ignore debit alerts (outgoing money / withdrawal / fee charge)
+  if (isDebitSms(smsText)) {
+    return {
+      success: false,
+      bank: detectBank(smsText, sender, settings),
+      accountIgnored: true,
+      isDebit: true,
+      error: 'Debit transaction ignored: only incoming credit (deposit) transactions are recorded.'
+    };
+  }
+
   const bank = detectBank(smsText, sender, settings);
   let parsed = null;
 
@@ -484,6 +505,7 @@ function parseBankSms(smsText, sender = '', settings = null, fallbackDate = null
 }
 
 module.exports = {
+  isDebitSms,
   detectBank,
   isAccountMatching,
   extractSourceBank,
