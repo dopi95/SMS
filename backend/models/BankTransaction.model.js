@@ -76,3 +76,4 @@ const { registerMirrorHooks } = require('../utils/mirrorSync');
 registerMirrorHooks(bankTransactionSchema, 'BankTransaction');
 
 module.exports = mongoose.model('BankTransaction', bankTransactionSchema);
+
