@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/DashboardLayout'
+import Pagination from '@/components/Pagination'
 import { useSettings } from '@/contexts/SettingsContext'
 import axios from 'axios'
 import toast from 'react-hot-toast'
@@ -256,6 +257,18 @@ export default function NotificationsPage() {
     const contacts = getPhoneContacts(student)
     return contacts.length > 0
   })
+
+  const PAGE_SIZE = 20
+  const [currentPage, setCurrentPage] = useState(1)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, classFilter, sectionFilter, studentTypeFilter, paymentFilter, filterYear, filterMonth])
+
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE))
+  const startIndex = (currentPage - 1) * PAGE_SIZE
+  const endIndex = Math.min(startIndex + PAGE_SIZE, filteredStudents.length)
+  const paginatedStudents = filteredStudents.slice(startIndex, endIndex)
 
   const handleSelectStudent = (studentId: string, isChecked: boolean) => {
     if (isChecked) {
@@ -723,7 +736,7 @@ export default function NotificationsPage() {
                           </td>
                         </tr>
                       ) : (
-                        filteredStudents.map((student) => {
+                        paginatedStudents.map((student) => {
                           const isSelected = selectedStudents.includes(student._id)
                           const contacts = getPhoneContacts(student)
                           return (
@@ -791,7 +804,7 @@ export default function NotificationsPage() {
                           {getText('Select All', 'ሁሉንም ምረጥ')} ({filteredStudents.length})
                         </span>
                       </div>
-                      {filteredStudents.map((student) => {
+                      {paginatedStudents.map((student) => {
                         const isSelected = selectedStudents.includes(student._id)
                         const contacts = getPhoneContacts(student)
                         return (
@@ -847,6 +860,16 @@ export default function NotificationsPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Pagination Controls */}
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={filteredStudents.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={(page) => setCurrentPage(page)}
+                  itemName={{ en: 'students', am: 'ተማሪዎች' }}
+                />
               </>
             )}
           </div>
