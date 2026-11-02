@@ -387,7 +387,7 @@ export default function NotificationsPage() {
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className={`rounded-xl shadow-lg border mb-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-            <div className={`px-6 py-5 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
+            <div className="px-6 py-5">
               <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                 <div>
                   <h1 className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
@@ -413,7 +413,106 @@ export default function NotificationsPage() {
                 </button>
               </div>
             </div>
+          </div>
 
+          {/* Notification History (Positioned on top when opened) */}
+          {showHistory && (
+            <div className={`rounded-xl shadow-lg border mb-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+              <div className={`px-6 py-4 border-b flex justify-between items-center ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
+                <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {getText('Notification History', 'የማሳወቂያ ታሪክ')}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowHistory(false)}
+                  className={`text-xs px-2.5 py-1 rounded transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}
+                >
+                  {getText('Close', 'ዝጋ')}
+                </button>
+              </div>
+              <div className="p-4 max-h-[500px] overflow-y-auto">
+                {notificationHistory.length === 0 ? (
+                  <div className="text-center py-12">
+                    <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                    </svg>
+                    <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                      {getText('No notification history yet', 'ገና ምንም የማሳወቂያ ታሪክ የለም')}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {notificationHistory.map((notification) => (
+                      <div
+                        key={notification._id}
+                        className={`rounded-lg border p-4 ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}
+                      >
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-800'}`}>
+                                {notification.recipients} {getText('students', 'ተማሪዎች')}
+                              </span>
+                              <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-800'}`}>
+                                {notification.sent !== undefined ? notification.sent : notification.phoneNumbers} {getText('sent', 'ተልኳል')}
+                              </span>
+                              {(notification.failed ?? 0) > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedFailedNotification(notification)}
+                                  className={`text-xs px-2.5 py-1 rounded font-medium cursor-pointer transition-all hover:scale-105 flex items-center gap-1 shadow-sm ${
+                                    theme === 'dark' ? 'bg-red-900/80 text-red-200 hover:bg-red-800 border border-red-700' : 'bg-red-100 text-red-800 hover:bg-red-200 border border-red-200'
+                                  }`}
+                                  title={getText('Click to see which students and phone numbers failed', 'ያልተሳኩ ተማሪዎችን እና ስልኮችን ለማየት ጠቅ ያድርጉ')}
+                                >
+                                  <span>{notification.failed} {getText('failed', 'አልተሳካም')}</span>
+                                  <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                </button>
+                              ) : (
+                                <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                                  0 {getText('failed', 'አልተሳካም')}
+                                </span>
+                              )}
+                              <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {new Date(notification.createdAt ?? notification.sentAt ?? Date.now()).toLocaleString()}
+                              </span>
+                            </div>
+                            {notification.title && (
+                              <p className={`text-sm font-semibold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {notification.title}
+                              </p>
+                            )}
+                            <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                              {notification.message}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => deleteNotificationFromHistory(notification._id)}
+                            className={`p-2 rounded-lg transition-all hover:scale-110 flex-shrink-0 ${
+                              theme === 'dark' 
+                                ? 'hover:bg-red-900/30 text-red-400 hover:text-red-300' 
+                                : 'hover:bg-red-50 text-red-500 hover:text-red-600'
+                            }`}
+                            title={getText('Delete from history', 'ከታሪክ ሰርዝ')}
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Message Input & Filters */}
+          <div className={`rounded-xl shadow-lg border mb-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             {/* Message Input */}
             <div className={`px-6 py-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
               <div className="mb-4">
@@ -593,95 +692,6 @@ export default function NotificationsPage() {
               </div>
             </div>
           </div>
-
-          {/* Notification History */}
-          {showHistory && (
-            <div className={`rounded-xl shadow-lg border mb-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-              <div className={`px-6 py-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
-                <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  {getText('Notification History', 'የማሳወቂያ ታሪክ')}
-                </h2>
-              </div>
-              <div className="p-4">
-                {notificationHistory.length === 0 ? (
-                  <div className="text-center py-12">
-                    <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                    </svg>
-                    <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                      {getText('No notification history yet', 'ገና ምንም የማሳወቂያ ታሪክ የለም')}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {notificationHistory.map((notification) => (
-                      <div
-                        key={notification._id}
-                        className={`rounded-lg border p-4 ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}
-                      >
-                        <div className="flex justify-between items-start gap-4">
-                          <div className="flex-1">
-                            <div className="flex flex-wrap items-center gap-2 mb-2">
-                              <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-800'}`}>
-                                {notification.recipients} {getText('students', 'ተማሪዎች')}
-                              </span>
-                              <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-800'}`}>
-                                {notification.sent !== undefined ? notification.sent : notification.phoneNumbers} {getText('sent', 'ተልኳል')}
-                              </span>
-                              {(notification.failed ?? 0) > 0 ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedFailedNotification(notification)}
-                                  className={`text-xs px-2.5 py-1 rounded font-medium cursor-pointer transition-all hover:scale-105 flex items-center gap-1 shadow-sm ${
-                                    theme === 'dark' ? 'bg-red-900/80 text-red-200 hover:bg-red-800 border border-red-700' : 'bg-red-100 text-red-800 hover:bg-red-200 border border-red-200'
-                                  }`}
-                                  title={getText('Click to see which students and phone numbers failed', 'ያልተሳኩ ተማሪዎችን እና ስልኮችን ለማየት ጠቅ ያድርጉ')}
-                                >
-                                  <span>{notification.failed} {getText('failed', 'አልተሳካም')}</span>
-                                  <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                  </svg>
-                                </button>
-                              ) : (
-                                <span className={`text-xs px-2 py-1 rounded font-medium ${theme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
-                                  0 {getText('failed', 'አልተሳካም')}
-                                </span>
-                              )}
-                              <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {new Date(notification.createdAt ?? notification.sentAt ?? Date.now()).toLocaleString()}
-                              </span>
-                            </div>
-                            {notification.title && (
-                              <p className={`text-sm font-semibold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                {notification.title}
-                              </p>
-                            )}
-                            <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                              {notification.message}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => deleteNotificationFromHistory(notification._id)}
-                            className={`p-2 rounded-lg transition-all hover:scale-110 flex-shrink-0 ${
-                              theme === 'dark' 
-                                ? 'hover:bg-red-900/30 text-red-400 hover:text-red-300' 
-                                : 'hover:bg-red-50 text-red-500 hover:text-red-600'
-                            }`}
-                            title={getText('Delete from history', 'ከታሪክ ሰርዝ')}
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Students List */}
           <div className={`rounded-xl shadow-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
