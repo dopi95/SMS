@@ -6,6 +6,12 @@ const bankTransactionSchema = new mongoose.Schema({
     enum: ['CBE', 'AWASH', 'UNKNOWN'],
     required: true
   },
+  type: {
+    type: String,
+    enum: ['credit', 'debit'],
+    default: 'credit',
+    index: true
+  },
   reference: {
     type: String,
     trim: true,
@@ -53,6 +59,10 @@ const bankTransactionSchema = new mongoose.Schema({
     ref: 'Student',
     default: null
   },
+  matchedStudents: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Student'
+  }],
   status: {
     type: String,
     enum: ['unmatched', 'matched', 'ignored'],
@@ -66,6 +76,19 @@ const bankTransactionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Payment',
     default: null
+  },
+  reconciledPaymentIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Payment'
+  }],
+  receiptUrl: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  hasBankReference: {
+    type: Boolean,
+    default: true
   },
   notes: {
     type: String,

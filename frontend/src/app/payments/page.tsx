@@ -1883,7 +1883,7 @@ export default function PaymentsPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex flex-col md:flex-row gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <select
                     value={paymentFilter}
                     onChange={(e) => setPaymentFilter(e.target.value as 'all' | 'paid' | 'unpaid')}
@@ -1929,63 +1929,150 @@ export default function PaymentsPage() {
                     <option value="special">{getText('Special', 'ልዩ')}</option>
                   </select>
                   <button
+                    type="button"
                     onClick={() => setShowDateFilter(!showDateFilter)}
                     className={`px-4 py-3 rounded-lg font-medium transition-all flex items-center gap-2 ${
-                      showDateFilter
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      (dateFrom || dateTo)
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                        : showDateFilter
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700'
                         : theme === 'dark'
                         ? 'bg-gray-800 border border-gray-600 text-gray-300 hover:bg-gray-700'
                         : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                     }`}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    {getText('Filter by Date', 'በቀን ማጣሪያ')}
+                    <span>{getText('Filter by Date', 'በቀን ማጣሪያ')}</span>
+                    {(dateFrom || dateTo) && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+                    )}
                   </button>
-                  {showDateFilter && (
-                    <>
-                      <div className="flex-1">
-                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {getText('From', 'ከ')}
+
+                  {/* Active Date Filter Pill */}
+                  {(dateFrom || dateTo) && (
+                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 animate-fade-in">
+                      <span>📅</span>
+                      <span>{dateFrom || '...'} → {dateTo || '...'}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDateFrom('')
+                          setDateTo('')
+                        }}
+                        className="ml-1 text-gray-400 hover:text-red-500 font-bold p-0.5 rounded transition"
+                        title={getText('Clear Date Filter', 'የቀን ማጣሪያ አጽዳ')}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Expanded Dedicated Date Filter Bar */}
+                {showDateFilter && (
+                  <div className={`p-3.5 sm:p-4 rounded-xl border flex flex-wrap items-center justify-between gap-3 animate-fade-in shadow-sm ${
+                    theme === 'dark' ? 'bg-gray-800/90 border-gray-700 text-white' : 'bg-white border-blue-200 text-gray-900 shadow-blue-50/50'
+                  }`}>
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                      <div className="flex items-center gap-2 text-xs font-bold text-blue-600 dark:text-blue-400">
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>{getText('Payment Date Range:', 'የክፍያ ቀን ክልል፡')}</span>
+                      </div>
+
+                      {/* From Date */}
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                          {getText('From:', 'ከ፡')}
                         </label>
                         <input
                           type="date"
                           value={dateFrom}
                           onChange={(e) => setDateFrom(e.target.value)}
-                          placeholder={getText('From Date', 'ከ ቀን')}
-                          className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                          className={`px-3 py-1.5 sm:py-2 rounded-lg border text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500 ${
+                            theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-800'
+                          }`}
                         />
                       </div>
-                      <div className="flex-1">
-                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {getText('To', 'እስከ')}
+
+                      {/* To Date */}
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                          {getText('To:', 'እስከ፡')}
                         </label>
                         <input
                           type="date"
                           value={dateTo}
                           onChange={(e) => setDateTo(e.target.value)}
-                          placeholder={getText('To Date', 'እስከ ቀን')}
-                          className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                          className={`px-3 py-1.5 sm:py-2 rounded-lg border text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500 ${
+                            theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'
+                          }`}
                         />
                       </div>
+
+                      {/* Quick Presets: Today, This Month */}
+                      <div className="flex items-center gap-1.5 border-l border-gray-300 dark:border-gray-600 pl-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const todayStr = new Date().toISOString().split('T')[0]
+                            setDateFrom(todayStr)
+                            setDateTo(todayStr)
+                          }}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                            dateFrom === new Date().toISOString().split('T')[0] && dateTo === new Date().toISOString().split('T')[0]
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                          }`}
+                        >
+                          {getText('Today', 'ዛሬ')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const now = new Date()
+                            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+                            const todayStr = now.toISOString().split('T')[0]
+                            setDateFrom(firstDay)
+                            setDateTo(todayStr)
+                          }}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                            theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                          }`}
+                        >
+                          {getText('This Month', 'ይህ ወር')}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Right action buttons: Clear & Close */}
+                    <div className="flex items-center gap-2">
                       {(dateFrom || dateTo) && (
                         <button
+                          type="button"
                           onClick={() => {
                             setDateFrom('')
                             setDateTo('')
                           }}
-                          className={`px-4 py-3 rounded-lg transition-colors self-end ${theme === 'dark' ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-                          title={getText('Clear Date Filter', 'የቀን ማጣሪያ አጽዳ')}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition flex items-center gap-1"
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          <span>✕</span>
+                          <span>{getText('Clear Filter', 'ማጣሪያ አጽዳ')}</span>
                         </button>
                       )}
-                    </>
-                  )}
-                </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowDateFilter(false)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                      >
+                        {getText('Close', 'ዝጋ')}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

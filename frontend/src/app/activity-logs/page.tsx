@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import DashboardLayout from '@/components/DashboardLayout'
+import Pagination from '@/components/Pagination'
 import { useSettings } from '@/contexts/SettingsContext'
 import { usePermissions } from '@/contexts/PermissionsContext'
 
@@ -108,6 +109,19 @@ export default function ActivityLogsPage() {
 
   const card = `rounded-2xl border shadow-sm ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const PAGE_SIZE = 20
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, filterModule])
+
+  const totalItems = filtered.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
+  const startIndex = (currentPage - 1) * PAGE_SIZE
+  const endIndex = Math.min(startIndex + PAGE_SIZE, totalItems)
+  const paginatedLogs = filtered.slice(startIndex, endIndex)
+
   return (
     <DashboardLayout pageTitle="Activity Logs">
       <div className={`min-h-screen p-4 sm:p-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -157,45 +171,57 @@ export default function ActivityLogsPage() {
                 <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>No activity logs found.</p>
               </div>
             ) : (
-              <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-100'}`}>
-                {filtered.map(log => (
-                  <div key={log._id} className="px-5 py-4 flex items-start gap-4">
-                    {/* Avatar */}
-                    <div className="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden">
-                      {log.performedByPhoto ? (
-                        <img src={log.performedByPhoto} alt={log.performedByName} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                          <span className="text-white font-bold text-sm">{log.performedByName.charAt(0).toUpperCase()}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{log.performedByName}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-500'}`}>{log.performedByRole}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${ACTION_COLORS[log.action] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>{log.action}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${MODULE_COLORS[log.module] || 'bg-gray-100 text-gray-600'}`}>{log.module}</span>
+              <>
+                <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-100'}`}>
+                  {paginatedLogs.map(log => (
+                    <div key={log._id} className="px-5 py-4 flex items-start gap-4">
+                      {/* Avatar */}
+                      <div className="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden">
+                        {log.performedByPhoto ? (
+                          <img src={log.performedByPhoto} alt={log.performedByName} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                            <span className="text-white font-bold text-sm">{log.performedByName.charAt(0).toUpperCase()}</span>
+                          </div>
+                        )}
                       </div>
-                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{log.description}</p>
-                    </div>
 
-                    {/* Time */}
-                    <div className="flex-shrink-0 text-right">
-                      <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`}>{new Date(log.createdAt).toLocaleDateString()}</p>
-                      <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>{new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                      {role === 'superadmin' && (
-                        <button onClick={() => setConfirmDeleteId(log._id)}
-                          className="mt-1 text-xs text-red-400 hover:text-red-600 transition-colors">
-                          Delete
-                        </button>
-                      )}
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{log.performedByName}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-500'}`}>{log.performedByRole}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${ACTION_COLORS[log.action] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>{log.action}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${MODULE_COLORS[log.module] || 'bg-gray-100 text-gray-600'}`}>{log.module}</span>
+                        </div>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{log.description}</p>
+                      </div>
+
+                      {/* Time */}
+                      <div className="flex-shrink-0 text-right">
+                        <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`}>{new Date(log.createdAt).toLocaleDateString()}</p>
+                        <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>{new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                        {role === 'superadmin' && (
+                          <button onClick={() => setConfirmDeleteId(log._id)}
+                            className="mt-1 text-xs text-red-400 hover:text-red-600 transition-colors">
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={(page) => setCurrentPage(page)}
+                  itemName={{ en: 'logs', am: 'መዝገቦች' }}
+                />
+              </>
             )}
           </div>
         </div>

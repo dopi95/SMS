@@ -22,7 +22,7 @@ export default function Pagination({
 }: PaginationProps) {
   const { theme, getText } = useSettings()
 
-  if (totalItems === 0 || totalPages <= 1) {
+  if (totalItems === 0) {
     return null
   }
 

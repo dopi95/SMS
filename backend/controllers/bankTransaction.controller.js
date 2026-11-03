@@ -1,9 +1,10 @@
 const BankTransaction = require('../models/BankTransaction.model');
 const BankSetting = require('../models/BankSetting.model');
+const BankPayerMapping = require('../models/BankPayerMapping.model');
 const Student = require('../models/Student.model');
 const Payment = require('../models/Payment.model');
-const { parseBankSms, extractSourceBank } = require('../utils/bankSmsParser');
-const { findMatchingStudent } = require('../utils/studentMatcher');
+const { parseBankSms, extractSourceBank, isDebitSms, extractTransactionNames, extractReceiptUrl, extractSenderAccount } = require('../utils/bankSmsParser');
+const { findMatchingStudent, findAllMatchingStudents } = require('../utils/studentMatcher');
 
 // Helper to fetch or initialize default BankSetting
 async function getOrCreateSettings() {
@@ -21,18 +22,116 @@ async function getOrCreateSettings() {
   return settings;
 }
 
-// Helper to attempt auto-matching student by father, mother, or student full name
-async function tryMatchStudent(smsText, senderName) {
+// Helper to find previous exact link for a payer name or account:
+// 1. Checks BankPayerMapping by cleanPayerName or accountNumber.
+// 2. Checks previous BankTransactions where senderName matches (exact case-insensitive) and was linked or paid.
+// If found in a previous transaction, auto-seeds BankPayerMapping so it is persistently stored.
+async function findPreviousPayerLink(senderName, smsText, excludeTxnId = null) {
+  if (!senderName || !senderName.trim()) return null;
+  const cleanName = senderName.trim().toLowerCase();
+  const escaped = senderName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const senderAcc = extractSenderAccount(smsText);
+
+  // 1. Check BankPayerMapping
+  const mapQuery = { $or: [{ cleanPayerName: cleanName }] };
+  if (senderAcc) mapQuery.$or.push({ accountNumber: senderAcc });
+
+  const mapping = await BankPayerMapping.findOne(mapQuery)
+    .populate('students', '_id studentId firstName middleName lastName class section paymentCode fatherName fatherPhone motherName motherPhone status')
+    .lean();
+
+  if (mapping && mapping.students && mapping.students.length > 0) {
+    const validStudents = mapping.students.filter(s => s && s.status !== 'inactive');
+    if (validStudents.length > 0) {
+      return {
+        students: validStudents,
+        source: 'mapping',
+        payerName: mapping.payerName || senderName.trim(),
+        accountNumber: mapping.accountNumber || senderAcc || '',
+        linkCount: mapping.linkCount || 1,
+        lastLinkedAt: mapping.lastLinkedAt || null
+      };
+    }
+  }
+
+  // 2. Check previous BankTransactions with the exact same senderName that were linked or reconciled
+  const txnQuery = {
+    senderName: new RegExp(`^\\s*${escaped}\\s*$`, 'i'),
+    $or: [
+      { matchedStudent: { $ne: null } },
+      { 'matchedStudents.0': { $exists: true } },
+      { isReconciled: true }
+    ]
+  };
+  if (excludeTxnId) {
+    txnQuery._id = { $ne: excludeTxnId };
+  }
+
+  const prevTxn = await BankTransaction.findOne(txnQuery)
+    .sort({ transactionDate: -1, createdAt: -1 })
+    .populate('matchedStudent', '_id studentId firstName middleName lastName class section paymentCode fatherName fatherPhone motherName motherPhone status')
+    .populate('matchedStudents', '_id studentId firstName middleName lastName class section paymentCode fatherName fatherPhone motherName motherPhone status')
+    .lean();
+
+  if (prevTxn) {
+    let prevStudents = [];
+    if (prevTxn.matchedStudents && prevTxn.matchedStudents.length > 0) {
+      prevStudents = prevTxn.matchedStudents;
+    } else if (prevTxn.matchedStudent) {
+      prevStudents = [prevTxn.matchedStudent];
+    }
+    const validStudents = prevStudents.filter(s => s && (s._id || s.firstName) && s.status !== 'inactive');
+    if (validStudents.length > 0) {
+      // Auto-save to BankPayerMapping so it is remembered permanently
+      BankPayerMapping.findOneAndUpdate(
+        { cleanPayerName: cleanName },
+        {
+          payerName: senderName.trim(),
+          cleanPayerName: cleanName,
+          accountNumber: senderAcc || '',
+          students: validStudents.map(s => s._id),
+          lastLinkedAt: prevTxn.transactionDate || new Date(),
+          $inc: { linkCount: 1 }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).catch(e => console.warn('PayerMapping auto-seed error:', e.message));
+
+      return {
+        students: validStudents,
+        source: 'previous_transaction',
+        payerName: prevTxn.senderName || senderName.trim(),
+        accountNumber: senderAcc || '',
+        linkCount: 1,
+        lastLinkedAt: prevTxn.transactionDate || prevTxn.createdAt
+      };
+    }
+  }
+
+  return null;
+}
+
+// Helper to attempt auto-matching students:
+// 1. First checks if previously linked/paid by this exact payer (returns exact match directly, no others)
+// 2. Otherwise checks father, mother, or student full name (handles siblings)
+async function tryMatchStudents(smsText, senderName) {
   try {
+    // 1. Check if previously linked / paid by this exact payer
+    const prevLink = await findPreviousPayerLink(senderName, smsText);
+    if (prevLink && prevLink.students.length > 0) {
+      return prevLink.students;
+    }
+
+    // 2. Intelligent patronymic & sibling matching
     const students = await Student.find({ status: { $ne: 'inactive' } })
       .select('_id studentId firstName middleName lastName fatherName motherName paymentCode class section')
       .lean();
 
-    return findMatchingStudent(students, senderName, smsText);
+    const { exactMatches } = findAllMatchingStudents(students, senderName, smsText);
+    return exactMatches.map(m => m.student);
   } catch (err) {
-    console.warn('[BankSMS] Auto-match student error:', err.message);
+    console.warn('[BankSMS] Auto-match students error:', err.message);
   }
-  return null;
+  return [];
 }
 
 // 1. Get bank settings
@@ -134,12 +233,17 @@ exports.handleWebhook = async (req, res) => {
       });
     }
 
-    // Try auto-matching a student
-    const matchedStudent = await tryMatchStudent(smsText, parsed.senderName);
+    // For debit transactions, do NOT auto-match any student
+    const isDebit = parsed.type === 'debit';
+    const matchedStudentsList = isDebit ? [] : await tryMatchStudents(smsText, parsed.senderName);
+    const primaryMatched = matchedStudentsList.length > 0 ? matchedStudentsList[0] : null;
 
     const newTransaction = await BankTransaction.create({
       bank: parsed.bank,
+      type: parsed.type || 'credit',
       reference: parsed.reference,
+      hasBankReference: parsed.hasBankReference !== false,
+      receiptUrl: parsed.receiptUrl || '',
       amount: parsed.amount,
       currency: parsed.currency || 'ETB',
       senderName: parsed.senderName || '',
@@ -148,8 +252,10 @@ exports.handleWebhook = async (req, res) => {
       senderPhone: sender || '',
       transactionDate: parsed.transactionDate || new Date(),
       rawSms: parsed.rawSms,
-      matchedStudent: matchedStudent ? matchedStudent._id : null,
-      status: matchedStudent ? 'matched' : 'unmatched'
+      matchedStudent: primaryMatched ? primaryMatched._id : null,
+      matchedStudents: matchedStudentsList.map(s => s._id),
+      status: isDebit ? 'unmatched' : (matchedStudentsList.length > 0 ? 'matched' : 'unmatched'),
+      notes: isDebit ? 'Debited transaction (ወጪ)' : (matchedStudentsList.length > 1 ? `Auto-matched ${matchedStudentsList.length} siblings` : '')
     });
 
     res.status(201).json({
@@ -219,10 +325,16 @@ exports.parseManual = async (req, res) => {
         continue;
       }
 
-      const matchedStudent = await tryMatchStudent(chunk, parsed.senderName);
+      const isDebit = parsed.type === 'debit';
+      const matchedStudentsList = isDebit ? [] : await tryMatchStudents(chunk, parsed.senderName);
+      const primaryMatched = matchedStudentsList.length > 0 ? matchedStudentsList[0] : null;
+
       const created = await BankTransaction.create({
         bank: parsed.bank,
+        type: parsed.type || (isDebit ? 'debit' : 'credit'),
         reference: parsed.reference,
+        hasBankReference: parsed.hasBankReference !== false,
+        receiptUrl: parsed.receiptUrl || '',
         amount: parsed.amount,
         currency: parsed.currency || 'ETB',
         senderName: parsed.senderName || '',
@@ -231,8 +343,10 @@ exports.parseManual = async (req, res) => {
         senderPhone: sender || '',
         transactionDate: parsed.transactionDate || new Date(),
         rawSms: parsed.rawSms,
-        matchedStudent: matchedStudent ? matchedStudent._id : null,
-        status: matchedStudent ? 'matched' : 'unmatched'
+        matchedStudent: primaryMatched ? primaryMatched._id : null,
+        matchedStudents: matchedStudentsList.map(s => s._id),
+        status: isDebit ? 'unmatched' : (matchedStudentsList.length > 0 ? 'matched' : 'unmatched'),
+        notes: isDebit ? 'Debited transaction (ወጪ)' : (matchedStudentsList.length > 1 ? `Auto-matched ${matchedStudentsList.length} siblings` : '')
       });
 
       results.push({
@@ -258,7 +372,7 @@ exports.parseManual = async (req, res) => {
 // 5. Get transactions with filters and pagination
 exports.getTransactions = async (req, res) => {
   try {
-    const { bank, status, search, startDate, endDate, page = 1, limit = 20 } = req.query;
+    const { bank, status, search, type, startDate, endDate, page = 1, limit = 20 } = req.query;
 
     const query = {};
 
@@ -268,6 +382,14 @@ exports.getTransactions = async (req, res) => {
 
     if (status && status !== 'all') {
       query.status = status;
+    }
+
+    if (type && type !== 'all') {
+      if (type === 'debit') {
+        query.type = 'debit';
+      } else if (type === 'credit') {
+        query.$or = [{ type: 'credit' }, { type: { $exists: false } }];
+      }
     }
 
     if (startDate || endDate) {
@@ -300,7 +422,8 @@ exports.getTransactions = async (req, res) => {
 
     const [transactions, total] = await Promise.all([
       BankTransaction.find(query)
-        .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode')
+        .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode fatherName motherName')
+        .populate('matchedStudents', 'studentId firstName middleName lastName class section paymentCode fatherName motherName')
         .sort({ transactionDate: -1, createdAt: -1 })
         .skip(skip)
         .limit(pageSize),
@@ -313,37 +436,145 @@ exports.getTransactions = async (req, res) => {
 
     for (const t of transactions) {
       const obj = t.toObject();
+      const isDeb = obj.type === 'debit' || (obj.rawSms && isDebitSms(obj.rawSms));
+      let needsDbUpdate = false;
+      const updateFields = {};
+
+      // If reference has old survey link "WISQB", remove it
+      if (obj.reference && obj.reference.includes('WISQB')) {
+        obj.reference = 'REF-' + obj.bank + '-' + (obj.transactionDate ? new Date(obj.transactionDate).getTime() : Date.now()) + '-' + Math.round(obj.amount);
+        obj.hasBankReference = false;
+        updateFields.reference = obj.reference;
+        updateFields.hasBankReference = false;
+        needsDbUpdate = true;
+      }
+
+      // If receiptUrl missing but rawSms has one, populate it
+      if (!obj.receiptUrl && obj.rawSms) {
+        const foundReceipt = extractReceiptUrl(obj.rawSms);
+        if (foundReceipt) {
+          obj.receiptUrl = foundReceipt;
+          updateFields.receiptUrl = foundReceipt;
+          needsDbUpdate = true;
+        }
+      }
+
+      if (isDeb) {
+        if (obj.type !== 'debit') {
+          obj.type = 'debit';
+          updateFields.type = 'debit';
+          needsDbUpdate = true;
+        }
+
+        if (obj.matchedStudent || (obj.matchedStudents && obj.matchedStudents.length > 0)) {
+          obj.matchedStudent = null;
+          obj.matchedStudents = [];
+          obj.status = 'unmatched';
+          updateFields.matchedStudent = null;
+          updateFields.matchedStudents = [];
+          updateFields.status = 'unmatched';
+          needsDbUpdate = true;
+        }
+
+        // For debit: record ONLY the receiver name. If none found, leave empty ('')
+        const names = extractTransactionNames(obj.rawSms, true);
+        const receiverName = (names.recipientName || '').trim();
+        if (obj.senderName !== receiverName) {
+          obj.senderName = receiverName;
+          updateFields.senderName = receiverName;
+          needsDbUpdate = true;
+        }
+
+        if (needsDbUpdate) {
+          BankTransaction.findByIdAndUpdate(obj._id, updateFields).catch(() => {});
+        }
+      } else {
+        // For credit: ensure senderName has ONLY the payer name (no arrows or debited labels)
+        if (obj.senderName && (obj.senderName.includes('➔') || obj.senderName.startsWith('To: ') || obj.senderName === 'Debited / ወጪ')) {
+          const names = extractTransactionNames(obj.rawSms, false);
+          const payerName = (names.senderName || '').trim();
+          obj.senderName = payerName;
+          updateFields.senderName = payerName;
+          needsDbUpdate = true;
+        }
+        if (needsDbUpdate) {
+          BankTransaction.findByIdAndUpdate(obj._id, updateFields).catch(() => {});
+        }
+      }
+
       if (!obj.sourceBank && obj.rawSms) {
         obj.sourceBank = extractSourceBank(obj.rawSms, obj.bank);
       }
 
-      // Verify or rematch student based on payer name (father, mother, or student)
-      if (obj.senderName && obj.senderName.trim()) {
-        if (!allStudents) {
-          allStudents = await Student.find({ status: { $ne: 'inactive' } })
-            .select('_id studentId firstName middleName lastName fatherName motherName paymentCode class section')
-            .lean();
+      // Verify or rematch student(s) based on payer name (father, mother, or student)
+      if (obj.senderName && obj.senderName.trim() && !isDeb) {
+        // 1. Check if this exact payer was previously linked or paid
+        const prevLink = await findPreviousPayerLink(obj.senderName, obj.rawSms, obj._id);
+
+        let exactMatches = [];
+        let relatedMatches = [];
+
+        if (prevLink && prevLink.students.length > 0) {
+          // Exactly link to previous transaction link!
+          // User requirement: "do not suggest another just exactly link to that exact fullname previous transaction link"
+          exactMatches = prevLink.students.map(st => ({
+            student: st,
+            score: 100,
+            reason: `Exact Previous Link: matched to previous transaction for "${obj.senderName.trim()}"`,
+            matchType: 'exact',
+            isRemembered: true
+          }));
+          relatedMatches = []; // No other suggestions when previously linked/paid
+        } else {
+          // No previous link: search students database
+          if (!allStudents) {
+            allStudents = await Student.find({ status: { $ne: 'inactive' } })
+              .select('_id studentId firstName middleName lastName fatherName motherName paymentCode class section')
+              .lean();
+          }
+          const matchResult = findAllMatchingStudents(allStudents, obj.senderName, obj.rawSms);
+          exactMatches = matchResult.exactMatches;
+          relatedMatches = matchResult.relatedMatches;
         }
 
-        const bestStudent = findMatchingStudent(allStudents, obj.senderName, obj.rawSms);
-        const currentStudentId = obj.matchedStudent ? obj.matchedStudent._id.toString() : null;
-        const newStudentId = bestStudent ? bestStudent._id.toString() : null;
+        obj.relatedMatchesCount = relatedMatches.length;
 
-        if (newStudentId && newStudentId !== currentStudentId) {
-          obj.matchedStudent = bestStudent;
-          obj.status = 'matched';
-          BankTransaction.findByIdAndUpdate(obj._id, {
-            matchedStudent: bestStudent._id,
-            status: 'matched'
-          }).catch(e => console.warn('Rematch update error:', e.message));
-        } else if (!bestStudent && obj.matchedStudent && (!obj.notes || !obj.notes.includes('Manual'))) {
-          // If no student matches the payer name and it wasn't manually linked, clear the false match
-          obj.matchedStudent = null;
-          obj.status = 'unmatched';
-          BankTransaction.findByIdAndUpdate(obj._id, {
-            matchedStudent: null,
-            status: 'unmatched'
-          }).catch(e => console.warn('Reset false match error:', e.message));
+        // Ensure both matchedStudent and matchedStudents are present
+        if (obj.matchedStudents && obj.matchedStudents.length > 0 && !obj.matchedStudent) {
+          obj.matchedStudent = obj.matchedStudents[0];
+        } else if (obj.matchedStudent && (!obj.matchedStudents || obj.matchedStudents.length === 0)) {
+          obj.matchedStudents = [obj.matchedStudent];
+        }
+
+        const isManuallyLinked = obj.notes && obj.notes.toLowerCase().includes('manual');
+
+        if (!isManuallyLinked && !obj.isReconciled) {
+          if (exactMatches.length > 0) {
+            const exactIds = exactMatches.map(m => m.student._id.toString());
+            const currentIds = (obj.matchedStudents || []).map(s => (s._id || s).toString());
+            const idsChanged = exactIds.length !== currentIds.length || !exactIds.every(id => currentIds.includes(id));
+
+            if (idsChanged) {
+              obj.matchedStudents = exactMatches.map(m => m.student);
+              obj.matchedStudent = exactMatches[0].student;
+              obj.status = 'matched';
+              BankTransaction.findByIdAndUpdate(obj._id, {
+                matchedStudent: exactMatches[0].student._id,
+                matchedStudents: exactMatches.map(m => m.student._id),
+                status: 'matched'
+              }).catch(e => console.warn('Rematch update error:', e.message));
+            }
+          } else if (obj.matchedStudent) {
+            // If no exact match and not manual, clear match so user can select from related suggestions
+            obj.matchedStudent = null;
+            obj.matchedStudents = [];
+            obj.status = 'unmatched';
+            BankTransaction.findByIdAndUpdate(obj._id, {
+              matchedStudent: null,
+              matchedStudents: [],
+              status: 'unmatched'
+            }).catch(e => console.warn('Reset false match error:', e.message));
+          }
         }
       }
 
@@ -364,44 +595,102 @@ exports.getTransactions = async (req, res) => {
   }
 };
 
-// 6. Get transaction summary stats
+// 6. Get transaction summary stats with filter support
 exports.getStats = async (req, res) => {
   try {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const { bank, status, search, type, startDate, endDate } = req.query;
 
-    const [allTxns, todayTxns, monthTxns] = await Promise.all([
-      BankTransaction.find(),
-      BankTransaction.find({ transactionDate: { $gte: startOfToday } }),
-      BankTransaction.find({ transactionDate: { $gte: startOfMonth } })
-    ]);
+    const query = {};
 
-    const calculateTotal = (list) => list.reduce((sum, t) => sum + (t.amount || 0), 0);
+    if (bank && bank !== 'all') {
+      query.bank = bank;
+    }
 
-    const totalAmount = calculateTotal(allTxns);
-    const todayAmount = calculateTotal(todayTxns);
-    const monthAmount = calculateTotal(monthTxns);
+    if (status && status !== 'all') {
+      query.status = status;
+    }
 
+    if (type && type !== 'all') {
+      if (type === 'debit') {
+        query.type = 'debit';
+      } else if (type === 'credit') {
+        query.$or = [{ type: 'credit' }, { type: { $exists: false } }];
+      }
+    }
+
+    if (startDate || endDate) {
+      query.transactionDate = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        query.transactionDate.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.transactionDate.$lte = end;
+      }
+    }
+
+    if (search && search.trim()) {
+      const s = search.trim();
+      const regex = new RegExp(s, 'i');
+      query.$or = [
+        { reference: regex },
+        { senderName: regex },
+        { receiverAccount: regex },
+        { rawSms: regex }
+      ];
+    }
+
+    const allTxns = await BankTransaction.find(query).lean();
+
+    const isTxnDebit = (t) => {
+      if (t.type === 'debit') return true;
+      if (t.type === 'credit') return false;
+      return isDebitSms(t.rawSms);
+    };
+
+    const calculateBreakdown = (list) => {
+      const creditList = list.filter(t => !isTxnDebit(t));
+      const debitList = list.filter(t => isTxnDebit(t));
+      const creditAmount = creditList.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const debitAmount = debitList.reduce((sum, t) => sum + (t.amount || 0), 0);
+      return {
+        totalCount: list.length,
+        count: list.length,
+        creditCount: creditList.length,
+        debitCount: debitList.length,
+        creditAmount,
+        debitAmount,
+        netAmount: creditAmount - debitAmount,
+        amount: creditAmount
+      };
+    };
+
+    const overallStats = calculateBreakdown(allTxns);
+
+    // If bank filter is specified, only that bank will be present in allTxns.
+    // If bank filter is 'all' or empty, both banks will be present.
     const cbeTxns = allTxns.filter(t => t.bank === 'CBE');
     const awashTxns = allTxns.filter(t => t.bank === 'AWASH');
+
+    const cbeStats = calculateBreakdown(cbeTxns);
+    const awashStats = calculateBreakdown(awashTxns);
 
     const matchedCount = allTxns.filter(t => t.status === 'matched').length;
     const unmatchedCount = allTxns.filter(t => t.status === 'unmatched').length;
 
     res.json({
-      totalCount: allTxns.length,
-      totalAmount,
-      todayAmount,
-      monthAmount,
-      cbe: {
-        count: cbeTxns.length,
-        amount: calculateTotal(cbeTxns)
-      },
-      awash: {
-        count: awashTxns.length,
-        amount: calculateTotal(awashTxns)
-      },
+      totalCount: overallStats.totalCount,
+      totalAmount: overallStats.creditAmount,
+      totalCreditAmount: overallStats.creditAmount,
+      totalDebitAmount: overallStats.debitAmount,
+      creditCount: overallStats.creditCount,
+      debitCount: overallStats.debitCount,
+      netAmount: overallStats.netAmount,
+      cbe: cbeStats,
+      awash: awashStats,
       matchedCount,
       unmatchedCount
     });
@@ -410,60 +699,222 @@ exports.getStats = async (req, res) => {
   }
 };
 
-// 7. Link an unmatched transaction to a student & optionally record a Payment
-exports.linkStudent = async (req, res) => {
+// 7. Get suggested student matches for a transaction (exact matches/siblings + related matches)
+exports.getSuggestedMatches = async (req, res) => {
   try {
     const { id } = req.params;
-    const { studentId, createPayment, month, year } = req.body;
+    const transaction = await BankTransaction.findById(id)
+      .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode fatherName fatherPhone motherName motherPhone')
+      .populate('matchedStudents', 'studentId firstName middleName lastName class section paymentCode fatherName fatherPhone motherName motherPhone');
+
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    // 1. Fetch payer payment history (previous payments by this payer)
+    let payerHistory = [];
+    if (transaction.senderName && transaction.senderName.trim()) {
+      const escaped = transaction.senderName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      payerHistory = await BankTransaction.find({
+        senderName: new RegExp(`^\\s*${escaped}\\s*$`, 'i'),
+        _id: { $ne: transaction._id }
+      })
+        .select('_id bank reference amount transactionDate status isReconciled matchedStudent matchedStudents createdAt')
+        .populate('matchedStudent', 'studentId firstName middleName lastName class section fatherName fatherPhone motherName motherPhone')
+        .populate('matchedStudents', 'studentId firstName middleName lastName class section fatherName fatherPhone motherName motherPhone')
+        .sort({ transactionDate: -1, createdAt: -1 })
+        .limit(8)
+        .lean();
+    }
+
+    // 2. Check if previously linked / paid by this exact payer in BankPayerMapping or previous transactions
+    const prevLink = await findPreviousPayerLink(transaction.senderName, transaction.rawSms, transaction._id);
+
+    // Extract any linked students from previous payment history if prevLink missed it
+    let pastLinkedStudents = [];
+    if (prevLink && prevLink.students.length > 0) {
+      pastLinkedStudents = prevLink.students;
+    } else if (payerHistory.length > 0) {
+      for (const past of payerHistory) {
+        if (past.matchedStudents && past.matchedStudents.length > 0) {
+          const valids = past.matchedStudents.filter(s => s && (s._id || s.firstName));
+          if (valids.length > 0) {
+            pastLinkedStudents = valids;
+            break;
+          }
+        } else if (past.matchedStudent && (past.matchedStudent._id || past.matchedStudent.firstName)) {
+          pastLinkedStudents = [past.matchedStudent];
+          break;
+        }
+      }
+    }
+
+    let exactMatches = [];
+    let relatedMatches = [];
+    let rememberedMapping = null;
+
+    if (pastLinkedStudents.length > 0) {
+      // User requirement: "is there a previous Previous Payments by this Payer: do not sugest any other just automatically select it that one"
+      rememberedMapping = {
+        payerName: (prevLink && prevLink.payerName) || transaction.senderName.trim(),
+        accountNumber: (prevLink && prevLink.accountNumber) || extractSenderAccount(transaction.rawSms) || '',
+        linkCount: (prevLink && prevLink.linkCount) || payerHistory.length || 1,
+        lastLinkedAt: (prevLink && prevLink.lastLinkedAt) || new Date()
+      };
+
+      exactMatches = pastLinkedStudents.map(st => ({
+        student: st,
+        score: 100,
+        reason: `Previous Payment Link: matched to previous payment for "${transaction.senderName.trim()}"`,
+        matchType: 'exact',
+        isRemembered: true
+      }));
+
+      // DO NOT suggest another! Clear all related suggestions so user is not distracted
+      relatedMatches = [];
+
+      // If transaction is not currently reconciled, auto-link it to these exact student(s)
+      if (!transaction.isReconciled) {
+        transaction.matchedStudents = pastLinkedStudents.map(s => s._id);
+        transaction.matchedStudent = pastLinkedStudents[0]._id;
+        transaction.status = 'matched';
+        await BankTransaction.findByIdAndUpdate(transaction._id, {
+          matchedStudent: pastLinkedStudents[0]._id,
+          matchedStudents: pastLinkedStudents.map(s => s._id),
+          status: 'matched'
+        }).catch(e => console.warn('Auto-link previous exact error:', e.message));
+      }
+
+      // Seed BankPayerMapping so it stays remembered
+      if (transaction.senderName && transaction.senderName.trim()) {
+        const cleanName = transaction.senderName.trim().toLowerCase();
+        const senderAcc = extractSenderAccount(transaction.rawSms);
+        BankPayerMapping.findOneAndUpdate(
+          { cleanPayerName: cleanName },
+          {
+            payerName: transaction.senderName.trim(),
+            cleanPayerName: cleanName,
+            accountNumber: senderAcc || '',
+            students: pastLinkedStudents.map(s => s._id),
+            lastLinkedAt: new Date(),
+            $inc: { linkCount: 1 }
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        ).catch(() => {});
+      }
+    } else {
+      // No previous link found: query all active students and find intelligent patronymic / sibling matches
+      const allStudents = await Student.find({ status: { $ne: 'inactive' } })
+        .select('_id studentId firstName middleName lastName class section paymentCode fatherName fatherPhone motherName motherPhone')
+        .lean();
+
+      const matchResult = findAllMatchingStudents(allStudents, transaction.senderName, transaction.rawSms);
+      exactMatches = matchResult.exactMatches;
+      relatedMatches = matchResult.relatedMatches;
+    }
+
+    let currentlyMatched = [];
+    if (transaction.matchedStudents && transaction.matchedStudents.length > 0) {
+      currentlyMatched = transaction.matchedStudents;
+    } else if (transaction.matchedStudent) {
+      currentlyMatched = [transaction.matchedStudent];
+    } else if (prevLink && prevLink.students.length > 0) {
+      currentlyMatched = prevLink.students;
+    }
+
+    res.json({
+      transactionId: transaction._id,
+      payerName: transaction.senderName,
+      amount: transaction.amount,
+      bank: transaction.bank,
+      reference: transaction.reference,
+      currentlyMatched,
+      exactMatches,
+      relatedMatches,
+      payerHistory,
+      rememberedMapping: rememberedMapping ? {
+        payerName: rememberedMapping.payerName,
+        accountNumber: rememberedMapping.accountNumber,
+        linkCount: rememberedMapping.linkCount,
+        lastLinkedAt: rememberedMapping.lastLinkedAt
+      } : null
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch suggested matches', error: error.message });
+  }
+};
+
+// 8. Link transaction to one or more students (e.g. siblings), or unlink
+exports.linkStudents = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { studentIds, studentId } = req.body;
+    if (!studentIds && studentId) {
+      studentIds = [studentId];
+    }
+    if (!Array.isArray(studentIds)) {
+      studentIds = [];
+    }
+    // Deduplicate valid IDs
+    const uniqueIds = [...new Set(studentIds.filter(Boolean))];
 
     const transaction = await BankTransaction.findById(id);
     if (!transaction) {
       return res.status(404).json({ message: 'Transaction not found' });
     }
-
-    const student = await Student.findById(studentId);
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
+    if (transaction.type === 'debit') {
+      return res.status(400).json({ message: 'Debit transactions cannot be linked to students.' });
     }
 
-    transaction.matchedStudent = student._id;
-    transaction.status = 'matched';
-    transaction.notes = 'Manually linked';
-
-    // Optional: create payment record if requested
-    if (createPayment && month && year) {
-      const existingPayment = await Payment.findOne({
-        studentId: student._id,
-        month,
-        year: parseInt(year)
-      });
-
-      if (!existingPayment) {
-        const payment = await Payment.create({
-          studentId: student._id,
-          month,
-          year: parseInt(year),
-          amount: transaction.amount,
-          description: `Auto-recorded from ${transaction.bank} Ref: ${transaction.reference}`,
-          paymentDate: transaction.transactionDate || new Date(),
-          status: 'paid',
-          createdBy: req.user?._id || null
-        });
-        transaction.isReconciled = true;
-        transaction.reconciledPaymentId = payment._id;
-      }
+    if (uniqueIds.length === 0) {
+      transaction.matchedStudents = [];
+      transaction.matchedStudent = null;
+      transaction.status = 'unmatched';
+      transaction.notes = 'Unlinked by user';
+    } else {
+      transaction.matchedStudents = uniqueIds;
+      transaction.matchedStudent = uniqueIds[0];
+      transaction.status = 'matched';
+      transaction.notes = uniqueIds.length > 1
+        ? `Manually linked (${uniqueIds.length} students/siblings)`
+        : 'Manually linked';
     }
 
     await transaction.save();
-    const updated = await BankTransaction.findById(id).populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode');
+
+    // Learn / Remember this payer association for all future payments
+    if (transaction.senderName && transaction.senderName.trim() && uniqueIds.length > 0) {
+      const cleanName = transaction.senderName.trim().toLowerCase();
+      const senderAcc = extractSenderAccount(transaction.rawSms);
+
+      await BankPayerMapping.findOneAndUpdate(
+        { cleanPayerName: cleanName },
+        {
+          payerName: transaction.senderName.trim(),
+          cleanPayerName: cleanName,
+          accountNumber: senderAcc || '',
+          students: uniqueIds,
+          lastLinkedAt: new Date(),
+          $inc: { linkCount: 1 }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).catch(err => console.warn('PayerMapping save error:', err.message));
+    }
+
+    const updated = await BankTransaction.findById(id)
+      .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode fatherName motherName')
+      .populate('matchedStudents', 'studentId firstName middleName lastName class section paymentCode fatherName motherName');
 
     res.json({ success: true, transaction: updated });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to link student', error: error.message });
+    res.status(500).json({ message: 'Failed to link students', error: error.message });
   }
 };
 
-// 8. Search students for manual linking by name, parent names, phone, studentId, or paymentCode
+// Backward-compatible alias
+exports.linkStudent = exports.linkStudents;
+
+// 9. Search students for manual linking by name, parent names, phone, studentId, or paymentCode
 exports.searchStudents = async (req, res) => {
   try {
     const { q } = req.query;
@@ -502,68 +953,184 @@ exports.searchStudents = async (req, res) => {
   }
 };
 
-// 9. Approve a bank transaction and create an official Payment record
+// 10. Approve a bank transaction and create official Payment record(s)
 exports.approvePayment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { month, year, amount, description, paymentDate } = req.body;
+    const { month, year, amount, description, paymentDate, studentIds, studentPayments } = req.body;
 
-    const transaction = await BankTransaction.findById(id).populate('matchedStudent');
+    const transaction = await BankTransaction.findById(id)
+      .populate('matchedStudent')
+      .populate('matchedStudents');
+
     if (!transaction) {
       return res.status(404).json({ message: 'Transaction not found' });
     }
 
-    if (!transaction.matchedStudent) {
-      return res.status(400).json({ message: 'Transaction is not linked to any student. Please link a student first.' });
+    if (transaction.type === 'debit') {
+      return res.status(400).json({ message: 'Debit transactions cannot be approved as fee payments.' });
     }
 
-    const studentId = transaction.matchedStudent._id;
-    const payMonth = month || 'September';
-    const payYear = parseInt(year) || 2019;
-    const payAmount = amount !== undefined && !isNaN(parseFloat(amount)) ? parseFloat(amount) : transaction.amount;
-    const payDate = paymentDate ? new Date(paymentDate) : (transaction.transactionDate || new Date());
-    const payDesc = description !== undefined && description !== null && description.trim() !== ''
-      ? description.trim()
-      : `Bank payment via ${transaction.bank} (Ref: ${transaction.reference})`;
+    let targetStudents = [];
+    if (studentPayments && Array.isArray(studentPayments) && studentPayments.length > 0) {
+      targetStudents = studentPayments.map(sp => sp.studentId);
+    } else if (studentIds && Array.isArray(studentIds) && studentIds.length > 0) {
+      targetStudents = studentIds;
+    } else if (transaction.matchedStudents && transaction.matchedStudents.length > 0) {
+      targetStudents = transaction.matchedStudents.map(s => s._id || s);
+    } else if (transaction.matchedStudent) {
+      targetStudents = [transaction.matchedStudent._id || transaction.matchedStudent];
+    }
 
-    // Check if payment record already exists for this student, month, year
-    let payment = await Payment.findOne({
-      studentId,
-      month: payMonth,
-      year: payYear
-    });
+    if (targetStudents.length === 0) {
+      return res.status(400).json({ message: 'Transaction is not linked to any student. Please link student(s) first.' });
+    }
 
-    if (payment) {
-      payment.amount = payAmount;
-      payment.description = payDesc;
-      payment.paymentDate = payDate;
-      payment.status = 'paid';
-      await payment.save();
+    const paymentsCreated = [];
+
+    if (studentPayments && Array.isArray(studentPayments) && studentPayments.length > 0) {
+      // Individual per-student repeated form values from Approve modal
+      for (let i = 0; i < studentPayments.length; i++) {
+        const sp = studentPayments[i];
+        const sId = sp.studentId;
+        const sMonth = sp.month || 'September';
+        const sYear = parseInt(sp.year) || 2019;
+        const sAmount = !isNaN(parseFloat(sp.amount)) ? parseFloat(sp.amount) : 0;
+        const sDate = sp.paymentDate ? new Date(sp.paymentDate) : (transaction.transactionDate || new Date());
+        const isAw = transaction.bank && transaction.bank.toUpperCase() === 'AWASH';
+        const isCbe = transaction.bank && transaction.bank.toUpperCase() === 'CBE';
+        const hasRealRef = transaction.hasBankReference !== false && transaction.reference && !transaction.reference.startsWith('REF-') && !transaction.reference.includes('WISQB');
+        const refStr = hasRealRef ? ` (Ref: ${transaction.reference})` : '';
+        const payerPrefix = (isCbe && transaction.senderName && transaction.senderName.trim())
+          ? `${transaction.senderName.trim()} - `
+          : '';
+        const defaultFallbackDesc = isAw
+          ? `Paid Via E-School Bank payment via AWASH${refStr}`
+          : `${payerPrefix}Bank payment via ${transaction.bank}${refStr}`;
+
+        const sDesc = sp.description !== undefined && sp.description !== null && sp.description.trim() !== ''
+          ? sp.description.trim()
+          : defaultFallbackDesc;
+
+        let payment = await Payment.findOne({
+          studentId: sId,
+          month: sMonth,
+          year: sYear
+        });
+
+        if (payment) {
+          payment.amount = sAmount;
+          payment.description = sDesc;
+          payment.paymentDate = sDate;
+          payment.status = 'paid';
+          await payment.save();
+        } else {
+          payment = await Payment.create({
+            studentId: sId,
+            month: sMonth,
+            year: sYear,
+            amount: sAmount,
+            description: sDesc,
+            paymentDate: sDate,
+            status: 'paid',
+            createdBy: req.user?._id || null
+          });
+        }
+        paymentsCreated.push(payment);
+      }
     } else {
-      payment = await Payment.create({
-        studentId,
-        month: payMonth,
-        year: payYear,
-        amount: payAmount,
-        description: payDesc,
-        paymentDate: payDate,
-        status: 'paid',
-        createdBy: req.user?._id || null
-      });
+      // Single/fallback payment logic
+      const payMonth = month || 'September';
+      const payYear = parseInt(year) || 2019;
+      const totalPayAmount = amount !== undefined && !isNaN(parseFloat(amount)) ? parseFloat(amount) : transaction.amount;
+      const payDate = paymentDate ? new Date(paymentDate) : (transaction.transactionDate || new Date());
+      const baseDesc = description !== undefined && description !== null && description.trim() !== ''
+        ? description.trim()
+        : (() => {
+          const isAw = transaction.bank && transaction.bank.toUpperCase() === 'AWASH';
+          const isCbe = transaction.bank && transaction.bank.toUpperCase() === 'CBE';
+          const hasRealRef = transaction.hasBankReference !== false && transaction.reference && !transaction.reference.startsWith('REF-') && !transaction.reference.includes('WISQB');
+          const refStr = hasRealRef ? ` (Ref: ${transaction.reference})` : '';
+          const payerPrefix = (isCbe && transaction.senderName && transaction.senderName.trim())
+            ? `${transaction.senderName.trim()} - `
+            : '';
+          return isAw ? `Paid Via E-School Bank payment via AWASH${refStr}` : `${payerPrefix}Bank payment via ${transaction.bank}${refStr}`;
+        })();
+
+      const count = targetStudents.length;
+      const perStudentAmount = Math.round((totalPayAmount / count) * 100) / 100;
+
+      for (let i = 0; i < count; i++) {
+        const sId = targetStudents[i];
+        const studentDesc = count > 1 ? `${baseDesc} [Sibling ${i + 1}/${count}]` : baseDesc;
+
+        let payment = await Payment.findOne({
+          studentId: sId,
+          month: payMonth,
+          year: payYear
+        });
+
+        if (payment) {
+          payment.amount = perStudentAmount;
+          payment.description = studentDesc;
+          payment.paymentDate = payDate;
+          payment.status = 'paid';
+          await payment.save();
+        } else {
+          payment = await Payment.create({
+            studentId: sId,
+            month: payMonth,
+            year: payYear,
+            amount: perStudentAmount,
+            description: studentDesc,
+            paymentDate: payDate,
+            status: 'paid',
+            createdBy: req.user?._id || null
+          });
+        }
+        paymentsCreated.push(payment);
+      }
     }
 
     transaction.isReconciled = true;
-    transaction.reconciledPaymentId = payment._id;
+    transaction.reconciledPaymentId = paymentsCreated[0]._id;
+    transaction.reconciledPaymentIds = paymentsCreated.map(p => p._id);
     await transaction.save();
 
+    // Remember this payer association for future transactions when approved / paid
+    if (transaction.senderName && transaction.senderName.trim() && targetStudents.length > 0) {
+      const cleanName = transaction.senderName.trim().toLowerCase();
+      const senderAcc = extractSenderAccount(transaction.rawSms);
+
+      BankPayerMapping.findOneAndUpdate(
+        { cleanPayerName: cleanName },
+        {
+          payerName: transaction.senderName.trim(),
+          cleanPayerName: cleanName,
+          accountNumber: senderAcc || '',
+          students: targetStudents,
+          lastLinkedAt: new Date(),
+          $inc: { linkCount: 1 }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).catch(err => console.warn('PayerMapping approve update error:', err.message));
+    }
+
     const updatedTxn = await BankTransaction.findById(id)
-      .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode');
+      .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode')
+      .populate('matchedStudents', 'studentId firstName middleName lastName class section paymentCode');
+
+    const totalCount = paymentsCreated.length;
+    const firstPay = paymentsCreated[0];
+    const successMsg = totalCount > 1
+      ? `Payment approved and recorded for ${totalCount} students (${firstPay?.month || ''} ${firstPay?.year || ''} E.C.)`
+      : `Payment approved and recorded for ${firstPay?.month || ''} ${firstPay?.year || ''} E.C.`;
 
     res.json({
       success: true,
-      message: `Payment approved and recorded for ${payMonth} ${payYear} E.C.`,
+      message: successMsg,
       transaction: updatedTxn,
-      payment
+      payments: paymentsCreated
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to approve payment', error: error.message });
@@ -580,12 +1147,15 @@ exports.unapprovePayment = async (req, res) => {
       return res.status(404).json({ message: 'Transaction not found' });
     }
 
-    if (transaction.reconciledPaymentId) {
+    if (transaction.reconciledPaymentIds && transaction.reconciledPaymentIds.length > 0) {
+      await Payment.deleteMany({ _id: { $in: transaction.reconciledPaymentIds } });
+    } else if (transaction.reconciledPaymentId) {
       await Payment.findByIdAndDelete(transaction.reconciledPaymentId);
     }
 
     transaction.isReconciled = false;
     transaction.reconciledPaymentId = null;
+    transaction.reconciledPaymentIds = [];
     await transaction.save();
 
     const updatedTxn = await BankTransaction.findById(id)
@@ -601,14 +1171,181 @@ exports.unapprovePayment = async (req, res) => {
   }
 };
 
-// 8. Delete transaction
+// 8. Delete transaction (supports optional removal of remembered payer link history)
 exports.deleteTransaction = async (req, res) => {
   try {
     const { id } = req.params;
+    const removeHistory = req.body?.removeHistory === true || req.query?.removeHistory === 'true';
+
+    const transaction = await BankTransaction.findById(id);
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    // 1. If it was reconciled, clean up payment record(s) so nothing is left orphaned
+    if (transaction.reconciledPaymentIds && transaction.reconciledPaymentIds.length > 0) {
+      await Payment.deleteMany({ _id: { $in: transaction.reconciledPaymentIds } }).catch(() => {});
+    } else if (transaction.reconciledPaymentId) {
+      await Payment.findByIdAndDelete(transaction.reconciledPaymentId).catch(() => {});
+    }
+
+    // 2. If removeHistory is requested:
+    // Delete the remembered BankPayerMapping and clear previous matched memory for this payer name
+    if (removeHistory && transaction.senderName && transaction.senderName.trim()) {
+      const cleanName = transaction.senderName.trim().toLowerCase();
+      const escaped = transaction.senderName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const senderAcc = extractSenderAccount(transaction.rawSms);
+      const mapQuery = { $or: [{ cleanPayerName: cleanName }] };
+      if (senderAcc) mapQuery.$or.push({ accountNumber: senderAcc });
+
+      await BankPayerMapping.deleteMany(mapQuery).catch(err => console.warn('PayerMapping delete error:', err.message));
+
+      // Also reset any other unreconciled transactions for this payer to prevent fallback re-linking
+      await BankTransaction.updateMany(
+        { senderName: new RegExp(`^${escaped}$`, 'i'), isReconciled: false, _id: { $ne: transaction._id } },
+        { matchedStudent: null, matchedStudents: [], status: 'unmatched', notes: 'Payer history cleared on delete' }
+      ).catch(() => {});
+    }
+
+    // 3. Delete the transaction itself
     await BankTransaction.findByIdAndDelete(id);
-    res.json({ success: true, message: 'Transaction deleted' });
+
+    res.json({
+      success: true,
+      message: removeHistory
+        ? 'Transaction deleted and payer link history removed.'
+        : 'Transaction deleted (payer link history kept).'
+    });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete transaction', error: error.message });
   }
 };
+
+// 12. Check if payment already exists for student(s) in given month and year
+exports.checkExistingPayments = async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.json({ success: true, existing: [] });
+    }
+
+    const orConditions = items
+      .filter(it => it.studentId && it.month && it.year)
+      .map(it => ({
+        studentId: it.studentId,
+        month: it.month,
+        year: parseInt(it.year)
+      }));
+
+    if (orConditions.length === 0) {
+      return res.json({ success: true, existing: [] });
+    }
+
+    const existingPayments = await Payment.find({ $or: orConditions })
+      .populate('studentId', 'studentId firstName middleName lastName class section');
+
+    res.json({
+      success: true,
+      existing: existingPayments.map(p => ({
+        paymentId: p._id,
+        studentId: p.studentId?._id ? p.studentId._id.toString() : p.studentId?.toString(),
+        studentName: p.studentId && p.studentId.firstName
+          ? `${p.studentId.firstName} ${p.studentId.middleName || ''} ${p.studentId.lastName || ''}`.trim()
+          : '',
+        month: p.month,
+        year: p.year,
+        amount: p.amount,
+        paymentDate: p.paymentDate,
+        status: p.status,
+        description: p.description
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to check existing payments', error: error.message });
+  }
+};
+
+// 13. Get all payment history from Payments page for student(s)
+exports.getStudentPaymentHistory = async (req, res) => {
+  try {
+    const { studentIds, year } = req.query;
+    if (!studentIds) {
+      return res.json({ success: true, payments: [], paymentsByStudent: {} });
+    }
+
+    const ids = Array.isArray(studentIds)
+      ? studentIds
+      : studentIds.split(',').map(s => s.trim()).filter(Boolean);
+
+    if (ids.length === 0) {
+      return res.json({ success: true, payments: [], paymentsByStudent: {} });
+    }
+
+    const query = { studentId: { $in: ids } };
+    if (year) {
+      query.year = parseInt(year);
+    }
+
+    const payments = await Payment.find(query)
+      .populate('studentId', 'studentId firstName middleName lastName class section')
+      .sort({ year: -1, createdAt: -1 })
+      .lean();
+
+    const monthOrder = {
+      'september': 1, 'meskerem': 1, 'መስከረም': 1,
+      'october': 2, 'tikimt': 2, 'ጥቅምት': 2,
+      'november': 3, 'hidar': 3, 'ህዳር': 3,
+      'december': 4, 'tahsas': 4, 'ታህሳስ': 4,
+      'january': 5, 'tir': 5, 'ጥር': 5,
+      'february': 6, 'yekatit': 6, 'የካቲት': 6,
+      'march': 7, 'megabit': 7, 'መጋቢት': 7,
+      'april': 8, 'miazia': 8, 'ሚያዚያ': 8,
+      'may': 9, 'ginbot': 9, 'ግንቦት': 9,
+      'june': 10, 'sene': 10, 'ሰኔ': 10,
+      'july': 11, 'hamle': 11, 'ሐምሌ': 11,
+      'august': 12, 'nehase': 12, 'ነሐሴ': 12,
+      'pagume': 13, 'ጳጉሜ': 13
+    };
+
+    payments.sort((a, b) => {
+      const yearDiff = (Number(b.year) || 0) - (Number(a.year) || 0);
+      if (yearDiff !== 0) return yearDiff;
+      const orderA = monthOrder[a.month ? a.month.toLowerCase().trim() : ''] || 0;
+      const orderB = monthOrder[b.month ? b.month.toLowerCase().trim() : ''] || 0;
+      return orderA - orderB;
+    });
+
+    const paymentsByStudent = {};
+    for (const id of ids) {
+      paymentsByStudent[id] = [];
+    }
+    for (const p of payments) {
+      const sId = p.studentId?._id ? p.studentId._id.toString() : p.studentId?.toString();
+      if (!paymentsByStudent[sId]) paymentsByStudent[sId] = [];
+      paymentsByStudent[sId].push({
+        _id: p._id,
+        studentId: sId,
+        studentName: p.studentId && p.studentId.firstName
+          ? `${p.studentId.firstName} ${p.studentId.middleName || ''} ${p.studentId.lastName || ''}`.trim()
+          : '',
+        month: p.month,
+        year: p.year,
+        amount: p.amount,
+        paymentDate: p.paymentDate,
+        status: p.status,
+        description: p.description
+      });
+    }
+
+    res.json({
+      success: true,
+      payments,
+      paymentsByStudent
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch student payment history', error: error.message });
+  }
+};
+
+
 
