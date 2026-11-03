@@ -13,11 +13,8 @@ class NetworkReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action == ConnectivityManager.CONNECTIVITY_ACTION) {
-            if (SyncManager.isOnline(context)) {
-                Log.d(TAG, "Network connection restored! Triggering auto-sync for any pending offline SMS...")
-                SyncManager.syncPending(context)
-            }
+            Log.d(TAG, "Network connection change detected! Triggering pending sync...")
+            SyncManager.syncPending(context)
         }
     }
 }
-

@@ -64,7 +64,6 @@ class MainActivity : FlutterActivity() {
                 "getStats" -> {
                     val db = SmsDbHelper.getInstance(this)
                     val stats = db.getStats().toMutableMap()
-                    stats["online"] = SyncManager.isOnline(this)
                     result.success(stats)
                 }
 
@@ -78,16 +77,23 @@ class MainActivity : FlutterActivity() {
                             "receivedAt" to item.receivedAt,
                             "status" to item.status,
                             "responseCode" to item.responseCode,
-                            "syncedAt" to item.syncedAt
+                            "syncedAt" to item.syncedAt,
+                            "error" to item.errorMsg
                         )
                     }
                     result.success(records)
                 }
 
                 "triggerSync" -> {
-                    SyncManager.syncPending(this) { synced, remaining ->
+                    SyncManager.syncPending(this) { synced, remaining, lastError ->
                         runOnUiThread {
-                            result.success(mapOf("synced" to synced, "remaining" to remaining))
+                            result.success(
+                                mapOf(
+                                    "synced" to synced,
+                                    "remaining" to remaining,
+                                    "error" to (lastError ?: "")
+                                )
+                            )
                         }
                     }
                 }
@@ -97,9 +103,15 @@ class MainActivity : FlutterActivity() {
                     if (id > 0) {
                         val db = SmsDbHelper.getInstance(this)
                         db.markPending(id)
-                        SyncManager.syncPending(this) { synced, remaining ->
+                        SyncManager.syncPending(this) { synced, remaining, lastError ->
                             runOnUiThread {
-                                result.success(mapOf("synced" to synced, "remaining" to remaining))
+                                result.success(
+                                    mapOf(
+                                        "synced" to synced,
+                                        "remaining" to remaining,
+                                        "error" to (lastError ?: "")
+                                    )
+                                )
                             }
                         }
                     } else {
@@ -114,9 +126,16 @@ class MainActivity : FlutterActivity() {
                     val testBody = "Dear Customer, your account 1000771610858 has been credited with ETB 25.00 on ${System.currentTimeMillis()}. Ref: TEST$refNum. Thank you for banking with CBE."
                     val id = db.insertSms(testSender, testBody, System.currentTimeMillis(), "PENDING")
                     Log.d(TAG, "Created mock CBE SMS #$id for testing. Triggering sync...")
-                    SyncManager.syncPending(this) { synced, remaining ->
+                    SyncManager.syncPending(this) { synced, remaining, lastError ->
                         runOnUiThread {
-                            result.success(mapOf("id" to id, "synced" to synced, "remaining" to remaining))
+                            result.success(
+                                mapOf(
+                                    "id" to id,
+                                    "synced" to synced,
+                                    "remaining" to remaining,
+                                    "error" to (lastError ?: "")
+                                )
+                            )
                         }
                     }
                 }

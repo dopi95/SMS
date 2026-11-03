@@ -6,12 +6,11 @@ import android.app.job.JobScheduler
 import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.os.Build
 import android.os.PowerManager
 import android.util.Log
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
@@ -40,7 +39,7 @@ class SyncJobService : JobService() {
 
     override fun onStartJob(params: JobParameters?): Boolean {
         Log.d(TAG, "SyncJobService: Network connected! Flushing pending SMS queue...")
-        SyncManager.syncPending(applicationContext) { synced, remaining ->
+        SyncManager.syncPending(applicationContext) { synced, remaining, _ ->
             Log.d(TAG, "SyncJobService finished: synced=$synced, remaining=$remaining")
             jobFinished(params, remaining > 0)
         }
@@ -48,14 +47,14 @@ class SyncJobService : JobService() {
     }
 
     override fun onStopJob(params: JobParameters?): Boolean {
-        return true // Reschedule if aborted
+        return true
     }
 }
 
 object SyncManager {
     private const val TAG = "BlueLightSync"
-    private const val DEFAULT_WEBHOOK_URL = "https://sms-fyvf.onrender.com/api/bank-transactions/webhook"
-    private const val DEFAULT_SECRET = "bluelight_sec_5jtxt3kwwdmvyxl5ut"
+    const val DEFAULT_WEBHOOK_URL = "https://sms-fyvf.onrender.com/api/bank-transactions/webhook"
+    const val DEFAULT_SECRET = "bluelight_sec_5jtxt3kwwdmvyxl5ut"
 
     private val executor = Executors.newSingleThreadExecutor()
     @Volatile
@@ -63,12 +62,14 @@ object SyncManager {
 
     fun getWebhookUrl(context: Context): String {
         val prefs = context.getSharedPreferences("bluelight_prefs", Context.MODE_PRIVATE)
-        return prefs.getString("webhook_url", DEFAULT_WEBHOOK_URL) ?: DEFAULT_WEBHOOK_URL
+        val saved = prefs.getString("webhook_url", null)?.trim()
+        return if (!saved.isNullOrEmpty()) saved else DEFAULT_WEBHOOK_URL
     }
 
     fun getSecret(context: Context): String {
         val prefs = context.getSharedPreferences("bluelight_prefs", Context.MODE_PRIVATE)
-        return prefs.getString("webhook_secret", DEFAULT_SECRET) ?: DEFAULT_SECRET
+        val saved = prefs.getString("webhook_secret", null)?.trim()
+        return if (!saved.isNullOrEmpty()) saved else DEFAULT_SECRET
     }
 
     fun saveConfig(context: Context, url: String, secret: String) {
@@ -80,20 +81,20 @@ object SyncManager {
     }
 
     fun isOnline(context: Context): Boolean {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val net = cm.activeNetwork ?: return false
-            val caps = cm.getNetworkCapabilities(net) ?: return false
-            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        } else {
-            @Suppress("DEPRECATION")
-            val info = cm.activeNetworkInfo
-            @Suppress("DEPRECATION")
-            info != null && info.isConnected
-        }
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return false
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                val net = cm.activeNetwork ?: return false
+                val caps = cm.getNetworkCapabilities(net) ?: return false
+                caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            } else {
+                @Suppress("DEPRECATION")
+                cm.activeNetworkInfo?.isConnected == true
+            }
+        } catch (_: Exception) { true }
     }
 
-    fun syncPending(context: Context, onComplete: ((syncedCount: Int, pendingRemaining: Int) -> Unit)? = null) {
+    fun syncPending(context: Context, onComplete: ((syncedCount: Int, pendingRemaining: Int, lastError: String?) -> Unit)? = null) {
         executor.execute {
             if (isSyncing) {
                 Log.d(TAG, "Sync already in progress, skipping duplicate call.")
@@ -105,30 +106,24 @@ object SyncManager {
 
             if (pendingList.isEmpty()) {
                 Log.d(TAG, "No pending SMS to sync.")
-                onComplete?.invoke(0, 0)
-                return@execute
-            }
-
-            if (!isOnline(context)) {
-                Log.d(TAG, "Device is offline. Scheduling system job for network reconnection...")
-                SyncJobService.scheduleNetworkSync(context)
-                onComplete?.invoke(0, pendingList.size)
+                onComplete?.invoke(0, 0, null)
                 return@execute
             }
 
             var wakeLock: PowerManager.WakeLock? = null
             isSyncing = true
             var successCount = 0
+            var lastError: String? = null
 
             try {
                 val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
                 wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BlueLightSync:UploadWakeLock")
-                wakeLock?.acquire(60000) // Keep CPU awake during upload
-
-                Log.d(TAG, "Starting sync for ${pendingList.size} pending SMS messages...")
+                wakeLock?.acquire(60000)
 
                 val targetUrl = getWebhookUrl(context)
                 val secret = getSecret(context)
+
+                Log.d(TAG, "Starting sync for ${pendingList.size} pending SMS to $targetUrl...")
 
                 for (item in pendingList) {
                     try {
@@ -143,9 +138,8 @@ object SyncManager {
                             requestMethod = "POST"
                             setRequestProperty("Content-Type", "application/json; charset=UTF-8")
                             setRequestProperty("x-api-key", secret)
-                            // Generous timeouts for Render cold-starts (up to 50s)
-                            connectTimeout = 50000
-                            readTimeout = 50000
+                            connectTimeout = 30000
+                            readTimeout = 30000
                             doOutput = true
                         }
 
@@ -161,23 +155,26 @@ object SyncManager {
                         }
 
                         val code = conn.responseCode
-                        Log.d(TAG, "Sent SMS #${item.id} -> HTTP $code")
+                        val responseBody = try {
+                            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                            BufferedReader(InputStreamReader(stream, "UTF-8")).use { it.readText() }
+                        } catch (_: Exception) { "" }
+
+                        Log.d(TAG, "Sent SMS #${item.id} -> HTTP $code : $responseBody")
 
                         if (code in 200..299 || code == 422) {
-                            // 200..299: recorded. 422: already processed/ignored non-school account
                             db.markSynced(item.id, code)
                             successCount++
                         } else {
-                            db.markFailed(item.id, code)
-                            Log.w(TAG, "Failed response code $code for SMS #${item.id}")
+                            lastError = "Server HTTP $code: $responseBody"
+                            db.markFailed(item.id, code, lastError)
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error syncing SMS #${item.id}: ${e.message}")
-                        if (!isOnline(context)) {
-                            Log.w(TAG, "Lost internet connection mid-sync. Pausing queue.")
-                            SyncJobService.scheduleNetworkSync(context)
-                            break
-                        }
+                        lastError = e.message ?: e.javaClass.simpleName
+                        Log.e(TAG, "Error syncing SMS #${item.id}: $lastError")
+                        db.markFailed(item.id, -1, lastError)
+                        SyncJobService.scheduleNetworkSync(context)
+                        break
                     }
                 }
             } finally {
@@ -187,11 +184,11 @@ object SyncManager {
                 } catch (_: Exception) {}
 
                 val remaining = db.getPendingSms().size
-                Log.d(TAG, "Sync complete. Synced: $successCount, Remaining: $remaining")
+                Log.d(TAG, "Sync finished: success=$successCount, remaining=$remaining, lastError=$lastError")
                 if (remaining > 0) {
                     SyncJobService.scheduleNetworkSync(context)
                 }
-                onComplete?.invoke(successCount, remaining)
+                onComplete?.invoke(successCount, remaining, lastError)
             }
         }
     }

@@ -66,7 +66,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
   int totalRecords = 0;
   int syncedCount = 0;
   int pendingCount = 0;
-  bool isOnline = true;
+  int failedCount = 0;
   bool hasPermission = false;
   List<Map<String, dynamic>> records = [];
   Timer? refreshTimer;
@@ -82,7 +82,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
     checkPermissions();
     fetchData();
 
-    // Fast 3-second auto-refresh and connection check
+    // Auto-refresh stats and records every 3 seconds
     refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       fetchData(silent: true);
     });
@@ -100,7 +100,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
     if (state == AppLifecycleState.resumed) {
       checkPermissions();
       fetchData();
-      if (isOnline && pendingCount > 0) {
+      if (pendingCount > 0) {
         triggerAutoSync();
       }
     }
@@ -128,19 +128,35 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
       final result = await platform.invokeMethod('triggerSync');
       final synced = (result is Map) ? (result['synced'] ?? 0) : 0;
       final remaining = (result is Map) ? (result['remaining'] ?? 0) : 0;
+      final error = (result is Map) ? (result['error'] ?? '') : '';
+
       if (mounted) {
-        scaffold.showSnackBar(
-          SnackBar(
-            content: Text('Sync complete: synced $synced, $remaining remaining in queue.'),
-            backgroundColor: synced > 0 ? const Color(0xFF059669) : Colors.blueGrey,
-          ),
-        );
+        if (error.toString().isNotEmpty) {
+          scaffold.showSnackBar(
+            SnackBar(
+              content: Text('Sync report: $error'),
+              backgroundColor: Colors.red.shade700,
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        } else if (synced > 0) {
+          scaffold.showSnackBar(
+            SnackBar(
+              content: Text('✓ Synced $synced payment(s) to website! ($remaining remaining)'),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        } else {
+          scaffold.showSnackBar(
+            const SnackBar(content: Text('No pending messages were synced.')),
+          );
+        }
       }
       fetchData(silent: true);
     } catch (e) {
       if (mounted) {
         scaffold.showSnackBar(
-          SnackBar(content: Text('Sync error: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Sync failed: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -196,17 +212,24 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
     try {
       final result = await platform.invokeMethod('sendTestSms');
       final synced = (result is Map) ? (result['synced'] ?? 0) : 0;
+      final error = (result is Map) ? (result['error'] ?? '') : '';
+
       if (mounted) {
-        scaffold.showSnackBar(
-          SnackBar(
-            content: Text(
-              synced > 0
-                  ? '✓ Test SMS created and synced to server successfully!'
-                  : 'Test SMS saved in queue. Will sync when server is reachable.',
+        if (synced > 0) {
+          scaffold.showSnackBar(
+            const SnackBar(
+              content: Text('✓ Test CBE SMS created and synced to server successfully!'),
+              backgroundColor: Color(0xFF059669),
             ),
-            backgroundColor: synced > 0 ? const Color(0xFF059669) : Colors.amber.shade800,
-          ),
-        );
+          );
+        } else {
+          scaffold.showSnackBar(
+            SnackBar(
+              content: Text(error.toString().isNotEmpty ? 'Sync status: $error' : 'Test SMS saved in queue.'),
+              backgroundColor: Colors.amber.shade900,
+            ),
+          );
+        }
       }
       fetchData(silent: true);
     } catch (e) {
@@ -223,17 +246,28 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
   Future<void> retryRecordSync(int id) async {
     final scaffold = ScaffoldMessenger.of(context);
     try {
-      await platform.invokeMethod('retrySync', {'id': id});
+      final result = await platform.invokeMethod('retrySync', {'id': id});
+      final error = (result is Map) ? (result['error'] ?? '') : '';
+      final synced = (result is Map) ? (result['synced'] ?? 0) : 0;
+
       if (mounted) {
-        scaffold.showSnackBar(
-          const SnackBar(content: Text('Sync triggered for message.')),
-        );
+        if (error.toString().isNotEmpty) {
+          scaffold.showSnackBar(
+            SnackBar(content: Text('Failed: $error'), backgroundColor: Colors.red),
+          );
+        } else if (synced > 0) {
+          scaffold.showSnackBar(
+            const SnackBar(content: Text('✓ Successfully synced to web!'), backgroundColor: Color(0xFF059669)),
+          );
+        } else {
+          scaffold.showSnackBar(const SnackBar(content: Text('Sync requested.')));
+        }
       }
       fetchData(silent: true);
     } catch (e) {
       if (mounted) {
         scaffold.showSnackBar(
-          SnackBar(content: Text('Retry failed: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Retry error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -247,17 +281,17 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
         final newTotal = (statsResult['total'] as num?)?.toInt() ?? 0;
         final newSynced = (statsResult['synced'] as num?)?.toInt() ?? 0;
         final newPending = (statsResult['pending'] as num?)?.toInt() ?? 0;
-        final newOnline = statsResult['online'] == true;
+        final newFailed = (statsResult['failed'] as num?)?.toInt() ?? 0;
 
         setState(() {
           totalRecords = newTotal;
           syncedCount = newSynced;
           pendingCount = newPending;
-          isOnline = newOnline;
+          failedCount = newFailed;
         });
 
-        // The moment internet is detected and pending items exist, trigger auto-sync!
-        if (newOnline && newPending > 0 && !isSyncing) {
+        // Automatically trigger sync if there are pending items
+        if (newPending > 0 && !isSyncing) {
           triggerAutoSync();
         }
       }
@@ -364,6 +398,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                           const SnackBar(content: Text('Settings saved successfully!')),
                         );
                       }
+                      fetchData(silent: true);
                     },
                     child: const Text('Save Settings', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
@@ -520,7 +555,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                           ),
                           const SizedBox(width: 8),
                           const Text(
-                            'AUTO-SYNC IS ACTIVE',
+                            'AUTO-SYNC ACTIVE',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -533,17 +568,17 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: isOnline ? const Color(0xFF10B981).withValues(alpha: 0.2) : Colors.amber.withValues(alpha: 0.2),
+                          color: const Color(0xFF10B981).withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: isOnline ? const Color(0xFF34D399) : Colors.amber,
+                            color: const Color(0xFF34D399),
                             width: 1,
                           ),
                         ),
-                        child: Text(
-                          isOnline ? '● Online' : '○ Offline',
+                        child: const Text(
+                          '● Active',
                           style: TextStyle(
-                            color: isOnline ? const Color(0xFF34D399) : Colors.amber,
+                            color: Color(0xFF34D399),
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
@@ -562,7 +597,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'No buttons needed. Payments automatically sync to your website in real-time. Works offline and after phone reboot!',
+                    'Incoming payments automatically upload to your portal. Works offline with auto-recovery on reconnection.',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 12,
@@ -682,8 +717,8 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                                         child: CircularProgressIndicator(strokeWidth: 2),
                                       )
                                     : Icon(
-                                        Icons.hourglass_top,
-                                        color: pendingCount > 0 ? Colors.amber : Colors.grey,
+                                        Icons.sync,
+                                        color: pendingCount > 0 ? Colors.amber.shade700 : Colors.grey,
                                         size: 18,
                                       ),
                               ],
@@ -699,7 +734,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                             ),
                             Text(
                               pendingCount > 0
-                                  ? (isOnline ? 'Tap to sync now' : 'Will sync on internet')
+                                  ? (isSyncing ? 'Syncing now...' : 'Tap to sync now')
                                   : 'All up to date',
                               style: TextStyle(
                                 fontSize: 10,
@@ -751,7 +786,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'When you receive any SMS, it will appear here. Bank payments automatically sync to your website. You can also tap "Scan Inbox SMS" above to import past messages.',
+                        'When an SMS arrives, it will appear here. Bank payments automatically sync to your website. You can also tap "Scan Inbox SMS" above to import past messages.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                       ),
@@ -767,6 +802,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                 final isNonBank = status == 'NON_BANK';
                 final message = rec['message'] ?? '';
                 final sender = rec['sender'] ?? 'Unknown';
+                final error = rec['error'] ?? '';
                 final id = rec['id'] as int? ?? 0;
                 final timestamp = rec['receivedAt'] as int? ?? 0;
                 final dateStr = DateTime.fromMillisecondsSinceEpoch(timestamp)
@@ -852,7 +888,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                                   const SizedBox(width: 4),
                                   IconButton(
                                     icon: const Icon(Icons.sync, size: 16),
-                                    tooltip: 'Sync this to web',
+                                    tooltip: 'Sync this message now',
                                     onPressed: () => retryRecordSync(id),
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
@@ -872,6 +908,17 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                             color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
                           ),
                         ),
+                        if (error.toString().isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Reason: $error',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.red.shade600,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
