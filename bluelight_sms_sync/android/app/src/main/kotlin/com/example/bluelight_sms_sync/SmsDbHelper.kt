@@ -10,7 +10,7 @@ data class SmsItem(
     val sender: String,
     val message: String,
     val receivedAt: Long,
-    val status: String, // PENDING, SYNCED, FAILED
+    val status: String, // PENDING, SYNCED, FAILED, NON_BANK
     val responseCode: Int,
     val syncedAt: Long
 )
@@ -59,17 +59,46 @@ class SmsDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, n
         onCreate(db)
     }
 
-    fun insertSms(sender: String, message: String, receivedAt: Long = System.currentTimeMillis()): Long {
+    fun insertSms(
+        sender: String,
+        message: String,
+        receivedAt: Long = System.currentTimeMillis(),
+        status: String = "PENDING"
+    ): Long {
         val db = writableDatabase
         val cv = ContentValues().apply {
             put(COL_SENDER, sender)
             put(COL_MESSAGE, message)
             put(COL_RECEIVED_AT, receivedAt)
-            put(COL_STATUS, "PENDING")
+            put(COL_STATUS, status)
             put(COL_RESPONSE_CODE, 0)
             put(COL_SYNCED_AT, 0)
         }
         return db.insert(TABLE_NAME, null, cv)
+    }
+
+    fun messageExists(message: String, receivedAt: Long): Boolean {
+        val db = readableDatabase
+        val cursor = db.query(
+            TABLE_NAME,
+            arrayOf(COL_ID),
+            "$COL_MESSAGE = ? AND $COL_RECEIVED_AT = ?",
+            arrayOf(message, receivedAt.toString()),
+            null,
+            null,
+            null,
+            "1"
+        )
+        return cursor.use { it.moveToFirst() }
+    }
+
+    fun markPending(id: Long) {
+        val db = writableDatabase
+        val cv = ContentValues().apply {
+            put(COL_STATUS, "PENDING")
+            put(COL_RESPONSE_CODE, 0)
+        }
+        db.update(TABLE_NAME, cv, "$COL_ID = ?", arrayOf(id.toString()))
     }
 
     fun getPendingSms(): List<SmsItem> {
@@ -174,4 +203,3 @@ class SmsDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, n
         )
     }
 }
-

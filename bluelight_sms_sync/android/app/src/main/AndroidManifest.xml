@@ -44,6 +44,12 @@
             </intent-filter>
         </receiver>
 
+        <!-- System-level JobService for network reconnection sync -->
+        <service
+            android:name=".SyncJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="true" />
+
         <!-- BroadcastReceiver for phone Boot / Power ON -->
         <receiver
             android:name=".BootReceiver"

@@ -71,6 +71,9 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
   List<Map<String, dynamic>> records = [];
   Timer? refreshTimer;
   bool loading = true;
+  bool isScanning = false;
+  bool isTesting = false;
+  bool isSyncing = false;
 
   @override
   void initState() {
@@ -79,8 +82,8 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
     checkPermissions();
     fetchData();
 
-    // Auto-refresh stats and records every 4 seconds
-    refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    // Fast 3-second auto-refresh and connection check
+    refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       fetchData(silent: true);
     });
   }
@@ -97,6 +100,9 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
     if (state == AppLifecycleState.resumed) {
       checkPermissions();
       fetchData();
+      if (isOnline && pendingCount > 0) {
+        triggerAutoSync();
+      }
     }
   }
 
@@ -106,9 +112,130 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
       setState(() => hasPermission = granted);
       if (!granted) {
         await platform.invokeMethod('requestPermissions');
+      } else {
+        scanInbox(silent: true);
       }
     } catch (e) {
       debugPrint('Permission check error: $e');
+    }
+  }
+
+  Future<void> triggerSyncManual() async {
+    if (isSyncing) return;
+    setState(() => isSyncing = true);
+    final scaffold = ScaffoldMessenger.of(context);
+    try {
+      final result = await platform.invokeMethod('triggerSync');
+      final synced = (result is Map) ? (result['synced'] ?? 0) : 0;
+      final remaining = (result is Map) ? (result['remaining'] ?? 0) : 0;
+      if (mounted) {
+        scaffold.showSnackBar(
+          SnackBar(
+            content: Text('Sync complete: synced $synced, $remaining remaining in queue.'),
+            backgroundColor: synced > 0 ? const Color(0xFF059669) : Colors.blueGrey,
+          ),
+        );
+      }
+      fetchData(silent: true);
+    } catch (e) {
+      if (mounted) {
+        scaffold.showSnackBar(
+          SnackBar(content: Text('Sync error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isSyncing = false);
+    }
+  }
+
+  void triggerAutoSync() async {
+    if (isSyncing) return;
+    isSyncing = true;
+    try {
+      await platform.invokeMethod('triggerSync');
+      fetchData(silent: true);
+    } catch (e) {
+      debugPrint('Auto-sync error: $e');
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  Future<void> scanInbox({bool silent = false}) async {
+    if (isScanning) return;
+    setState(() => isScanning = true);
+    final scaffold = ScaffoldMessenger.of(context);
+    try {
+      final result = await platform.invokeMethod('scanInbox');
+      if (!silent && mounted) {
+        final bankCount = (result is Map) ? (result['bank'] ?? 0) : 0;
+        final otherCount = (result is Map) ? (result['other'] ?? 0) : 0;
+        scaffold.showSnackBar(
+          SnackBar(
+            content: Text('Inbox scanned: found $bankCount bank SMS, $otherCount other messages.'),
+            backgroundColor: bankCount > 0 ? const Color(0xFF059669) : Colors.blueGrey,
+          ),
+        );
+      }
+      fetchData(silent: true);
+    } catch (e) {
+      if (!silent && mounted) {
+        scaffold.showSnackBar(
+          SnackBar(content: Text('Scan failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isScanning = false);
+    }
+  }
+
+  Future<void> sendTestSms() async {
+    if (isTesting) return;
+    setState(() => isTesting = true);
+    final scaffold = ScaffoldMessenger.of(context);
+    try {
+      final result = await platform.invokeMethod('sendTestSms');
+      final synced = (result is Map) ? (result['synced'] ?? 0) : 0;
+      if (mounted) {
+        scaffold.showSnackBar(
+          SnackBar(
+            content: Text(
+              synced > 0
+                  ? '✓ Test SMS created and synced to server successfully!'
+                  : 'Test SMS saved in queue. Will sync when server is reachable.',
+            ),
+            backgroundColor: synced > 0 ? const Color(0xFF059669) : Colors.amber.shade800,
+          ),
+        );
+      }
+      fetchData(silent: true);
+    } catch (e) {
+      if (mounted) {
+        scaffold.showSnackBar(
+          SnackBar(content: Text('Test error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isTesting = false);
+    }
+  }
+
+  Future<void> retryRecordSync(int id) async {
+    final scaffold = ScaffoldMessenger.of(context);
+    try {
+      await platform.invokeMethod('retrySync', {'id': id});
+      if (mounted) {
+        scaffold.showSnackBar(
+          const SnackBar(content: Text('Sync triggered for message.')),
+        );
+      }
+      fetchData(silent: true);
+    } catch (e) {
+      if (mounted) {
+        scaffold.showSnackBar(
+          SnackBar(content: Text('Retry failed: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -117,12 +244,22 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
     try {
       final statsResult = await platform.invokeMethod('getStats');
       if (statsResult is Map) {
+        final newTotal = (statsResult['total'] as num?)?.toInt() ?? 0;
+        final newSynced = (statsResult['synced'] as num?)?.toInt() ?? 0;
+        final newPending = (statsResult['pending'] as num?)?.toInt() ?? 0;
+        final newOnline = statsResult['online'] == true;
+
         setState(() {
-          totalRecords = (statsResult['total'] as num?)?.toInt() ?? 0;
-          syncedCount = (statsResult['synced'] as num?)?.toInt() ?? 0;
-          pendingCount = (statsResult['pending'] as num?)?.toInt() ?? 0;
-          isOnline = statsResult['online'] == true;
+          totalRecords = newTotal;
+          syncedCount = newSynced;
+          pendingCount = newPending;
+          isOnline = newOnline;
         });
+
+        // The moment internet is detected and pending items exist, trigger auto-sync!
+        if (newOnline && newPending > 0 && !isSyncing) {
+          triggerAutoSync();
+        }
       }
 
       final recordsResult = await platform.invokeMethod('getRecords');
@@ -252,30 +389,41 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                color: theme.colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.account_balance, color: theme.colorScheme.primary, size: 22),
+              child: Icon(Icons.sync_alt_rounded, color: theme.colorScheme.primary, size: 20),
             ),
-            const SizedBox(width: 10),
-            const Column(
+            const SizedBox(width: 12),
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'BlueLight Sync',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 Text(
-                  'Automatic Bank SMS Sync',
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                  'Automatic Bank Forwarder',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                 ),
               ],
             ),
           ],
         ),
         actions: [
+          IconButton(
+            icon: isScanning
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.move_to_inbox_rounded),
+            tooltip: 'Scan Phone Inbox',
+            onPressed: isScanning ? null : () => scanInbox(),
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Server Settings',
@@ -337,10 +485,10 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
               margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   colors: [
-                    const Color(0xFF1E3A8A),
-                    const Color(0xFF2563EB),
+                    Color(0xFF1E3A8A),
+                    Color(0xFF2563EB),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -424,7 +572,44 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
               ),
             ),
 
-            // Statistics Row
+            // Quick Actions: Scan Inbox & Send Test
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: isScanning ? null : () => scanInbox(),
+                    icon: isScanning
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.move_to_inbox_rounded, size: 18),
+                    label: const Text('Scan Inbox SMS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E3A8A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: isTesting ? null : sendTestSms,
+                    icon: isTesting
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.send_rounded, size: 18),
+                    label: const Text('Send Test SMS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            // Statistics Row (Cards)
             Row(
               children: [
                 Expanded(
@@ -469,45 +654,61 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Card(
-                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Offline Queue',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade500,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: pendingCount > 0 ? triggerSyncManual : null,
+                    child: Card(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Offline Queue',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey.shade500,
+                                  ),
                                 ),
-                              ),
-                              Icon(
-                                Icons.hourglass_top,
-                                color: pendingCount > 0 ? Colors.amber : Colors.grey,
-                                size: 18,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '$pendingCount',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              color: pendingCount > 0 ? Colors.amber.shade700 : Colors.grey,
+                                isSyncing
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : Icon(
+                                        Icons.hourglass_top,
+                                        color: pendingCount > 0 ? Colors.amber : Colors.grey,
+                                        size: 18,
+                                      ),
+                              ],
                             ),
-                          ),
-                          Text(
-                            pendingCount > 0 ? 'Will sync on internet' : 'All up to date',
-                            style: const TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
-                        ],
+                            const SizedBox(height: 6),
+                            Text(
+                              '$pendingCount',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: pendingCount > 0 ? Colors.amber.shade700 : Colors.grey,
+                              ),
+                            ),
+                            Text(
+                              pendingCount > 0
+                                  ? (isOnline ? 'Tap to sync now' : 'Will sync on internet')
+                                  : 'All up to date',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: pendingCount > 0 ? FontWeight.bold : FontWeight.normal,
+                                color: pendingCount > 0 ? Colors.amber.shade800 : Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -522,7 +723,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Recent Bank Messages',
+                  'Recent Phone SMS Activity',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
                 Text(
@@ -545,12 +746,12 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                       Icon(Icons.sms_outlined, size: 42, color: Colors.grey.shade400),
                       const SizedBox(height: 10),
                       const Text(
-                        'Waiting for Bank SMS',
+                        'Waiting for SMS',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'When you receive an SMS from CBE or Awash, it will appear here and automatically sync to your website.',
+                        'When you receive any SMS, it will appear here. Bank payments automatically sync to your website. You can also tap "Scan Inbox SMS" above to import past messages.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                       ),
@@ -560,15 +761,40 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
               )
             else
               ...records.map((rec) {
-                final isSynced = rec['status'] == 'SYNCED';
-                final isPending = rec['status'] == 'PENDING';
+                final status = rec['status'] ?? 'PENDING';
+                final isSynced = status == 'SYNCED';
+                final isPending = status == 'PENDING';
+                final isNonBank = status == 'NON_BANK';
                 final message = rec['message'] ?? '';
                 final sender = rec['sender'] ?? 'Unknown';
+                final id = rec['id'] as int? ?? 0;
                 final timestamp = rec['receivedAt'] as int? ?? 0;
                 final dateStr = DateTime.fromMillisecondsSinceEpoch(timestamp)
                     .toLocal()
                     .toString()
                     .split('.')[0];
+
+                Color statusBgColor;
+                Color statusTextColor;
+                String statusLabel;
+
+                if (isSynced) {
+                  statusBgColor = Colors.green.withValues(alpha: 0.12);
+                  statusTextColor = Colors.green.shade700;
+                  statusLabel = '✓ Synced';
+                } else if (isPending) {
+                  statusBgColor = Colors.amber.withValues(alpha: 0.12);
+                  statusTextColor = Colors.amber.shade800;
+                  statusLabel = '⏳ Pending';
+                } else if (isNonBank) {
+                  statusBgColor = Colors.blueGrey.withValues(alpha: 0.12);
+                  statusTextColor = Colors.blueGrey.shade700;
+                  statusLabel = 'ℹ Non-Bank';
+                } else {
+                  statusBgColor = Colors.red.withValues(alpha: 0.12);
+                  statusTextColor = Colors.red.shade700;
+                  statusLabel = '✕ Failed';
+                }
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -605,31 +831,41 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                                 ),
                               ],
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: isSynced
-                                    ? Colors.green.withValues(alpha: 0.12)
-                                    : (isPending ? Colors.amber.withValues(alpha: 0.12) : Colors.red.withValues(alpha: 0.12)),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                isSynced ? '✓ Synced' : (isPending ? '⏳ Pending' : '✕ Failed'),
-                                style: TextStyle(
-                                  color: isSynced
-                                      ? Colors.green.shade700
-                                      : (isPending ? Colors.amber.shade800 : Colors.red.shade700),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: statusBgColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    statusLabel,
+                                    style: TextStyle(
+                                      color: statusTextColor,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                if (!isSynced && id > 0) ...[
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    icon: const Icon(Icons.sync, size: 16),
+                                    tooltip: 'Sync this to web',
+                                    onPressed: () => retryRecordSync(id),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         Text(
                           message,
-                          maxLines: 2,
+                          maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 11,
