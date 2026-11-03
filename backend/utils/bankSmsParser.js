@@ -84,7 +84,7 @@ function extractTransactionNames(text, isDebit) {
   let recipientName = '';
   let reason = '';
 
-  if (!text) return { senderName, recipientName, reason };
+  if (!text) return { senderName, recipientName, payerName: '', receiverName: '', reason };
 
   // 1. Parentheses name after account e.g. (Dagnachew Tesfaye) or (KEBEDE ABEBE)
   const parenMatch = text.match(/(?:account\s+[0-9*xX]+|payer|beneficiary|receiver|to)\s*\(([^)]+)\)/i)
@@ -98,7 +98,7 @@ function extractTransactionNames(text, isDebit) {
   }
 
   // 2. Beneficiary in debit/transfer: 'transferred to [Name]', 'payment to [Name]', 'paid to [Name]', 'sent to [Name]', 'to [Name]'
-  const toMatch = text.match(/(?:transferred(?:\s+(?:ETB|Birr)?\s*[\d,]+(?:\.\d{1,2})?)?\s+to|payment to|paid to|sent to|transfer to)\s+([A-Za-z\s]{2,35}?)(?:\s*\(|\s+on|\s*\.|\s*Ref|\s*,|\s*Txn|\s*Receipt|\s*$)/i);
+  const toMatch = text.match(/(?:transferred(?:\s+(?:ETB|Birr)?\s*[\d,]+(?:\.\d{1,2})?)?\s+to|payment to|paid to|sent to|transfer to)\s+([A-Za-z\s]{2,35}?)(?:\s*\(|\s+on|\s*\.|\s*Ref|\s*,|\s*Txn|\s*Receipt|\s+from|\s*$)/i);
   if (toMatch) {
     const raw = toMatch[1].trim();
     if (!/^(your|account|etb|cbe|the|awash|a\/c|birr)/i.test(raw)) {
@@ -107,7 +107,7 @@ function extractTransactionNames(text, isDebit) {
   }
 
   // 3. Sender in credit/received: 'from [Name]', 'transferred from [Name]', 'by [Name]'
-  const fromMatch = text.match(/(?:from|by|payer|transferred from)\s+([A-Za-z\s]{2,35}?)(?:\s*\(|\s+on|\s*\.|\s*Ref|\s*,|\s*Txn|\s*Receipt|\s*to\s+your|\s*$)/i);
+  const fromMatch = text.match(/(?:from|by|payer|transferred from)\s+([A-Za-z\s]{2,35}?)(?:\s*\(|\s+on|\s*\.|\s*Ref|\s*,|\s*Txn|\s*Receipt|\s*to\s+your|\s+via|\s+from|\s*$)/i);
   if (fromMatch) {
     const raw = fromMatch[1].trim();
     if (!/^(your|account|etb|cbe|the|awash|a\/c|ips|birr)/i.test(raw)) {
@@ -120,7 +120,8 @@ function extractTransactionNames(text, isDebit) {
   if (dearMatch) {
     const raw = dearMatch[1].trim();
     if (!/^(customer|valued customer|client|user)/i.test(raw)) {
-      if (!senderName) senderName = raw;
+      if (isDebit && !senderName) senderName = raw;
+      else if (!isDebit && !recipientName) recipientName = raw;
     }
   }
 
@@ -130,10 +131,14 @@ function extractTransactionNames(text, isDebit) {
     const raw = feeMatch[1].trim();
     if (/service|fee|charge|bill|tax|sms/i.test(raw)) {
       reason = raw;
+      if (!recipientName) recipientName = raw;
     }
   }
 
-  return { senderName, recipientName, reason };
+  const payerName = isDebit ? (senderName || '') : (senderName || '');
+  const receiverName = isDebit ? (recipientName || '') : (recipientName || '');
+
+  return { senderName, recipientName, payerName, receiverName, reason };
 }
 
 /**
@@ -142,8 +147,10 @@ function extractTransactionNames(text, isDebit) {
  */
 function extractReceiptUrl(text) {
   if (!text) return '';
-  const match = text.match(/https?:\/\/(?:awashpay\.awashbank\.com(?::\d+)?|mbreciept\.cbe\.com\.et)[^\s]+/i)
-    || text.match(/Receipt\s*(?:Link)?\s*[:\s]+(https?:\/\/[^\s]+)/i);
+  const match = text.match(/https?:\/\/(?:apps\.cbe\.com\.et(?::\d+)?\/BranchReceipt|mbreciept\.cbe\.com\.et|awashpay\.awashbank\.com(?::\d+)?)[^\s]+/i)
+    || text.match(/(?:for\s+)?Rec(?:ie|ei)pt\s*[:\s]+(https?:\/\/[^\s]+)/i)
+    || text.match(/https?:\/\/[^\s]+(?:BranchReceipt|mbreciept|awashpay)[^\s]*/i)
+    || text.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)*(?:cbe\.com\.et|awashbank\.com)[^\s]+/i);
   if (match) {
     const raw = (match[1] || match[0]).trim();
     if (!/shorturl|forms\.gle|survey/i.test(raw)) {
@@ -196,8 +203,10 @@ function parseCbeSms(text, fallbackDate = null) {
   // 4. Reference / FT number / CBE digital receipt URL
   let reference = '';
   const refMatch = text.match(/(?:Ref|Reference|Ref\s*No|Txn\s*Id|Txn)\s*[:.]?\s*([A-Za-z0-9\-_]+)/i)
+    || text.match(/BranchReceipt\/(FT[A-Za-z0-9]+)/i)
     || text.match(/\b(FT[A-Za-z0-9]{8,18})\b/i);
   const receiptUrlMatch = text.match(/mbreciept\.cbe\.com\.et\/([A-Za-z0-9\-_]+)/i)
+    || text.match(/BranchReceipt\/(FT[A-Za-z0-9]+)/i)
     || text.match(/https?:\/\/[^\s\/]+(?:\/[^\s\/]+)*\/(v[0-9]+-[A-Za-z0-9\-_]+)/i);
 
   if (refMatch && !/^(forms|shorturl|survey|feedback|https)/i.test(refMatch[1])) {
@@ -335,6 +344,11 @@ function extractSourceBank(smsText, destinationBank = '') {
   const text = smsText.trim();
   const lower = text.toLowerCase();
 
+  // If debit, money is leaving the account - no external payer source bank
+  if (isDebitSms(smsText)) {
+    return '';
+  }
+
   // 1. Cross-bank IPS transfer mentions: "via IPS Commercial Bank of Ethiopia", "via IPS Telebirr", etc.
   const ipsMatch = text.match(/(?:via\s+IPS\s+|from\s+IPS\s+|through\s+IPS\s+)([A-Za-z0-9\s]+?)(?:\.|\s+Your|\s+Ref|\s+Txn|\s+on|\s*$)/i);
   if (ipsMatch && ipsMatch[1]) {
@@ -410,29 +424,27 @@ function extractSourceBank(smsText, destinationBank = '') {
   }
 
   // 5. Look for sender account numbers
-  // CBE sender account (e.g. "from account 1********5869")
   const cbeSenderAcc = text.match(/(?:from\s+(?:account|a\/c)\s+)(1[0-9*xX]{5,20})/i);
   if (cbeSenderAcc) {
     return 'Commercial Bank of Ethiopia (CBE)';
   }
 
-  // Awash sender account (e.g. "from account 0132...")
   const awashSenderAcc = text.match(/(?:from\s+(?:account|a\/c)\s+)(01[0-9*xX]{5,20})/i);
   if (awashSenderAcc) {
     return 'Awash Bank';
   }
 
-  // 6. Destination CBE fallback (internal CBE-to-CBE transfer)
-  if (destinationBank === 'CBE' || lower.includes('banking with cbe') || lower.includes('cbe.com.et')) {
+  // 6. Direct Bank receipts / identifiers
+  if (destinationBank === 'CBE' || lower.includes('banking with cbe') || lower.includes('cbe.com.et') || text.match(/\bFT[0-9A-Za-z]{8,18}\b/)) {
     return 'Commercial Bank of Ethiopia (CBE)';
   }
 
-  // 7. Destination AWASH fallback (internal Awash-to-Awash transfer)
-  if (destinationBank === 'AWASH' || lower.includes('awash bank') || lower.includes('awashbank')) {
+  if (destinationBank === 'AWASH' || lower.includes('awash bank') || lower.includes('awashbank') || text.match(/\bAWB[0-9A-Za-z]{6,16}\b/)) {
     return 'Awash Bank';
   }
 
-  return destinationBank || 'Unknown';
+  // If cannot be identified, report Unknown Bank
+  return 'Unknown Bank';
 }
 
 /**
@@ -592,17 +604,12 @@ function parseBankSms(smsText, sender = '', settings = null, fallbackDate = null
 
   const isDebit = isDebitSms(smsText);
   const type = isDebit ? 'debit' : 'credit';
-  const sourceBank = extractSourceBank(smsText, parsed.bank);
+  const sourceBank = isDebit ? '' : extractSourceBank(smsText, parsed.bank);
   const names = extractTransactionNames(smsText, isDebit);
 
-  let formattedSenderName = '';
-  if (isDebit) {
-    // If debit: record ONLY the receiver / beneficiary name. If not found, leave empty ('')
-    formattedSenderName = (names.recipientName || '').trim();
-  } else {
-    // If credit: record ONLY the payer / sender name. If not found, leave empty ('')
-    formattedSenderName = (names.senderName || parsed.senderName || '').trim();
-  }
+  const payerName = isDebit ? '' : (names.senderName || parsed.senderName || '').trim();
+  const receiverName = (names.recipientName || '').trim();
+  const formattedSenderName = payerName || receiverName;
 
   const receiptUrl = extractReceiptUrl(smsText);
   const hasBankReference = Boolean(parsed.reference && parsed.reference.trim() !== '' && !parsed.reference.includes('WISQB'));
@@ -621,6 +628,8 @@ function parseBankSms(smsText, sender = '', settings = null, fallbackDate = null
     hasBankReference,
     receiptUrl,
     senderName: formattedSenderName,
+    payerName,
+    receiverName,
     sourceBank,
     transactionDate: parsed.transactionDate || new Date(),
     rawSms: smsText.trim()
@@ -635,6 +644,49 @@ function extractSenderAccount(text) {
   return match ? match[1].trim() : '';
 }
 
+const { scrapeReceiptDetails } = require('./receiptScraper');
+
+/**
+ * Async version of parseBankSms that automatically fetches and scrapes the receipt URL
+ * if present (e.g. CBE BranchReceipt PDF or mobile receipt HTML) to enrich transaction details.
+ */
+async function parseBankSmsAsync(smsText, sender = '', settings = null, fallbackDate = null) {
+  const parsed = parseBankSms(smsText, sender, settings, fallbackDate);
+  if (!parsed.success) return parsed;
+
+  if (parsed.receiptUrl && parsed.type !== 'debit') {
+    try {
+      const scraped = await scrapeReceiptDetails(parsed.receiptUrl, 8000);
+      if (scraped.success) {
+        if (scraped.payerName && scraped.payerName.trim()) {
+          parsed.payerName = scraped.payerName.trim();
+          parsed.senderName = parsed.payerName;
+        }
+        if (scraped.receiverName && scraped.receiverName.trim()) {
+          parsed.receiverName = scraped.receiverName.trim();
+        }
+        if (scraped.sourceBank && scraped.sourceBank.trim()) {
+          parsed.sourceBank = scraped.sourceBank.trim();
+        }
+        if (scraped.amount && !isNaN(scraped.amount) && scraped.amount > 0) {
+          parsed.amount = scraped.amount;
+        }
+        if (scraped.reference && scraped.reference.trim()) {
+          parsed.reference = scraped.reference.trim();
+          parsed.hasBankReference = true;
+        }
+        if (scraped.transactionDate && !isNaN(new Date(scraped.transactionDate).getTime())) {
+          parsed.transactionDate = scraped.transactionDate;
+        }
+      }
+    } catch (e) {
+      // Fallback: keep parsed data
+    }
+  }
+
+  return parsed;
+}
+
 module.exports = {
   extractSenderAccount,
   extractReceiptUrl,
@@ -645,5 +697,6 @@ module.exports = {
   extractSourceBank,
   parseCbeSms,
   parseAwashSms,
-  parseBankSms
+  parseBankSms,
+  parseBankSmsAsync
 };

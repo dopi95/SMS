@@ -3,7 +3,8 @@ const BankSetting = require('../models/BankSetting.model');
 const BankPayerMapping = require('../models/BankPayerMapping.model');
 const Student = require('../models/Student.model');
 const Payment = require('../models/Payment.model');
-const { parseBankSms, extractSourceBank, isDebitSms, extractTransactionNames, extractReceiptUrl, extractSenderAccount } = require('../utils/bankSmsParser');
+const { parseBankSms, parseBankSmsAsync, extractSourceBank, isDebitSms, extractTransactionNames, extractReceiptUrl, extractSenderAccount } = require('../utils/bankSmsParser');
+const { scrapeReceiptDetails } = require('../utils/receiptScraper');
 const { findMatchingStudent, findAllMatchingStudents } = require('../utils/studentMatcher');
 
 // Helper to fetch or initialize default BankSetting
@@ -22,12 +23,35 @@ async function getOrCreateSettings() {
   return settings;
 }
 
+// Helper to determine if a payer name is generic, unknown, or a payment channel placeholder
+function isGenericOrUnknownPayer(name) {
+  if (!name || typeof name !== 'string') return true;
+  const clean = name.trim().toLowerCase();
+  if (!clean || clean === '-' || clean === '—' || clean === '.' || clean === 'null' || clean === 'undefined') {
+    return true;
+  }
+  if (clean === 'unknown' || clean === 'unknown bank' || clean === 'unknown payer' || clean === 'unknown user' || clean === 'no name' || clean === 'n/a' || clean === 'none') {
+    return true;
+  }
+  if (clean.includes('telebirr') || clean.includes('ቴሌብር') || clean.includes('settlement')) {
+    return true;
+  }
+  if (clean.includes('cbe birr user') || clean.includes('cbebirr user')) {
+    return true;
+  }
+  if (clean === 'customer' || clean === 'valued customer' || clean === 'client' || clean === 'cbe-head office' || clean === 'head office') {
+    return true;
+  }
+  return false;
+}
+
 // Helper to find previous exact link for a payer name or account:
 // 1. Checks BankPayerMapping by cleanPayerName or accountNumber.
 // 2. Checks previous BankTransactions where senderName matches (exact case-insensitive) and was linked or paid.
 // If found in a previous transaction, auto-seeds BankPayerMapping so it is persistently stored.
+// Generic / unknown payers (e.g. Telebirr User, Unknown) are NEVER auto-linked via past history!
 async function findPreviousPayerLink(senderName, smsText, excludeTxnId = null) {
-  if (!senderName || !senderName.trim()) return null;
+  if (!senderName || !senderName.trim() || isGenericOrUnknownPayer(senderName)) return null;
   const cleanName = senderName.trim().toLowerCase();
   const escaped = senderName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const senderAcc = extractSenderAccount(smsText);
@@ -111,22 +135,27 @@ async function findPreviousPayerLink(senderName, smsText, excludeTxnId = null) {
 }
 
 // Helper to attempt auto-matching students:
-// 1. First checks if previously linked/paid by this exact payer (returns exact match directly, no others)
+// 1. First checks if previously linked/paid by this exact payer (only for non-generic real persons)
 // 2. Otherwise checks father, mother, or student full name (handles siblings)
 async function tryMatchStudents(smsText, senderName) {
   try {
-    // 1. Check if previously linked / paid by this exact payer
-    const prevLink = await findPreviousPayerLink(senderName, smsText);
-    if (prevLink && prevLink.students.length > 0) {
-      return prevLink.students;
+    const isGeneric = isGenericOrUnknownPayer(senderName);
+
+    // 1. Check if previously linked / paid by this exact payer (NEVER for generic/unknown payers like Telebirr User)
+    if (!isGeneric) {
+      const prevLink = await findPreviousPayerLink(senderName, smsText);
+      if (prevLink && prevLink.students.length > 0) {
+        return prevLink.students;
+      }
     }
 
-    // 2. Intelligent patronymic & sibling matching
+    // 2. Intelligent patronymic & sibling matching from SMS text itself
     const students = await Student.find({ status: { $ne: 'inactive' } })
       .select('_id studentId firstName middleName lastName fatherName motherName paymentCode class section')
       .lean();
 
-    const { exactMatches } = findAllMatchingStudents(students, senderName, smsText);
+    const matchName = isGeneric ? '' : senderName;
+    const { exactMatches } = findAllMatchingStudents(students, matchName, smsText);
     return exactMatches.map(m => m.student);
   } catch (err) {
     console.warn('[BankSMS] Auto-match students error:', err.message);
@@ -204,7 +233,7 @@ exports.handleWebhook = async (req, res) => {
       }
     }
 
-    const parsed = parseBankSms(smsText, sender, settings, fallbackDate);
+    const parsed = await parseBankSmsAsync(smsText, sender, settings, fallbackDate);
 
     // If ignored because it's for another account on the same phone number
     if (parsed.accountIgnored || parsed.isDebit) {
@@ -247,7 +276,9 @@ exports.handleWebhook = async (req, res) => {
       amount: parsed.amount,
       currency: parsed.currency || 'ETB',
       senderName: parsed.senderName || '',
-      sourceBank: parsed.sourceBank || (parsed.rawSms ? extractSourceBank(parsed.rawSms, parsed.bank) : ''),
+      payerName: parsed.payerName || '',
+      receiverName: parsed.receiverName || '',
+      sourceBank: parsed.sourceBank || '',
       receiverAccount: parsed.receiverAccount || '',
       senderPhone: sender || '',
       transactionDate: parsed.transactionDate || new Date(),
@@ -294,7 +325,7 @@ exports.parseManual = async (req, res) => {
 
     const results = [];
     for (const chunk of chunks) {
-      const parsed = parseBankSms(chunk, sender, settings, fallbackDate);
+      const parsed = await parseBankSmsAsync(chunk, sender, settings, fallbackDate);
       if (parsed.accountIgnored) {
         results.push({
           success: false,
@@ -338,7 +369,9 @@ exports.parseManual = async (req, res) => {
         amount: parsed.amount,
         currency: parsed.currency || 'ETB',
         senderName: parsed.senderName || '',
-        sourceBank: parsed.sourceBank || (parsed.rawSms ? extractSourceBank(parsed.rawSms, parsed.bank) : ''),
+        payerName: parsed.payerName || '',
+        receiverName: parsed.receiverName || '',
+        sourceBank: parsed.sourceBank || '',
         receiverAccount: parsed.receiverAccount || '',
         senderPhone: sender || '',
         transactionDate: parsed.transactionDate || new Date(),
@@ -411,6 +444,8 @@ exports.getTransactions = async (req, res) => {
       query.$or = [
         { reference: searchRegex },
         { senderName: searchRegex },
+        { payerName: searchRegex },
+        { receiverName: searchRegex },
         { receiverAccount: searchRegex },
         { rawSms: searchRegex }
       ];
@@ -457,6 +492,37 @@ exports.getTransactions = async (req, res) => {
           updateFields.receiptUrl = foundReceipt;
           needsDbUpdate = true;
         }
+      }
+
+      // Automatically sync real details from receipt if missing
+      const autoReceiptUrl = obj.receiptUrl || (obj.rawSms ? extractReceiptUrl(obj.rawSms) : '');
+      if (autoReceiptUrl && !isDeb && (!obj.payerName || !obj.sourceBank || obj.sourceBank === 'Unknown Bank')) {
+        scrapeReceiptDetails(autoReceiptUrl, 6000).then(async (scraped) => {
+          if (scraped && scraped.success) {
+            const autoUpdates = {};
+            if (scraped.payerName && scraped.payerName.trim()) {
+              autoUpdates.payerName = scraped.payerName.trim();
+              autoUpdates.senderName = scraped.payerName.trim();
+            }
+            if (scraped.receiverName && scraped.receiverName.trim()) {
+              autoUpdates.receiverName = scraped.receiverName.trim();
+            }
+            if (scraped.sourceBank && scraped.sourceBank.trim()) {
+              autoUpdates.sourceBank = scraped.sourceBank.trim();
+            }
+            if (scraped.reference && scraped.reference.trim()) {
+              autoUpdates.reference = scraped.reference.trim();
+            }
+            if (scraped.amount && !isNaN(scraped.amount) && scraped.amount > 0) {
+              autoUpdates.amount = scraped.amount;
+            }
+            if (scraped.transactionDate && !isNaN(new Date(scraped.transactionDate).getTime())) {
+              autoUpdates.transactionDate = scraped.transactionDate;
+            }
+            autoUpdates.receiptUrl = autoReceiptUrl;
+            await BankTransaction.updateOne({ _id: obj._id }, autoUpdates);
+          }
+        }).catch(() => {});
       }
 
       if (isDeb) {
@@ -711,9 +777,10 @@ exports.getSuggestedMatches = async (req, res) => {
       return res.status(404).json({ message: 'Transaction not found' });
     }
 
-    // 1. Fetch payer payment history (previous payments by this payer)
+    // 1. Fetch payer payment history (previous payments by this payer) - only for specific real persons!
+    const isGenericPayer = isGenericOrUnknownPayer(transaction.senderName);
     let payerHistory = [];
-    if (transaction.senderName && transaction.senderName.trim()) {
+    if (!isGenericPayer && transaction.senderName && transaction.senderName.trim()) {
       const escaped = transaction.senderName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       payerHistory = await BankTransaction.find({
         senderName: new RegExp(`^\\s*${escaped}\\s*$`, 'i'),
@@ -727,24 +794,26 @@ exports.getSuggestedMatches = async (req, res) => {
         .lean();
     }
 
-    // 2. Check if previously linked / paid by this exact payer in BankPayerMapping or previous transactions
-    const prevLink = await findPreviousPayerLink(transaction.senderName, transaction.rawSms, transaction._id);
+    // 2. Check if previously linked / paid by this exact payer (NEVER for generic/unknown payers like Telebirr User)
+    const prevLink = isGenericPayer ? null : await findPreviousPayerLink(transaction.senderName, transaction.rawSms, transaction._id);
 
-    // Extract any linked students from previous payment history if prevLink missed it
+    // Extract any linked students from previous payment history if prevLink missed it (only for non-generic)
     let pastLinkedStudents = [];
-    if (prevLink && prevLink.students.length > 0) {
-      pastLinkedStudents = prevLink.students;
-    } else if (payerHistory.length > 0) {
-      for (const past of payerHistory) {
-        if (past.matchedStudents && past.matchedStudents.length > 0) {
-          const valids = past.matchedStudents.filter(s => s && (s._id || s.firstName));
-          if (valids.length > 0) {
-            pastLinkedStudents = valids;
+    if (!isGenericPayer) {
+      if (prevLink && prevLink.students.length > 0) {
+        pastLinkedStudents = prevLink.students;
+      } else if (payerHistory.length > 0) {
+        for (const past of payerHistory) {
+          if (past.matchedStudents && past.matchedStudents.length > 0) {
+            const valids = past.matchedStudents.filter(s => s && (s._id || s.firstName));
+            if (valids.length > 0) {
+              pastLinkedStudents = valids;
+              break;
+            }
+          } else if (past.matchedStudent && (past.matchedStudent._id || past.matchedStudent.firstName)) {
+            pastLinkedStudents = [past.matchedStudent];
             break;
           }
-        } else if (past.matchedStudent && (past.matchedStudent._id || past.matchedStudent.firstName)) {
-          pastLinkedStudents = [past.matchedStudent];
-          break;
         }
       }
     }
@@ -753,7 +822,7 @@ exports.getSuggestedMatches = async (req, res) => {
     let relatedMatches = [];
     let rememberedMapping = null;
 
-    if (pastLinkedStudents.length > 0) {
+    if (pastLinkedStudents.length > 0 && !isGenericPayer) {
       // User requirement: "is there a previous Previous Payments by this Payer: do not sugest any other just automatically select it that one"
       rememberedMapping = {
         payerName: (prevLink && prevLink.payerName) || transaction.senderName.trim(),
@@ -803,14 +872,78 @@ exports.getSuggestedMatches = async (req, res) => {
         ).catch(() => {});
       }
     } else {
-      // No previous link found: query all active students and find intelligent patronymic / sibling matches
+      // Query active students
       const allStudents = await Student.find({ status: { $ne: 'inactive' } })
         .select('_id studentId firstName middleName lastName class section paymentCode fatherName fatherPhone motherName motherPhone')
         .lean();
 
-      const matchResult = findAllMatchingStudents(allStudents, transaction.senderName, transaction.rawSms);
-      exactMatches = matchResult.exactMatches;
-      relatedMatches = matchResult.relatedMatches;
+      if (isGenericPayer) {
+        // USER REQUIREMENT:
+        // "if the payer name is unknown or if it is like telebir user or like that...
+        //  do not automatically link in other day for unkown users make only sugession not like others automatically link"
+        // 1. Fetch recent transactions with this generic payer name to offer past linked students as SUGGESTIONS ONLY
+        const pastGenericTxns = await BankTransaction.find({
+          senderName: transaction.senderName && transaction.senderName.trim()
+            ? new RegExp(`^\\s*${transaction.senderName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i')
+            : /telebirr|unknown|cbe\s*birr/i,
+          _id: { $ne: transaction._id },
+          $or: [
+            { matchedStudent: { $ne: null } },
+            { 'matchedStudents.0': { $exists: true } },
+            { isReconciled: true }
+          ]
+        })
+          .select('matchedStudent matchedStudents senderName')
+          .populate('matchedStudent', '_id studentId firstName middleName lastName class section paymentCode fatherName fatherPhone motherName motherPhone status')
+          .populate('matchedStudents', '_id studentId firstName middleName lastName class section paymentCode fatherName fatherPhone motherName motherPhone status')
+          .sort({ transactionDate: -1, createdAt: -1 })
+          .limit(8)
+          .lean();
+
+        const seenStudentIds = new Set();
+        for (const pTx of pastGenericTxns) {
+          const list = (pTx.matchedStudents && pTx.matchedStudents.length > 0)
+            ? pTx.matchedStudents
+            : (pTx.matchedStudent ? [pTx.matchedStudent] : []);
+          for (const st of list) {
+            if (st && st._id && !seenStudentIds.has(st._id.toString()) && st.status !== 'inactive') {
+              seenStudentIds.add(st._id.toString());
+              relatedMatches.push({
+                student: st,
+                score: 75,
+                reason: `Suggestion from previous "${pTx.senderName || transaction.senderName || 'unknown'}" transaction (Suggestion only — review & select manually)`,
+                matchType: 'related',
+                isGenericSuggestion: true
+              });
+            }
+          }
+        }
+
+        // 2. Also check SMS payment code or text matches
+        const matchResult = findAllMatchingStudents(allStudents, '', transaction.rawSms);
+        for (const em of matchResult.exactMatches) {
+          if (em.student && em.student._id && !seenStudentIds.has(em.student._id.toString())) {
+            seenStudentIds.add(em.student._id.toString());
+            // If matched by exact payment code, keep as exact; otherwise convert to suggestion
+            if (em.reason && em.reason.toLowerCase().includes('payment code')) {
+              exactMatches.push(em);
+            } else {
+              relatedMatches.push({ ...em, matchType: 'related', score: Math.min(em.score, 80) });
+            }
+          }
+        }
+        for (const rm of matchResult.relatedMatches) {
+          if (rm.student && rm.student._id && !seenStudentIds.has(rm.student._id.toString())) {
+            seenStudentIds.add(rm.student._id.toString());
+            relatedMatches.push(rm);
+          }
+        }
+      } else {
+        // Standard matching for real payer names
+        const matchResult = findAllMatchingStudents(allStudents, transaction.senderName, transaction.rawSms);
+        exactMatches = matchResult.exactMatches;
+        relatedMatches = matchResult.relatedMatches;
+      }
     }
 
     let currentlyMatched = [];
@@ -882,8 +1015,8 @@ exports.linkStudents = async (req, res) => {
 
     await transaction.save();
 
-    // Learn / Remember this payer association for all future payments
-    if (transaction.senderName && transaction.senderName.trim() && uniqueIds.length > 0) {
+    // Learn / Remember this payer association for all future payments (ONLY for specific real persons, NEVER for generic/unknown payers!)
+    if (transaction.senderName && transaction.senderName.trim() && !isGenericOrUnknownPayer(transaction.senderName) && uniqueIds.length > 0) {
       const cleanName = transaction.senderName.trim().toLowerCase();
       const senderAcc = extractSenderAccount(transaction.rawSms);
 
@@ -1097,8 +1230,8 @@ exports.approvePayment = async (req, res) => {
     transaction.reconciledPaymentIds = paymentsCreated.map(p => p._id);
     await transaction.save();
 
-    // Remember this payer association for future transactions when approved / paid
-    if (transaction.senderName && transaction.senderName.trim() && targetStudents.length > 0) {
+    // Remember this payer association for future transactions when approved / paid (ONLY for specific real persons, NEVER for generic/unknown payers!)
+    if (transaction.senderName && transaction.senderName.trim() && !isGenericOrUnknownPayer(transaction.senderName) && targetStudents.length > 0) {
       const cleanName = transaction.senderName.trim().toLowerCase();
       const senderAcc = extractSenderAccount(transaction.rawSms);
 
@@ -1344,6 +1477,113 @@ exports.getStudentPaymentHistory = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch student payment history', error: error.message });
+  }
+};
+
+// Sync / enrich a single transaction from its official receipt URL
+exports.syncTransactionReceipt = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const txn = await BankTransaction.findById(id);
+    if (!txn) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    const receiptUrl = txn.receiptUrl || extractReceiptUrl(txn.rawSms);
+    if (!receiptUrl) {
+      return res.status(400).json({ success: false, message: 'No receipt URL found in SMS' });
+    }
+
+    const scraped = await scrapeReceiptDetails(receiptUrl, 8000);
+    if (!scraped.success) {
+      return res.status(400).json({ success: false, message: scraped.error || 'Failed to extract data from receipt' });
+    }
+
+    if (scraped.payerName && scraped.payerName.trim()) {
+      txn.payerName = scraped.payerName.trim();
+      txn.senderName = txn.payerName;
+    }
+    if (scraped.receiverName && scraped.receiverName.trim()) {
+      txn.receiverName = scraped.receiverName.trim();
+    }
+    if (scraped.sourceBank && scraped.sourceBank.trim()) {
+      txn.sourceBank = scraped.sourceBank.trim();
+    }
+    if (scraped.amount && !isNaN(scraped.amount) && scraped.amount > 0) {
+      txn.amount = scraped.amount;
+    }
+    if (scraped.reference && scraped.reference.trim()) {
+      txn.reference = scraped.reference.trim();
+      txn.hasBankReference = true;
+    }
+    if (scraped.transactionDate && !isNaN(new Date(scraped.transactionDate).getTime())) {
+      txn.transactionDate = scraped.transactionDate;
+    }
+    txn.receiptUrl = receiptUrl;
+
+    // Try auto-linking students if unmatched
+    if (!txn.matchedStudent && (!txn.matchedStudents || txn.matchedStudents.length === 0)) {
+      const matched = await tryMatchStudents(txn.rawSms, txn.senderName);
+      if (matched.length > 0) {
+        txn.matchedStudent = matched[0]._id;
+        txn.matchedStudents = matched.map(s => s._id);
+        txn.status = 'matched';
+      }
+    }
+
+    await txn.save();
+
+    res.json({
+      success: true,
+      message: 'Transaction details synced from receipt successfully',
+      transaction: txn
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Sync / enrich all existing transactions from their receipt URLs in bulk
+exports.syncAllReceipts = async (req, res) => {
+  try {
+    const txns = await BankTransaction.find({
+      $or: [
+        { receiptUrl: { $regex: 'http', $options: 'i' } },
+        { rawSms: { $regex: 'apps\\.cbe\\.com\\.et|BranchReceipt|mbreciept|awashpay', $options: 'i' } }
+      ]
+    });
+
+    let updatedCount = 0;
+    for (const txn of txns) {
+      const url = txn.receiptUrl || extractReceiptUrl(txn.rawSms);
+      if (!url) continue;
+      txn.receiptUrl = url;
+
+      // Only re-scrape if missing payerName or sourceBank
+      if (!txn.payerName || !txn.sourceBank || txn.sourceBank === 'Unknown Bank') {
+        const scraped = await scrapeReceiptDetails(url, 8000);
+        if (scraped && scraped.success) {
+          if (scraped.payerName) {
+            txn.payerName = scraped.payerName;
+            txn.senderName = scraped.payerName;
+          }
+          if (scraped.receiverName) txn.receiverName = scraped.receiverName;
+          if (scraped.sourceBank) txn.sourceBank = scraped.sourceBank;
+          if (scraped.reference) txn.reference = scraped.reference;
+          if (scraped.transactionDate) txn.transactionDate = scraped.transactionDate;
+          await txn.save();
+          updatedCount++;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully synced ${updatedCount} transactions from receipts`,
+      updatedCount
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

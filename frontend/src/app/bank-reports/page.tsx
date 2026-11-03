@@ -60,6 +60,8 @@ interface BankTransaction {
   amount: number
   currency: string
   senderName: string
+  payerName?: string
+  receiverName?: string
   sourceBank?: string
   receiverAccount: string
   senderPhone: string
@@ -113,15 +115,23 @@ interface BankSettings {
 
 function getDisplayReference(txn?: BankTransaction | null): string {
   if (!txn) return '—';
+  if (txn.reference && !txn.reference.startsWith('REF-') && !txn.reference.includes('WISQB')) {
+    return txn.reference;
+  }
+  if (txn.rawSms) {
+    const ftMatch = txn.rawSms.match(/\b(FT[0-9A-Za-z]{8,18})\b/i);
+    if (ftMatch) return ftMatch[1].trim();
+  }
   if (txn.hasBankReference === false) return '—';
-  if (!txn.reference || txn.reference.startsWith('REF-') || txn.reference.includes('WISQB')) return '—';
-  return txn.reference;
+  return '—';
 }
 
 function extractReceiptUrl(text?: string): string {
   if (!text) return '';
-  const match = text.match(/https?:\/\/(?:awashpay\.awashbank\.com(?::\d+)?|mbreciept\.cbe\.com\.et)[^\s]+/i)
-    || text.match(/Receipt\s*(?:Link)?\s*[:\s]+(https?:\/\/[^\s]+)/i);
+  const match = text.match(/https?:\/\/(?:apps\.cbe\.com\.et(?::\d+)?\/BranchReceipt|mbreciept\.cbe\.com\.et|awashpay\.awashbank\.com(?::\d+)?)[^\s]+/i)
+    || text.match(/(?:for\s+)?Rec(?:ie|ei)pt\s*[:\s]+(https?:\/\/[^\s]+)/i)
+    || text.match(/https?:\/\/[^\s]+(?:BranchReceipt|mbreciept|awashpay)[^\s]*/i)
+    || text.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)*(?:cbe\.com\.et|awashbank\.com)[^\s]+/i);
   if (match) {
     const raw = (match[1] || match[0]).trim();
     if (!/shorturl|forms\.gle|survey/i.test(raw)) {
@@ -129,6 +139,190 @@ function extractReceiptUrl(text?: string): string {
     }
   }
   return '';
+}
+
+function extractNamesFromSms(rawSms: string, isDebit: boolean) {
+  let payer = '';
+  let receiver = '';
+  if (!rawSms) return { payer, receiver };
+
+  // 1. Parentheses name after account e.g. (Dagnachew Tesfaye) or (KEBEDE ABEBE)
+  const parenMatch = rawSms.match(/(?:account\s+[0-9*xX]+|payer|beneficiary|receiver|to)\s*\(([^)]+)\)/i)
+    || rawSms.match(/\(([A-Za-z\s]{3,35})\)\s*(?:account|has been|\.|\s*$)/i);
+  if (parenMatch) {
+    const raw = parenMatch[1].trim();
+    if (!/^(your|account|etb|cbe|the|awash|a\/c|birr)/i.test(raw)) {
+      if (isDebit) receiver = raw;
+      else payer = raw;
+    }
+  }
+
+  // 2. Beneficiary in debit/transfer: 'transferred to [Name]', 'payment to [Name]', 'paid to [Name]', 'sent to [Name]', 'to [Name]'
+  const toMatch = rawSms.match(/(?:transferred(?:\s+(?:ETB|Birr)?\s*[\d,]+(?:\.\d{1,2})?)?\s+to|payment to|paid to|sent to|transfer to)\s+([A-Za-z\s]{2,35}?)(?:\s*\(|\s+on|\s*\.|\s*Ref|\s*,|\s*Txn|\s*Receipt|\s+from|\s*$)/i);
+  if (toMatch) {
+    const raw = toMatch[1].trim();
+    if (!/^(your|account|etb|cbe|the|awash|a\/c|birr)/i.test(raw)) {
+      receiver = raw;
+    }
+  }
+
+  // 3. Sender in credit/received: 'from [Name]', 'transferred from [Name]', 'by [Name]'
+  const fromMatch = rawSms.match(/(?:from|by|payer|transferred from)\s+([A-Za-z\s]{2,35}?)(?:\s*\(|\s+on|\s*\.|\s*Ref|\s*,|\s*Txn|\s*Receipt|\s*to\s+your|\s+via|\s+from|\s*$)/i);
+  if (fromMatch) {
+    const raw = fromMatch[1].trim();
+    if (!/^(your|account|etb|cbe|the|awash|a\/c|ips|birr)/i.test(raw)) {
+      payer = raw;
+    }
+  }
+
+  // 4. 'Dear [Name],' at start if not customer
+  const dearMatch = rawSms.match(/^Dear\s+([A-Za-z\s]{2,35}?)(?:,|\s+your|\s+you|\s+has)/i);
+  if (dearMatch) {
+    const raw = dearMatch[1].trim();
+    if (!/^(customer|valued customer|client|user)/i.test(raw)) {
+      if (isDebit && !payer) payer = raw;
+      else if (!isDebit && !receiver) receiver = raw;
+    }
+  }
+
+  // 5. Fee / charge in debit
+  const feeMatch = rawSms.match(/for\s+([A-Za-z\s]{3,35}?)(?:\.|\s*Ref|\s*Txn|\s*Receipt|\s*$)/i);
+  if (feeMatch) {
+    const raw = feeMatch[1].trim();
+    if (/service|fee|charge|bill|tax|sms/i.test(raw) && !receiver) {
+      receiver = raw;
+    }
+  }
+
+  return { payer, receiver };
+}
+
+function getPayerName(txn?: BankTransaction | null): string {
+  if (!txn) return '—';
+  if (txn.payerName && txn.payerName.trim()) return txn.payerName.trim();
+  if (txn.type !== 'debit') {
+    if (txn.senderName && txn.senderName.trim()) return txn.senderName.trim();
+    const { payer } = extractNamesFromSms(txn.rawSms || '', false);
+    if (payer) return payer;
+  } else {
+    const { payer } = extractNamesFromSms(txn.rawSms || '', true);
+    if (payer) return payer;
+  }
+  return '—';
+}
+
+function getReceiverName(txn?: BankTransaction | null): string {
+  if (!txn) return '—';
+  if (txn.receiverName && txn.receiverName.trim()) return txn.receiverName.trim();
+  if (txn.type === 'debit') {
+    if (txn.senderName && txn.senderName.trim()) return txn.senderName.trim();
+    const { receiver } = extractNamesFromSms(txn.rawSms || '', true);
+    if (receiver) return receiver;
+  } else {
+    const { receiver } = extractNamesFromSms(txn.rawSms || '', false);
+    if (receiver) return receiver;
+  }
+  return '—';
+}
+
+function detectPayerBankFromSms(rawSms: string, bank?: string): string | null {
+  if (!rawSms) return null;
+  const text = rawSms.trim();
+  const lower = text.toLowerCase();
+
+  // 1. IPS transfer mentions: "via IPS Commercial Bank of Ethiopia", "via IPS Telebirr", etc.
+  const ipsMatch = text.match(/(?:via\s+IPS\s+|from\s+IPS\s+|through\s+IPS\s+)([A-Za-z0-9\s]+?)(?:\.|\s+Your|\s+Ref|\s+Txn|\s+on|\s*$)/i);
+  if (ipsMatch && ipsMatch[1]) {
+    const rawLower = ipsMatch[1].trim().toLowerCase();
+    if (rawLower.includes('commercial bank') || rawLower.includes('cbe')) return 'Commercial Bank of Ethiopia (CBE)';
+    if (rawLower.includes('telebirr') || rawLower.includes('tele birr')) return 'Telebirr';
+    if (rawLower.includes('cbe birr') || rawLower.includes('cbebirr')) return 'CBE Birr';
+    if (rawLower.includes('awash')) return 'Awash Bank';
+    if (rawLower.includes('dashen')) return 'Dashen Bank';
+    if (rawLower.includes('abyssinia') || rawLower.includes('boa')) return 'Bank of Abyssinia';
+    if (rawLower.includes('coop') || rawLower.includes('oromia')) return 'Cooperative Bank of Oromia';
+    if (rawLower.includes('zemen')) return 'Zemen Bank';
+    if (rawLower.includes('hibret') || rawLower.includes('united')) return 'Hibret Bank';
+    if (rawLower.includes('nib')) return 'Nib International Bank';
+    if (rawLower.includes('wegagen')) return 'Wegagen Bank';
+    if (rawLower.includes('amhara')) return 'Amhara Bank';
+    if (rawLower.includes('enat')) return 'Enat Bank';
+    if (rawLower.includes('siinqee')) return 'Siinqee Bank';
+    if (rawLower.includes('tsedey')) return 'Tsedey Bank';
+    if (rawLower.includes('berhan')) return 'Berhan Bank';
+    if (ipsMatch[1].trim().length >= 3) return ipsMatch[1].trim();
+  }
+
+  // 2. Direct payment channel mentions
+  if (lower.includes('telebirr') || lower.includes('ቴሌብር') || lower.includes('tele birr')) return 'Telebirr';
+  if (lower.includes('cbe birr') || lower.includes('cbebirr')) return 'CBE Birr';
+  if (lower.includes('m-pesa') || lower.includes('mpesa')) return 'M-Pesa';
+
+  // 3. Sender account numbers
+  const cbeSenderAcc = text.match(/(?:from\s+(?:account|a\/c)\s+)(1[0-9*xX]{5,20})/i);
+  if (cbeSenderAcc) return 'Commercial Bank of Ethiopia (CBE)';
+
+  const awashSenderAcc = text.match(/(?:from\s+(?:account|a\/c)\s+)(01[0-9*xX]{5,20})/i);
+  if (awashSenderAcc) return 'Awash Bank';
+
+  // 4. Receipts & signatures
+  if (lower.includes('mbreciept.cbe.com.et') || lower.includes('banking with cbe') || text.match(/\bFT[0-9A-Za-z]{8,18}\b/)) {
+    return 'Commercial Bank of Ethiopia (CBE)';
+  }
+  if (lower.includes('awashpay.awashbank.com') || lower.includes('awash bank') || lower.includes('awashbank') || text.match(/\bAWB[0-9A-Za-z]{6,16}\b/)) {
+    return 'Awash Bank';
+  }
+
+  // 5. Fallback based on receiving bank
+  if (bank === 'CBE') return 'Commercial Bank of Ethiopia (CBE)';
+  if (bank === 'AWASH') return 'Awash Bank';
+
+  return null;
+}
+
+function getPayerTransferBank(txn?: BankTransaction | null, getTextFn?: (en: string, am: string) => string): string | null {
+  if (!txn || txn.type === 'debit') {
+    return null;
+  }
+
+  const unknownText = getTextFn ? getTextFn('Unknown Bank', 'ያልታወቀ ባንክ') : 'Unknown Bank';
+
+  if (txn.sourceBank && txn.sourceBank.trim()) {
+    const sb = txn.sourceBank.trim();
+    const sbl = sb.toLowerCase();
+    if (sbl === 'unknown' || sbl === 'unknown bank' || sbl === 'unspecified') {
+      return unknownText;
+    }
+    return sb;
+  }
+
+  const detected = detectPayerBankFromSms(txn.rawSms || '', txn.bank);
+  if (detected) {
+    return detected;
+  }
+
+  return unknownText;
+}
+
+function isGenericOrUnknownPayer(name?: string | null): boolean {
+  if (!name || typeof name !== 'string') return true;
+  const clean = name.trim().toLowerCase();
+  if (!clean || clean === '-' || clean === '—' || clean === '.' || clean === 'null' || clean === 'undefined') {
+    return true;
+  }
+  if (clean === 'unknown' || clean === 'unknown bank' || clean === 'unknown payer' || clean === 'unknown user' || clean === 'no name' || clean === 'n/a' || clean === 'none') {
+    return true;
+  }
+  if (clean.includes('telebirr') || clean.includes('ቴሌብር') || clean.includes('settlement')) {
+    return true;
+  }
+  if (clean.includes('cbe birr user') || clean.includes('cbebirr user')) {
+    return true;
+  }
+  if (clean === 'customer' || clean === 'valued customer' || clean === 'client' || clean === 'cbe-head office' || clean === 'head office') {
+    return true;
+  }
+  return false;
 }
 
 export default function BankReportsPage() {
@@ -437,45 +631,57 @@ export default function BankReportsPage() {
         setPayerHistory(history)
         setRememberedMapping(res.data.rememberedMapping || null)
 
-        // Find students from previous payment history
-        let historyStudents: Student[] = []
-        for (const past of history) {
-          if (past.matchedStudents && past.matchedStudents.length > 0) {
-            const valids = past.matchedStudents.filter((s: any) => s && (s._id || s.firstName))
-            if (valids.length > 0) {
-              historyStudents = valids
-              break
-            }
-          } else if (past.matchedStudent && (past.matchedStudent._id || past.matchedStudent.firstName)) {
-            historyStudents = [past.matchedStudent]
-            break
-          }
-        }
+        const isGeneric = isGenericOrUnknownPayer(txn.senderName || txn.payerName)
 
-        // If previous payment history exists OR exact match is from remembered history:
-        const hasPreviousHistory = historyStudents.length > 0 || (exact.length > 0 && exact.some((m: any) => m.isRemembered))
-
-        if (hasPreviousHistory) {
-          const autoStudents = historyStudents.length > 0 ? historyStudents : exact.map((m: any) => m.student)
-          // AUTOMATICALLY SELECT THAT ONE!
-          setSelectedStudents(autoStudents)
-          // DO NOT SUGGEST ANY OTHER!
-          setRelatedMatches([])
-          setExactMatches(autoStudents.map((st: any) => ({
-            student: st,
-            score: 100,
-            reason: getText(
-              `Automatically selected from previous payment history for "${txn.senderName || ''}"`,
-              `ለ"${txn.senderName || ''}" ከቀድሞ የክፍያ ታሪክ በቀጥታ የተመረጠ`
-            ),
-            matchType: 'exact',
-            isRemembered: true
-          })))
-        } else {
+        if (isGeneric) {
+          // USER REQUIREMENT:
+          // For unknown / generic payers (e.g. Telebirr User, Unknown),
+          // DO NOT automatically link or select from previous history or generic matches!
+          // Make suggestions only so the user can review and manually click "Select".
           setExactMatches(exact)
           setRelatedMatches(related)
-          if (initial.length === 0 && exact.length > 0) {
-            setSelectedStudents(exact.map((m: any) => m.student))
+          setSelectedStudents(initial)
+        } else {
+          // Find students from previous payment history (only for specific real persons)
+          let historyStudents: Student[] = []
+          for (const past of history) {
+            if (past.matchedStudents && past.matchedStudents.length > 0) {
+              const valids = past.matchedStudents.filter((s: any) => s && (s._id || s.firstName))
+              if (valids.length > 0) {
+                historyStudents = valids
+                break
+              }
+            } else if (past.matchedStudent && (past.matchedStudent._id || past.matchedStudent.firstName)) {
+              historyStudents = [past.matchedStudent]
+              break
+            }
+          }
+
+          // If previous payment history exists OR exact match is from remembered history:
+          const hasPreviousHistory = historyStudents.length > 0 || (exact.length > 0 && exact.some((m: any) => m.isRemembered))
+
+          if (hasPreviousHistory) {
+            const autoStudents = historyStudents.length > 0 ? historyStudents : exact.map((m: any) => m.student)
+            // AUTOMATICALLY SELECT THAT ONE!
+            setSelectedStudents(autoStudents)
+            // DO NOT SUGGEST ANY OTHER!
+            setRelatedMatches([])
+            setExactMatches(autoStudents.map((st: any) => ({
+              student: st,
+              score: 100,
+              reason: getText(
+                `Automatically selected from previous payment history for "${txn.senderName || ''}"`,
+                `ለ"${txn.senderName || ''}" ከቀድሞ የክፍያ ታሪክ በቀጥታ የተመረጠ`
+              ),
+              matchType: 'exact',
+              isRemembered: true
+            })))
+          } else {
+            setExactMatches(exact)
+            setRelatedMatches(related)
+            if (initial.length === 0 && exact.length > 0) {
+              setSelectedStudents(exact.map((m: any) => m.student))
+            }
           }
         }
       }
@@ -1372,13 +1578,7 @@ export default function BankReportsPage() {
                         <th className="px-3.5 py-3 w-40">{getText('Reference No.', 'የማጣቀሻ ቁጥር')}</th>
                         <th className="px-3.5 py-3 w-32">{getText('Date & Time', 'ቀን እና ሰዓት')}</th>
                         <th className="px-3.5 py-3 w-28">{getText('Amount', 'መጠን')}</th>
-                        <th className="px-3.5 py-3 w-48">
-                          {typeFilter === 'debit'
-                            ? getText('Receiver', 'ተቀባይ')
-                            : typeFilter === 'credit'
-                            ? getText('Payer', 'ከፋይ')
-                            : getText('Payer / Receiver', 'ከፋይ / ተቀባይ')}
-                        </th>
+                        <th className="px-3.5 py-3 w-48">{getText('Payer Name', 'የከፋይ ስም')}</th>
                         <th className="px-3.5 py-3">{getText('Matched Student', 'የተያያዘ ተማሪ')}</th>
                         <th className="px-3.5 py-3 text-right w-20">{getText('Actions', 'ድርጊቶች')}</th>
                       </tr>
@@ -1399,23 +1599,29 @@ export default function BankReportsPage() {
 
                             {/* Reference */}
                             <td className="px-3.5 py-3 font-mono font-semibold truncate" title={getDisplayReference(txn)}>
-                              <div className="flex items-center gap-1.5">
-                                <span className={getDisplayReference(txn) === '—' ? 'text-gray-400 font-normal' : ''}>
-                                  {getDisplayReference(txn)}
-                                </span>
-                                {(txn.receiptUrl || extractReceiptUrl(txn.rawSms)) && (
-                                  <a
-                                    href={txn.receiptUrl || extractReceiptUrl(txn.rawSms)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex items-center gap-0.5 font-sans"
-                                    title={getText('Open Official Receipt', 'ይፋዊ ደረሰኝ ክፈት')}
-                                  >
-                                    <span>{getText('Receipt', 'ደረሰኝ')}</span>
-                                    <span>↗</span>
-                                  </a>
-                                )}
-                              </div>
+                              {(() => {
+                                const displayRef = getDisplayReference(txn)
+                                const receipt = txn.receiptUrl || extractReceiptUrl(txn.rawSms)
+                                if (receipt && displayRef !== '—') {
+                                  return (
+                                    <a
+                                      href={receipt}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1 group font-mono font-semibold truncate"
+                                      title={getText('Open Official Receipt', 'ይፋዊ ደረሰኝ ክፈት')}
+                                    >
+                                      <span className="truncate">{displayRef}</span>
+                                      <span className="text-[11px] opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0">↗</span>
+                                    </a>
+                                  )
+                                }
+                                return (
+                                  <span className={displayRef === '—' ? 'text-gray-400 font-normal' : ''}>
+                                    {displayRef}
+                                  </span>
+                                )
+                              })()}
                             </td>
 
                             {/* Date */}
@@ -1451,13 +1657,15 @@ export default function BankReportsPage() {
 
                             {/* Payer & Originating Bank */}
                             <td className="px-3.5 py-3">
-                              <div className="font-medium truncate" title={txn.senderName && txn.senderName.trim() ? txn.senderName.trim() : '—'}>
-                                {txn.senderName && txn.senderName.trim() ? txn.senderName.trim() : '—'}
+                              <div className="font-medium truncate" title={getPayerName(txn)}>
+                                {getPayerName(txn)}
                               </div>
-                              {txn.sourceBank && txn.type !== 'debit' && (
-                                <div className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5 truncate" title={`${getText('From', 'ከ')}: ${txn.sourceBank}`}>
+                              {getPayerTransferBank(txn, getText) && (
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5 truncate" title={`${getText('From', 'ከ')}: ${getPayerTransferBank(txn, getText)}`}>
                                   <span className="font-bold text-blue-600 dark:text-blue-400">{getText('From:', 'ከ፡')}</span>
-                                  <span className="truncate">{txn.sourceBank}</span>
+                                  <span className={`truncate ${getPayerTransferBank(txn, getText) === getText('Unknown Bank', 'ያልታወቀ ባንክ') ? 'italic opacity-80' : ''}`}>
+                                    {getPayerTransferBank(txn, getText)}
+                                  </span>
                                 </div>
                               )}
                             </td>
@@ -1621,9 +1829,29 @@ export default function BankReportsPage() {
                             }`}>
                               {txn.bank}
                             </span>
-                            <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 truncate" title={getDisplayReference(txn)}>
-                              {getDisplayReference(txn)}
-                            </span>
+                            {(() => {
+                              const displayRef = getDisplayReference(txn)
+                              const receipt = txn.receiptUrl || extractReceiptUrl(txn.rawSms)
+                              if (receipt && displayRef !== '—') {
+                                return (
+                                  <a
+                                    href={receipt}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline truncate inline-flex items-center gap-0.5"
+                                    title={getText('Open Official Receipt', 'ይፋዊ ደረሰኝ ክፈት')}
+                                  >
+                                    <span className="truncate">{displayRef}</span>
+                                    <span className="text-[10px] opacity-70 flex-shrink-0">↗</span>
+                                  </a>
+                                )
+                              }
+                              return (
+                                <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 truncate" title={displayRef}>
+                                  {displayRef}
+                                </span>
+                              )
+                            })()}
                             {txn.type === 'debit' && (
                               <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
                                 {getText('Debit', 'ወጪ')}
@@ -1640,14 +1868,19 @@ export default function BankReportsPage() {
                         <div className="text-xs space-y-1 break-words">
                           <p>
                             <span className="text-gray-400">
-                              {txn.type === 'debit' ? getText('Receiver:', 'ተቀባይ፡') : getText('Payer:', 'ከፋይ፡')}
+                              {getText('Payer Name:', 'የከፋይ ስም፡')}
                             </span>{' '}
                             <span className="font-medium">
-                              {txn.senderName && txn.senderName.trim() ? txn.senderName.trim() : '—'}
+                              {getPayerName(txn)}
                             </span>
                           </p>
-                          {txn.sourceBank && txn.type !== 'debit' && (
-                            <p><span className="text-gray-400">{getText('From:', 'ከ፡')}</span> <span className="font-semibold text-blue-600 dark:text-blue-400">{txn.sourceBank}</span></p>
+                          {getPayerTransferBank(txn, getText) && (
+                            <p>
+                              <span className="text-gray-400">{getText('From:', 'ከ፡')}</span>{' '}
+                              <span className={`font-semibold ${getPayerTransferBank(txn, getText) === getText('Unknown Bank', 'ያልታወቀ ባንክ') ? 'italic opacity-80' : 'text-blue-600 dark:text-blue-400'}`}>
+                                {getPayerTransferBank(txn, getText)}
+                              </span>
+                            </p>
                           )}
                           <p><span className="text-gray-400">{getText('Account:', 'ሂሳብ፡')}</span> <span className="font-mono">{txn.receiverAccount || '—'}</span></p>
                           <p><span className="text-gray-400">{getText('Date:', 'ቀን፡')}</span> {new Date(txn.transactionDate).toLocaleString()}</p>
@@ -2174,7 +2407,27 @@ export default function BankReportsPage() {
                   <span className="truncate">{getText('Review & Link Student(s)', 'ተማሪዎችን ይገምግሙና ያያይዙ')}</span>
                 </h3>
                 <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-1.5 sm:gap-2 break-words">
-                  <span>{linkingTxn.bank} Ref: <strong className="font-mono text-gray-700 dark:text-gray-300 break-all">{getDisplayReference(linkingTxn)}</strong></span>
+                  <span>
+                    {linkingTxn.bank} Ref:{' '}
+                    {(() => {
+                      const displayRef = getDisplayReference(linkingTxn)
+                      const receipt = linkingTxn.receiptUrl || extractReceiptUrl(linkingTxn.rawSms)
+                      if (receipt && displayRef !== '—') {
+                        return (
+                          <a
+                            href={receipt}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-bold"
+                            title={getText('Open Official Receipt', 'ይፋዊ ደረሰኝ ክፈት')}
+                          >
+                            {displayRef} ↗
+                          </a>
+                        )
+                      }
+                      return <strong className="font-mono text-gray-700 dark:text-gray-300 break-all">{displayRef}</strong>
+                    })()}
+                  </span>
                   <span>•</span>
                   <span>Amount: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">ETB {linkingTxn.amount.toLocaleString()}</strong></span>
                   {linkingTxn.senderName && (
@@ -2296,6 +2549,32 @@ export default function BankReportsPage() {
                 <div className="p-4 rounded-xl border border-dashed flex items-center justify-center gap-2 text-xs text-blue-600 dark:text-blue-400">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                   <span>{getText('Analyzing payer name & searching siblings / related students...', 'ከፋዩን ከተማሪዎችና ወላጆች ስም ጋር በማነጻጸር ላይ...')}</span>
+                </div>
+              )}
+
+              {/* Generic / Unknown Payer Notice Banner */}
+              {!loadingSuggestions && linkingTxn && isGenericOrUnknownPayer(linkingTxn.senderName || linkingTxn.payerName) && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">💡</span>
+                    <div>
+                      <p className="font-bold">
+                        {getText(
+                          'Generic or Unknown Payer (e.g. Telebirr User) — Showing suggestions only',
+                          'ያልታወቀ ወይም አጠቃላይ ከፋይ (ለምሳሌ የቴሌብር ተጠቃሚ) — ጥቆማዎች ብቻ ቀርበዋል'
+                        )}
+                      </p>
+                      <p className="text-[11px] opacity-80 mt-0.5">
+                        {getText(
+                          'Transactions from unknown payers are not auto-linked to avoid mixing students. Please review the suggestions below or search to select manually.',
+                          'ተማሪዎች እንዳይደባለቁ ከማይታወቁ ከፋዮች የሚመጡ ክፍያዎች በራስ-ሰር አይያያዙም። እባክዎ ከዚህ በታች ያሉትን ጥቆማዎች ገምግመው በእጅ ይምረጡ።'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 flex-shrink-0">
+                    {getText('Manual Review', 'በእጅ መገምገም')}
+                  </span>
                 </div>
               )}
 
@@ -2729,7 +3008,25 @@ export default function BankReportsPage() {
                   <span>📩</span>
                   <span className="truncate">{showSmsModal.bank} {getText('SMS Details', 'የኤስኤምኤስ ዝርዝር')}</span>
                 </h3>
-                <p className="text-xs text-gray-400 font-mono mt-0.5 break-all">{getDisplayReference(showSmsModal)}</p>
+                {(() => {
+                  const displayRef = getDisplayReference(showSmsModal)
+                  const receipt = showSmsModal.receiptUrl || extractReceiptUrl(showSmsModal.rawSms)
+                  if (receipt && displayRef !== '—') {
+                    return (
+                      <a
+                        href={receipt}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 dark:text-blue-400 font-mono mt-0.5 hover:underline inline-flex items-center gap-1 break-all font-semibold"
+                        title={getText('Open Official Receipt', 'ይፋዊ ደረሰኝ ክፈት')}
+                      >
+                        <span>{displayRef}</span>
+                        <span className="text-[10px]">↗</span>
+                      </a>
+                    )
+                  }
+                  return <p className="text-xs text-gray-400 font-mono mt-0.5 break-all">{displayRef}</p>
+                })()}
               </div>
               <button
                 type="button"
@@ -2796,16 +3093,26 @@ export default function BankReportsPage() {
                 </div>
                 <div className="break-words">
                   <span className="text-gray-400 block">
-                    {showSmsModal.type === 'debit' ? getText('Receiver:', 'ተቀባይ፡') : getText('Payer:', 'ከፋይ፡')}
+                    {getText('Payer Name:', 'የከፋይ ስም፡')}
                   </span>
                   <span className="font-medium break-words">
-                    {showSmsModal.senderName && showSmsModal.senderName.trim() ? showSmsModal.senderName.trim() : '—'}
+                    {getPayerName(showSmsModal)}
                   </span>
                 </div>
-                {showSmsModal.type !== 'debit' && (
+                <div className="break-words">
+                  <span className="text-gray-400 block">
+                    {getText('Receiver Name:', 'የተቀባይ ስም፡')}
+                  </span>
+                  <span className="font-medium break-words">
+                    {getReceiverName(showSmsModal)}
+                  </span>
+                </div>
+                {getPayerTransferBank(showSmsModal, getText) && (
                   <div className="break-words">
                     <span className="text-gray-400 block">{getText('From (Originating Bank):', 'የተላከበት ባንክ / ምንጭ፡')}</span>
-                    <span className="font-bold text-blue-600 dark:text-blue-400">{showSmsModal.sourceBank || '—'}</span>
+                    <span className={`font-bold ${getPayerTransferBank(showSmsModal, getText) === getText('Unknown Bank', 'ያልታወቀ ባንክ') ? 'italic opacity-80' : 'text-blue-600 dark:text-blue-400'}`}>
+                      {getPayerTransferBank(showSmsModal, getText)}
+                    </span>
                   </div>
                 )}
                 <div className="break-words">
@@ -2947,7 +3254,25 @@ export default function BankReportsPage() {
                   <span className="truncate">{getText('Approve & Record Payment', 'ክፍያውን አጽድቅና መዝግብ')}</span>
                 </h3>
                 <p className="text-xs text-gray-400 font-mono mt-0.5 break-all">
-                  {approvingTxn.bank} Ref: {approvingTxn.reference}
+                  {approvingTxn.bank} Ref:{' '}
+                  {(() => {
+                    const displayRef = getDisplayReference(approvingTxn)
+                    const receipt = approvingTxn.receiptUrl || extractReceiptUrl(approvingTxn.rawSms)
+                    if (receipt && displayRef !== '—') {
+                      return (
+                        <a
+                          href={receipt}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-bold"
+                          title={getText('Open Official Receipt', 'ይፋዊ ደረሰኝ ክፈት')}
+                        >
+                          {displayRef} ↗
+                        </a>
+                      )
+                    }
+                    return <span>{displayRef}</span>
+                  })()}
                 </p>
               </div>
               <button

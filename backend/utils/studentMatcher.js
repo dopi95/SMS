@@ -19,7 +19,9 @@
 const IGNORED_NAME_WORDS = new Set([
   'ato', 'w/ro', 'wro', 'w/r', 'dr', 'mr', 'mrs', 'ms',
   'dear', 'customer', 'account', 'from', 'by', 'via', 'ips',
-  'etb', 'birr', 'bank', 'cbe', 'awash', 'telebirr', 'cbebirr'
+  'etb', 'birr', 'bank', 'cbe', 'awash', 'telebirr', 'cbebirr',
+  'user', 'users', 'unknown', 'payer', 'settlement', 'teller',
+  'branch', 'system', 'client', 'valued'
 ]);
 
 // Ignored payment code substrings that could falsely match in normal SMS text
