@@ -212,16 +212,22 @@ exports.handleWebhook = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid or missing webhook secret key' });
     }
 
-    // Support standard forwarder payload formats
-    const smsText = req.body.message || req.body.text || req.body.body || req.body.content || req.body.msg || '';
-    const sender = req.body.from || req.body.sender || req.body.phone || '';
+    // Support standard forwarder payload formats (JSON body, form data, or URL query parameters)
+    const bodyObj = (req.body && typeof req.body === 'object') ? req.body : {};
+    const queryObj = (req.query && typeof req.query === 'object') ? req.query : {};
+
+    const smsText = bodyObj.message || bodyObj.text || bodyObj.body || bodyObj.content || bodyObj.msg
+      || queryObj.message || queryObj.text || queryObj.body || queryObj.content || queryObj.msg || '';
+    const sender = bodyObj.from || bodyObj.sender || bodyObj.phone
+      || queryObj.from || queryObj.sender || queryObj.phone || '';
 
     if (!smsText || !smsText.trim()) {
       return res.status(400).json({ success: false, message: 'No SMS text received' });
     }
 
     // Extract original message timestamp sent by Android SMS forwarder
-    const rawTime = req.body.timestamp || req.body.time || req.body.date || req.body.sent_time || req.body.received_at;
+    const rawTime = bodyObj.timestamp || bodyObj.time || bodyObj.date || bodyObj.sent_time || bodyObj.received_at
+      || queryObj.timestamp || queryObj.time || queryObj.date;
     let fallbackDate = null;
     if (rawTime) {
       if (typeof rawTime === 'number' || /^\d+$/.test(rawTime.toString().trim())) {

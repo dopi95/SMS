@@ -3,8 +3,9 @@ const router = express.Router();
 const auth = require('../middleware/auth.middleware');
 const controller = require('../controllers/bankTransaction.controller');
 
-// Public Webhook (Secured by webhook secret key)
+// Public Webhook (Secured by webhook secret key) - Supports both POST and GET
 router.post('/webhook', controller.handleWebhook);
+router.get('/webhook', controller.handleWebhook);
 
 // Authenticated Endpoints
 router.use(auth);
