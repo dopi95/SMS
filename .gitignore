@@ -1,0 +1,24 @@
+# Environment variables
+.env
+.env*.local
+backend/.env
+backend/.env.production
+frontend/.env.local
+
+# Node modules
+node_modules/
+frontend/.next/
+frontend/out/
+
+# Flutter & Android build artifacts
+bluelight_sms_sync/.dart_tool/
+bluelight_sms_sync/.idea/
+bluelight_sms_sync/build/
+bluelight_sms_sync/android/.gradle/
+bluelight_sms_sync/android/.kotlin/
+bluelight_sms_sync/android/local.properties
+bluelight_sms_sync/*.iml
+bluelight_sms_sync/android/*.iml
+
+# Root APKs (keep frontend/public/BlueLight-SMS-Sync.apk for web download)
+/*.apk

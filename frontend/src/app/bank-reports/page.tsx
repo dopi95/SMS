@@ -29,7 +29,8 @@ import {
   EyeIcon,
   CalendarDaysIcon,
   InformationCircleIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline'
 
 interface Student {
@@ -2206,6 +2207,32 @@ export default function BankReportsPage() {
                       {getText('Copy', 'ቅዳ')}
                     </button>
                   </div>
+                </div>
+
+                {/* BlueLight Official Android Sync App Download Card */}
+                <div className={`p-4 rounded-xl border mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                  theme === 'dark' ? 'bg-blue-950/30 border-blue-800' : 'bg-blue-50/80 border-blue-200'
+                }`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-blue-700 dark:text-blue-300">
+                      <span className="text-base">📱</span>
+                      <span>{getText('Official Android Auto-Sync App (APK)', 'ይፋዊ የአንድሮይድ አውቶ-ሲንክ መተግበሪያ (APK)')}</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+                      {getText(
+                        'Install directly on your Android phone. Syncs CBE & Awash bank SMS 24/7 automatically in all conditions (works offline with auto-retry and auto-starts on boot). Pre-configured with your webhook URL & secret key!',
+                        'በቀጥታ በአንድሮይድ ስልክዎ ላይ ይጫኑ። በማንኛውም ሁኔታ (ኢንተርኔት በማይኖርበት ጊዜ አስቀምጦ ኢንተርኔት ሲመጣ በራሱ ወዲያውኑ ይልካል፣ ስልኩ ጠፍቶ ሲበራም በራሱ ይጀምራል)። የዌብሁክ ሊንኩና የይለፍ ቁጥሩ አስቀድሞ ተዘጋጅቶበታል!'
+                      )}
+                    </p>
+                  </div>
+                  <a
+                    href="/BlueLight-SMS-Sync.apk"
+                    download="BlueLight-SMS-Sync.apk"
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md flex items-center justify-center gap-2 flex-shrink-0 transition"
+                  >
+                    <ArrowDownTrayIcon className="w-4 h-4" />
+                    <span>{getText('Download App (APK)', 'መተግበሪያውን አውርድ (APK)')}</span>
+                  </a>
                 </div>
               </div>
             </div>
