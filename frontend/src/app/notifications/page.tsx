@@ -28,6 +28,19 @@ interface Student {
   portalPassword?: string
 }
 
+interface Employee {
+  _id: string
+  teacherId: string
+  fullName: string
+  email?: string
+  phone: string
+  role: string
+  portalUsername?: string
+  portalPassword?: string
+  isActive?: boolean
+  photo?: string
+}
+
 interface PhoneContact {
   name: string
   phone: string
@@ -57,6 +70,9 @@ interface NotificationHistory {
 
 export default function NotificationsPage() {
   const { theme, getText, language } = useSettings()
+  const [recipientType, setRecipientType] = useState<'students' | 'employees'>('students')
+
+  // Students state
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -66,6 +82,50 @@ export default function NotificationsPage() {
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
   const [filterYear, setFilterYear] = useState<string>('2019')
   const [filterMonth, setFilterMonth] = useState<string>('')
+  const [paymentFilteredIds, setPaymentFilteredIds] = useState<string[] | null>(null)
+  const [paymentFilterLoading, setPaymentFilterLoading] = useState(false)
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([])
+
+  // Employees state
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [loadingEmployees, setLoadingEmployees] = useState(false)
+  const [selectedEmployees, setSelectedEmployees] = useState<string[]>([])
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('')
+  const [employeeRoleFilter, setEmployeeRoleFilter] = useState('all')
+
+  // Composer & History state
+  const [title, setTitle] = useState('')
+  const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const [showVariables, setShowVariables] = useState(false)
+  const [notificationHistory, setNotificationHistory] = useState<NotificationHistory[]>([])
+  const [showHistory, setShowHistory] = useState(false)
+  const [selectedFailedNotification, setSelectedFailedNotification] = useState<NotificationHistory | null>(null)
+
+  const studentVariables = [
+    { label: 'Student Name', value: '{{studentName}}', amharic: 'የተማሪ ስም' },
+    { label: 'Student Class', value: '{{studentClass}}', amharic: 'የተማሪ ክፍል' },
+    { label: 'Student ID', value: '{{studentId}}', amharic: 'የተማሪ መታወቂያ' },
+    { label: 'Username', value: '{{username}}', amharic: 'የመለያ ስም (Username)' },
+    { label: 'Password', value: '{{password}}', amharic: 'የይለፍ ቃል (Password)' },
+    { label: 'Student Type', value: '{{studentType}}', amharic: 'የተማሪ አይነት' },
+    { label: 'Payment Code', value: '{{paymentCode}}', amharic: 'የክፍያ ኮድ' },
+    { label: 'Father Name', value: '{{fatherName}}', amharic: 'የአባት ስም' },
+    { label: 'Mother Name', value: '{{motherName}}', amharic: 'የእናት ስም' },
+  ]
+
+  const employeeVariables = [
+    { label: 'Employee Name', value: '{{employeeName}}', amharic: 'የሰራተኛ ስም' },
+    { label: 'Username', value: '{{username}}', amharic: 'የመለያ ስም (Username)' },
+    { label: 'Password', value: '{{password}}', amharic: 'የይለፍ ቃል (Password)' },
+    { label: 'Role / Position', value: '{{role}}', amharic: 'የስራ ድርሻ (Role)' },
+    { label: 'Phone Number', value: '{{phone}}', amharic: 'ስልክ ቁጥር' },
+    { label: 'Employee ID', value: '{{employeeId}}', amharic: 'የሰራተኛ መታወቂያ' },
+  ]
+
+  const variables = recipientType === 'students' ? studentVariables : employeeVariables
+
+  const months = ['September','October','November','December','January','February','March','April','May','June']
 
   useEffect(() => {
     const savedMonth = localStorage.getItem('notif_filterMonth')
@@ -79,33 +139,10 @@ export default function NotificationsPage() {
     setFilterYear(savedYear || '2019')
     setFilterMonth(savedMonth || nowMonth)
   }, [])
-  const [paymentFilteredIds, setPaymentFilteredIds] = useState<string[] | null>(null)
-  const [paymentFilterLoading, setPaymentFilterLoading] = useState(false)
-  const [selectedStudents, setSelectedStudents] = useState<string[]>([])
-  const [title, setTitle] = useState('')
-  const [message, setMessage] = useState('')
-  const [sending, setSending] = useState(false)
-  const [showVariables, setShowVariables] = useState(false)
-  const [notificationHistory, setNotificationHistory] = useState<NotificationHistory[]>([])
-  const [showHistory, setShowHistory] = useState(false)
-  const [selectedFailedNotification, setSelectedFailedNotification] = useState<NotificationHistory | null>(null)
-
-  const variables = [
-    { label: 'Student Name', value: '{{studentName}}', amharic: 'የተማሪ ስም' },
-    { label: 'Student Class', value: '{{studentClass}}', amharic: 'የተማሪ ክፍል' },
-    { label: 'Student ID', value: '{{studentId}}', amharic: 'የተማሪ መታወቂያ' },
-    { label: 'Username', value: '{{username}}', amharic: 'የመለያ ስም (Username)' },
-    { label: 'Password', value: '{{password}}', amharic: 'የይለፍ ቃል (Password)' },
-    { label: 'Student Type', value: '{{studentType}}', amharic: 'የተማሪ አይነት' },
-    { label: 'Payment Code', value: '{{paymentCode}}', amharic: 'የክፍያ ኮድ' },
-    { label: 'Father Name', value: '{{fatherName}}', amharic: 'የአባት ስም' },
-    { label: 'Mother Name', value: '{{motherName}}', amharic: 'የእናት ስም' },
-  ]
-
-  const months = ['September','October','November','December','January','February','March','April','May','June']
 
   useEffect(() => {
     fetchStudents()
+    fetchEmployees()
     fetchNotificationHistory()
   }, [])
 
@@ -146,6 +183,21 @@ export default function NotificationsPage() {
       toast.error(getText('Failed to fetch students', 'ተማሪዎችን መጫን አልተሳካም'))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchEmployees = async () => {
+    try {
+      setLoadingEmployees(true)
+      const token = localStorage.getItem('token')
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/teachers`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setEmployees(response.data)
+    } catch (error) {
+      toast.error(getText('Failed to fetch employees', 'ሰራተኞችን መጫን አልተሳካም'))
+    } finally {
+      setLoadingEmployees(false)
     }
   }
 
@@ -268,17 +320,44 @@ export default function NotificationsPage() {
     return contacts.length > 0
   })
 
+  const filteredEmployees = employees.filter(emp => {
+    if (emp.isActive === false) return false
+    if (!emp.phone || !emp.phone.trim()) return false
+
+    const search = employeeSearchTerm.toLowerCase().trim()
+    if (search) {
+      const name = (emp.fullName || '').toLowerCase()
+      const id = (emp.teacherId || '').toLowerCase()
+      const role = (emp.role || '').toLowerCase()
+      const phone = (emp.phone || '').toLowerCase()
+      const username = (emp.portalUsername || '').toLowerCase()
+      if (!name.includes(search) && !id.includes(search) && !role.includes(search) && !phone.includes(search) && !username.includes(search)) {
+        return false
+      }
+    }
+
+    if (employeeRoleFilter !== 'all' && emp.role !== employeeRoleFilter) {
+      return false
+    }
+
+    return true
+  })
+
+  const employeeRoles = Array.from(new Set(employees.map(e => e.role).filter(Boolean))).sort()
+
   const PAGE_SIZE = 20
   const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, classFilter, sectionFilter, studentTypeFilter, paymentFilter, filterYear, filterMonth])
+  }, [recipientType, searchTerm, classFilter, sectionFilter, studentTypeFilter, paymentFilter, filterYear, filterMonth, employeeSearchTerm, employeeRoleFilter])
 
-  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE))
+  const currentTotal = recipientType === 'students' ? filteredStudents.length : filteredEmployees.length
+  const totalPages = Math.max(1, Math.ceil(currentTotal / PAGE_SIZE))
   const startIndex = (currentPage - 1) * PAGE_SIZE
-  const endIndex = Math.min(startIndex + PAGE_SIZE, filteredStudents.length)
+  const endIndex = Math.min(startIndex + PAGE_SIZE, currentTotal)
   const paginatedStudents = filteredStudents.slice(startIndex, endIndex)
+  const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex)
 
   const handleSelectStudent = (studentId: string, isChecked: boolean) => {
     if (isChecked) {
@@ -296,6 +375,22 @@ export default function NotificationsPage() {
     }
   }
 
+  const handleSelectEmployee = (empId: string, isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedEmployees(prev => [...prev, empId])
+    } else {
+      setSelectedEmployees(prev => prev.filter(id => id !== empId))
+    }
+  }
+
+  const handleSelectAllEmployees = (isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedEmployees(filteredEmployees.map(e => e._id))
+    } else {
+      setSelectedEmployees([])
+    }
+  }
+
   const getTotalPhoneNumbers = () => {
     const selectedStudentData = students.filter(s => selectedStudents.includes(s._id))
     let total = 0
@@ -306,9 +401,16 @@ export default function NotificationsPage() {
   }
 
   const handleSendNotification = async () => {
-    if (selectedStudents.length === 0) {
-      toast.error(getText('Please select at least one student', 'ቢያንስ አንድ ተማሪ ይምረጡ'))
-      return
+    if (recipientType === 'students') {
+      if (selectedStudents.length === 0) {
+        toast.error(getText('Please select at least one student', 'ቢያንስ አንድ ተማሪ ይምረጡ'))
+        return
+      }
+    } else {
+      if (selectedEmployees.length === 0) {
+        toast.error(getText('Please select at least one employee', 'ቢያንስ አንድ ሰራተኛ ይምረጡ'))
+        return
+      }
     }
 
     if (!title.trim()) {
@@ -324,38 +426,67 @@ export default function NotificationsPage() {
     setSending(true)
     try {
       const token = localStorage.getItem('token')
-      const selectedStudentData = students.filter(s => selectedStudents.includes(s._id))
-      
-      // Collect all phone numbers with personalized messages
       const phoneNumbers: { phone: string; studentName: string; parentName: string; message: string }[] = []
-      selectedStudentData.forEach(student => {
-        const contacts = getPhoneContacts(student)
-        const studentType = student.paymentCode && student.paymentCode.trim() !== '' ? 'Special' : 'Regular'
-        
-        const studentUsername = student.portalUsername || student.studentId || 'N/A'
-        const studentPassword = student.portalPassword || 'N/A'
 
-        // Replace variables in message
-        let personalizedMessage = message
-          .replace(/{{studentName}}|{studentName}/g, getStudentDisplayName(student, language))
-          .replace(/{{studentClass}}|{studentClass}/g, student.class + (student.section ? ` - ${student.section}` : ''))
-          .replace(/{{studentId}}|{studentId}/g, student.studentId || '')
-          .replace(/{{username}}|{username}|{{portalUsername}}|{portalUsername}/g, studentUsername)
-          .replace(/{{password}}|{password}|{{portalPassword}}|{portalPassword}/g, studentPassword)
-          .replace(/{{studentType}}|{studentType}/g, studentType)
-          .replace(/{{paymentCode}}|{paymentCode}/g, student.paymentCode || 'N/A')
-          .replace(/{{fatherName}}|{fatherName}/g, student.fatherName || 'N/A')
-          .replace(/{{motherName}}|{motherName}/g, student.motherName || 'N/A')
-        
-        contacts.forEach(contact => {
+      if (recipientType === 'students') {
+        const selectedStudentData = students.filter(s => selectedStudents.includes(s._id))
+        selectedStudentData.forEach(student => {
+          const contacts = getPhoneContacts(student)
+          const studentType = student.paymentCode && student.paymentCode.trim() !== '' ? 'Special' : 'Regular'
+          
+          const studentUsername = student.portalUsername || student.studentId || 'N/A'
+          const studentPassword = student.portalPassword || 'N/A'
+
+          // Replace variables in message
+          let personalizedMessage = message
+            .replace(/{{studentName}}|{studentName}/g, getStudentDisplayName(student, language))
+            .replace(/{{studentClass}}|{studentClass}/g, student.class + (student.section ? ` - ${student.section}` : ''))
+            .replace(/{{studentId}}|{studentId}/g, student.studentId || '')
+            .replace(/{{username}}|{username}|{{portalUsername}}|{portalUsername}/g, studentUsername)
+            .replace(/{{password}}|{password}|{{portalPassword}}|{portalPassword}/g, studentPassword)
+            .replace(/{{studentType}}|{studentType}/g, studentType)
+            .replace(/{{paymentCode}}|{paymentCode}/g, student.paymentCode || 'N/A')
+            .replace(/{{fatherName}}|{fatherName}/g, student.fatherName || 'N/A')
+            .replace(/{{motherName}}|{motherName}/g, student.motherName || 'N/A')
+          
+          contacts.forEach(contact => {
+            phoneNumbers.push({
+              phone: contact.phone,
+              studentName: getStudentDisplayName(student, language),
+              parentName: contact.name,
+              message: personalizedMessage
+            })
+          })
+        })
+      } else {
+        const selectedEmpData = employees.filter(e => selectedEmployees.includes(e._id))
+        selectedEmpData.forEach(emp => {
+          if (!emp.phone || !emp.phone.trim()) return
+          const username = emp.portalUsername || emp.teacherId || 'N/A'
+          const password = emp.portalPassword || 'N/A'
+
+          let personalizedMessage = message
+            .replace(/{{employeeName}}|{employeeName}|{{name}}|{name}|{{fullName}}|{fullName}/g, emp.fullName || '')
+            .replace(/{{username}}|{username}|{{portalUsername}}|{portalUsername}/g, username)
+            .replace(/{{password}}|{password}|{{portalPassword}}|{portalPassword}/g, password)
+            .replace(/{{role}}|{role}/g, emp.role || '')
+            .replace(/{{employeeId}}|{employeeId}|{{teacherId}}|{teacherId}/g, emp.teacherId || '')
+            .replace(/{{phone}}|{phone}/g, emp.phone || '')
+
           phoneNumbers.push({
-            phone: contact.phone,
-            studentName: getStudentDisplayName(student, language),
-            parentName: contact.name,
+            phone: emp.phone,
+            studentName: emp.fullName,
+            parentName: emp.role,
             message: personalizedMessage
           })
         })
-      })
+      }
+
+      if (phoneNumbers.length === 0) {
+        toast.error(getText('No valid phone numbers found for the selected recipients', 'ለተመረጡት ተቀባዮች ትክክለኛ ስልክ ቁጥር አልተገኘም'))
+        setSending(false)
+        return
+      }
 
       const smsRecipients = phoneNumbers.map(p => ({
         phone: p.phone,
@@ -370,10 +501,11 @@ export default function NotificationsPage() {
       )
 
       const { sent, failed, errors } = result.data
+      const totalRecipientsCount = recipientType === 'students' ? selectedStudents.length : selectedEmployees.length
 
       if (sent > 0) {
         // Record in history ONLY when messages were actually sent
-        saveNotificationToHistory(title, message, selectedStudents.length, phoneNumbers.length, sent, failed, errors || [])
+        saveNotificationToHistory(title, message, totalRecipientsCount, phoneNumbers.length, sent, failed, errors || [])
 
         if (failed > 0) {
           toast(getText(`Sent: ${sent} succeeded, ${failed} failed`, `ተልኳል: ${sent} ተሳክቷል፣ ${failed} አልተሳካም`), { icon: '⚠️', duration: 6000 })
@@ -383,7 +515,11 @@ export default function NotificationsPage() {
 
         setTitle('')
         setMessage('')
-        setSelectedStudents([])
+        if (recipientType === 'students') {
+          setSelectedStudents([])
+        } else {
+          setSelectedEmployees([])
+        }
       } else {
         // 0 sent: do NOT record in history! Keep text so user does not lose it.
         const errDetail = errors?.[0]?.error ? `: ${errors[0].error}` : ''
@@ -403,29 +539,79 @@ export default function NotificationsPage() {
           {/* Header */}
           <div className={`rounded-xl shadow-lg border mb-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             <div className="px-6 py-5">
-              <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+              <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
                 <div>
                   <h1 className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                     {getText('Send Notifications', 'ማሳወቂያዎችን ላክ')}
                   </h1>
                   <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {getText('Send SMS notifications to parents', 'ለወላጆች የኤስኤምኤስ ማሳወቂያዎችን ይላኩ')}
+                    {recipientType === 'students'
+                      ? getText('Send SMS notifications to student parents', 'ለተማሪ ወላጆች የኤስኤምኤስ ማሳወቂያዎችን ይላኩ')
+                      : getText('Send SMS notifications to school employees', 'ለትምህርት ቤቱ ሰራተኞች የኤስኤምኤስ ማሳወቂያዎችን ይላኩ')}
                   </p>
                 </div>
-                <button
-                  onClick={() => setShowHistory(!showHistory)}
-                  className={`w-full md:w-auto px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg ${showHistory ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white' : theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>{showHistory ? getText('Hide History', 'ታሪክ ደብቅ') : getText('View History', 'ታሪክ ይመልከቱ')}</span>
-                  {notificationHistory.length > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${showHistory ? 'bg-white text-blue-600' : theme === 'dark' ? 'bg-gray-600 text-gray-200' : 'bg-gray-200 text-gray-700'}`}>
-                      {notificationHistory.length}
-                    </span>
-                  )}
-                </button>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Toggle: Students | Employees */}
+                  <div className={`p-1 rounded-xl border flex items-center gap-1 ${
+                    theme === 'dark' ? 'bg-gray-700/80 border-gray-600' : 'bg-gray-100 border-gray-200'
+                  }`}>
+                    <button
+                      type="button"
+                      onClick={() => { setRecipientType('students'); setCurrentPage(1); }}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                        recipientType === 'students'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : theme === 'dark' ? 'text-gray-300 hover:text-white hover:bg-gray-600/50' : 'text-gray-700 hover:text-gray-900 hover:bg-white'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                      </svg>
+                      <span>{getText('Students', 'ተማሪዎች')}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        recipientType === 'students' ? 'bg-white text-blue-600' : theme === 'dark' ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {students.length}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setRecipientType('employees'); setCurrentPage(1); if (employees.length === 0) fetchEmployees(); }}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                        recipientType === 'employees'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : theme === 'dark' ? 'text-gray-300 hover:text-white hover:bg-gray-600/50' : 'text-gray-700 hover:text-gray-900 hover:bg-white'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      <span>{getText('Employees', 'ሰራተኞች')}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        recipientType === 'employees' ? 'bg-white text-blue-600' : theme === 'dark' ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {employees.length}
+                      </span>
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setShowHistory(!showHistory)}
+                    className={`w-full sm:w-auto px-4 md:px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg ${showHistory ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white' : theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{showHistory ? getText('Hide History', 'ታሪክ ደብቅ') : getText('View History', 'ታሪክ ይመልከቱ')}</span>
+                    {notificationHistory.length > 0 && (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${showHistory ? 'bg-white text-blue-600' : theme === 'dark' ? 'bg-gray-600 text-gray-200' : 'bg-gray-200 text-gray-700'}`}>
+                        {notificationHistory.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -595,7 +781,7 @@ export default function NotificationsPage() {
                 <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                   {message.length}/160 {getText('characters', 'ቁምፊዎች')}
                 </span>
-                {selectedStudents.length > 0 && (
+                {((recipientType === 'students' && selectedStudents.length > 0) || (recipientType === 'employees' && selectedEmployees.length > 0)) && (
                   <button
                     onClick={handleSendNotification}
                     disabled={sending || !message.trim() || !title.trim()}
@@ -615,7 +801,11 @@ export default function NotificationsPage() {
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                         </svg>
-                        <span>{getText(`Send to ${getTotalPhoneNumbers()} numbers`, `ወደ ${getTotalPhoneNumbers()} ቁጥሮች ላክ`)}</span>
+                        <span>
+                          {recipientType === 'students'
+                            ? getText(`Send to ${getTotalPhoneNumbers()} numbers`, `ወደ ${getTotalPhoneNumbers()} ቁጥሮች ላክ`)
+                            : getText(`Send to ${selectedEmployees.length} employees`, `ወደ ${selectedEmployees.length} ሰራተኞች ላክ`)}
+                        </span>
                       </>
                     )}
                   </button>
@@ -625,275 +815,486 @@ export default function NotificationsPage() {
 
             {/* Filters */}
             <div className={`px-6 py-4 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex flex-col gap-4">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    placeholder={getText('Search by student name, ID, parent name or phone...', 'በተማሪ ስም፣ መታወቂያ፣ የወላጅ ስም ወይም ስልክ ፈልግ...')}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className={`w-full px-4 py-3 pl-11 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  />
-                  <svg className="w-5 h-5 text-gray-400 absolute left-3 top-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-                <div className="flex flex-col md:flex-row gap-3">
-                  <select
-                    value={classFilter}
-                    onChange={(e) => setClassFilter(e.target.value)}
-                    className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="all">{getText('All Classes', 'ሁሉም ክፍሎች')}</option>
-                    <option value="Nursery">Nursery</option>
-                    <option value="LKG">LKG</option>
-                    <option value="UKG">UKG</option>
-                  </select>
-                  <select
-                    value={sectionFilter}
-                    onChange={(e) => setSectionFilter(e.target.value)}
-                    className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="all">{getText('All Sections', 'ሁሉም ክፍሎች')}</option>
-                    <option value="A">Section A</option>
-                    <option value="B">Section B</option>
-                    <option value="C">Section C</option>
-                    <option value="D">Section D</option>
-                  </select>
-                  <select
-                    value={studentTypeFilter}
-                    onChange={(e) => setStudentTypeFilter(e.target.value as 'all' | 'regular' | 'special')}
-                    className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="all">{getText('All Types', 'ሁሉም አይነቶች')}</option>
-                    <option value="regular">{getText('Regular', 'መደበኛ')}</option>
-                    <option value="special">{getText('Special', 'ልዩ')}</option>
-                  </select>
-                  <select
-                    value={paymentFilter}
-                    onChange={(e) => { setPaymentFilter(e.target.value as 'all' | 'paid' | 'unpaid'); setPaymentFilteredIds(null) }}
-                    className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="all">{getText('All Payment Status', 'ሁሉም የክፍያ ሁኔታ')}</option>
-                    <option value="paid">{getText('Paid', 'የከፈሉ')}</option>
-                    <option value="unpaid">{getText('Unpaid', 'ያልከፈሉ')}</option>
-                  </select>
-                </div>
-                {paymentFilter !== 'all' && (
+              {recipientType === 'students' ? (
+                <div className="flex flex-col gap-4">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder={getText('Search by student name, ID, parent name or phone...', 'በተማሪ ስም፣ መታወቂያ፣ የወላጅ ስም ወይም ስልክ ፈልግ...')}
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className={`w-full px-4 py-3 pl-11 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    />
+                    <svg className="w-5 h-5 text-gray-400 absolute left-3 top-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
                   <div className="flex flex-col md:flex-row gap-3">
                     <select
-                      value={filterYear}
-                      onChange={(e) => setFilterYear(e.target.value)}
+                      value={classFilter}
+                      onChange={(e) => setClassFilter(e.target.value)}
                       className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
                     >
-                      {[2018,2019,2020,2021,2022,2023,2024,2025,2026].map(y => (
-                        <option key={y} value={y}>{y} E.C.</option>
-                      ))}
+                      <option value="all">{getText('All Classes', 'ሁሉም ክፍሎች')}</option>
+                      <option value="Nursery">Nursery</option>
+                      <option value="LKG">LKG</option>
+                      <option value="UKG">UKG</option>
                     </select>
                     <select
-                      value={filterMonth}
-                      onChange={(e) => setFilterMonth(e.target.value)}
+                      value={sectionFilter}
+                      onChange={(e) => setSectionFilter(e.target.value)}
                       className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
                     >
-                      {months.map(m => <option key={m} value={m}>{m}</option>)}
+                      <option value="all">{getText('All Sections', 'ሁሉም ክፍሎች')}</option>
+                      <option value="A">Section A</option>
+                      <option value="B">Section B</option>
+                      <option value="C">Section C</option>
+                      <option value="D">Section D</option>
                     </select>
-                    {paymentFilterLoading && (
-                      <div className="flex items-center px-2">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                      </div>
-                    )}
+                    <select
+                      value={studentTypeFilter}
+                      onChange={(e) => setStudentTypeFilter(e.target.value as 'all' | 'regular' | 'special')}
+                      className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    >
+                      <option value="all">{getText('All Types', 'ሁሉም አይነቶች')}</option>
+                      <option value="regular">{getText('Regular', 'መደበኛ')}</option>
+                      <option value="special">{getText('Special', 'ልዩ')}</option>
+                    </select>
+                    <select
+                      value={paymentFilter}
+                      onChange={(e) => { setPaymentFilter(e.target.value as 'all' | 'paid' | 'unpaid'); setPaymentFilteredIds(null) }}
+                      className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    >
+                      <option value="all">{getText('All Payment Status', 'ሁሉም የክፍያ ሁኔታ')}</option>
+                      <option value="paid">{getText('Paid', 'የከፈሉ')}</option>
+                      <option value="unpaid">{getText('Unpaid', 'ያልከፈሉ')}</option>
+                    </select>
                   </div>
-                )}
-              </div>
+                  {paymentFilter !== 'all' && (
+                    <div className="flex flex-col md:flex-row gap-3">
+                      <select
+                        value={filterYear}
+                        onChange={(e) => setFilterYear(e.target.value)}
+                        className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      >
+                        {[2018,2019,2020,2021,2022,2023,2024,2025,2026].map(y => (
+                          <option key={y} value={y}>{y} E.C.</option>
+                        ))}
+                      </select>
+                      <select
+                        value={filterMonth}
+                        onChange={(e) => setFilterMonth(e.target.value)}
+                        className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      >
+                        {months.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                      {paymentFilterLoading && (
+                        <div className="flex items-center px-2">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col md:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder={getText('Search by employee name, ID, role or phone...', 'በሰራተኛ ስም፣ መታወቂያ፣ የስራ ድርሻ ወይም ስልክ ፈልግ...')}
+                      value={employeeSearchTerm}
+                      onChange={(e) => setEmployeeSearchTerm(e.target.value)}
+                      className={`w-full px-4 py-3 pl-11 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    />
+                    <svg className="w-5 h-5 text-gray-400 absolute left-3 top-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <div className="w-full md:w-64">
+                    <select
+                      value={employeeRoleFilter}
+                      onChange={(e) => setEmployeeRoleFilter(e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    >
+                      <option value="all">{getText('All Roles', 'ሁሉም የስራ ድርሻዎች')}</option>
+                      {employeeRoles.map(role => (
+                        <option key={role} value={role}>{role}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Students List */}
+          {/* Recipients List (Students or Employees) */}
           <div className={`rounded-xl shadow-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             <div className={`px-6 py-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
               <div className="flex justify-between items-center">
                 <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  {getText('Select Recipients', 'ተቀባዮችን ይምረጡ')}
+                  {recipientType === 'students' ? getText('Select Recipients', 'ተቀባዮችን ይምረጡ') : getText('Select Employees', 'ሰራተኞችን ይምረጡ')}
                 </h2>
                 <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {selectedStudents.length} {getText('selected', 'ተመርጠዋል')} ({getTotalPhoneNumbers()} {getText('phone numbers', 'ስልክ ቁጥሮች')})
+                  {recipientType === 'students'
+                    ? `${selectedStudents.length} ${getText('selected', 'ተመርጠዋል')} (${getTotalPhoneNumbers()} ${getText('phone numbers', 'ስልክ ቁጥሮች')})`
+                    : `${selectedEmployees.length} ${getText('selected', 'ተመርጠዋል')} (${selectedEmployees.length} ${getText('phone numbers', 'ስልክ ቁጥሮች')})`}
                 </span>
               </div>
             </div>
 
-            {loading ? (
+            {(recipientType === 'students' ? loading : loadingEmployees) ? (
               <div className="flex justify-center items-center h-64">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               </div>
             ) : (
               <>
-                {/* Desktop Table View */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className={`border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
-                        <th className={`px-6 py-3 text-center text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                          <input
-                            type="checkbox"
-                            checked={selectedStudents.length > 0 && selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
-                            onChange={(e) => handleSelectAll(e.target.checked)}
-                            className="w-5 h-5 rounded cursor-pointer accent-blue-600"
-                          />
-                        </th>
-                        <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                          {getText('Student', 'ተማሪ')}
-                        </th>
-                        <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                          {getText('Class', 'ክፍል')}
-                        </th>
-                        <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                          {getText('Parent Contacts', 'የወላጅ ግንኙነቶች')}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-600' : 'divide-gray-100'}`}>
-                      {filteredStudents.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-12 text-center">
-                            <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                              {getText('No students found with phone numbers', 'ስልክ ቁጥር ያላቸው ተማሪዎች አልተገኙም')}
-                            </p>
-                          </td>
-                        </tr>
-                      ) : (
-                        paginatedStudents.map((student) => {
-                          const isSelected = selectedStudents.includes(student._id)
-                          const contacts = getPhoneContacts(student)
-                          return (
-                            <tr key={student._id} className={`${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} ${isSelected ? theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50' : ''}`}>
-                              <td className="px-6 py-4 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => handleSelectStudent(student._id, e.target.checked)}
-                                  className="w-5 h-5 rounded cursor-pointer accent-blue-600"
-                                />
-                              </td>
-                              <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                <div className="font-medium">
-                                  {getStudentDisplayName(student, language)}
-                                </div>
-                                <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                  {student.studentId}
-                                </div>
-                              </td>
-                              <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                {student.class} {student.section && `- ${student.section}`}
-                              </td>
-                              <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                <div className="space-y-1">
-                                  {contacts.map((contact, index) => (
-                                    <div key={index} className="flex items-center gap-2">
-                                      <span className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                                        {contact.relation}
-                                      </span>
-                                      <span className="font-medium">{contact.name}</span>
-                                      <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                                        {contact.phone}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Mobile Card View */}
-                <div className="md:hidden">
-                  {filteredStudents.length === 0 ? (
-                    <div className="px-6 py-12 text-center">
-                      <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                        {getText('No students found with phone numbers', 'ስልክ ቁጥር ያላቸው ተማሪዎች አልተገኙም')}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-4 space-y-4">
-                      <div className={`flex items-center gap-3 px-2 py-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                        <input
-                          type="checkbox"
-                          checked={selectedStudents.length > 0 && selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
-                          onChange={(e) => handleSelectAll(e.target.checked)}
-                          className="w-5 h-5 rounded cursor-pointer accent-blue-600"
-                        />
-                        <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {getText('Select All', 'ሁሉንም ምረጥ')} ({filteredStudents.length})
-                        </span>
-                      </div>
-                      {paginatedStudents.map((student) => {
-                        const isSelected = selectedStudents.includes(student._id)
-                        const contacts = getPhoneContacts(student)
-                        return (
-                          <div
-                            key={student._id}
-                            className={`rounded-lg border p-4 ${isSelected ? theme === 'dark' ? 'bg-blue-900/30 border-blue-600' : 'bg-blue-50 border-blue-400' : theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}
-                          >
-                            {/* Student Info */}
-                            <div className="flex items-start gap-3 mb-3">
+                {recipientType === 'students' ? (
+                  <>
+                    {/* Desktop Student Table View */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className={`border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+                            <th className={`px-6 py-3 text-center text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                               <input
                                 type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => handleSelectStudent(student._id, e.target.checked)}
-                                className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600"
+                                checked={selectedStudents.length > 0 && selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                                onChange={(e) => handleSelectAll(e.target.checked)}
+                                className="w-5 h-5 rounded cursor-pointer accent-blue-600"
                               />
-                              <div className="flex-1">
-                                <h3 className={`font-semibold text-base ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {getStudentDisplayName(student, language)}
-                                </h3>
-                                <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                  {getText('ID', 'መታወቂያ')}: <span className="font-medium">{student.studentId}</span>
+                            </th>
+                            <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {getText('Student', 'ተማሪ')}
+                            </th>
+                            <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {getText('Class', 'ክፍል')}
+                            </th>
+                            <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {getText('Parent Contacts', 'የወላጅ ግንኙነቶች')}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-600' : 'divide-gray-100'}`}>
+                          {filteredStudents.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="px-6 py-12 text-center">
+                                <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                                  {getText('No students found with phone numbers', 'ስልክ ቁጥር ያላቸው ተማሪዎች አልተገኙም')}
                                 </p>
-                                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                  {getText('Class', 'ክፍል')}: <span className="font-medium">{student.class} {student.section && `- ${student.section}`}</span>
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Parent Contacts */}
-                            <div className={`pt-3 border-t ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
-                              <p className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                {getText('Parent Contacts', 'የወላጅ ግንኙነቶች')}
-                              </p>
-                              <div className="space-y-2">
-                                {contacts.map((contact, index) => (
-                                  <div key={index} className={`flex flex-col gap-1 p-2 rounded ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-100'}`}>
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'}`}>
-                                        {contact.relation}
-                                      </span>
-                                      <span className={`font-medium text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{contact.name}</span>
+                              </td>
+                            </tr>
+                          ) : (
+                            paginatedStudents.map((student) => {
+                              const isSelected = selectedStudents.includes(student._id)
+                              const contacts = getPhoneContacts(student)
+                              return (
+                                <tr key={student._id} className={`${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} ${isSelected ? theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50' : ''}`}>
+                                  <td className="px-6 py-4 text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={(e) => handleSelectStudent(student._id, e.target.checked)}
+                                      className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                                    />
+                                  </td>
+                                  <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                                    <div className="font-medium">
+                                      {getStudentDisplayName(student, language)}
                                     </div>
-                                    <a href={`tel:${contact.phone}`} className={`text-sm ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
-                                      {contact.phone}
-                                    </a>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
+                                    <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                                      {student.studentId}
+                                    </div>
+                                  </td>
+                                  <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                                    {student.class} {student.section && `- ${student.section}`}
+                                  </td>
+                                  <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                                    <div className="space-y-1">
+                                      {contacts.map((contact, index) => (
+                                        <div key={index} className="flex items-center gap-2">
+                                          <span className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                                            {contact.relation}
+                                          </span>
+                                          <span className="font-medium">{contact.name}</span>
+                                          <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                                            {contact.phone}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })
+                          )}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
-                </div>
+
+                    {/* Mobile Student Card View */}
+                    <div className="md:hidden">
+                      {filteredStudents.length === 0 ? (
+                        <div className="px-6 py-12 text-center">
+                          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                            {getText('No students found with phone numbers', 'ስልክ ቁጥር ያላቸው ተማሪዎች አልተገኙም')}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-4 space-y-4">
+                          <div className={`flex items-center gap-3 px-2 py-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <input
+                              type="checkbox"
+                              checked={selectedStudents.length > 0 && selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                              onChange={(e) => handleSelectAll(e.target.checked)}
+                              className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                            />
+                            <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                              {getText('Select All', 'ሁሉንም ምረጥ')} ({filteredStudents.length})
+                            </span>
+                          </div>
+                          {paginatedStudents.map((student) => {
+                            const isSelected = selectedStudents.includes(student._id)
+                            const contacts = getPhoneContacts(student)
+                            return (
+                              <div
+                                key={student._id}
+                                className={`rounded-lg border p-4 ${isSelected ? theme === 'dark' ? 'bg-blue-900/30 border-blue-600' : 'bg-blue-50 border-blue-400' : theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}
+                              >
+                                {/* Student Info */}
+                                <div className="flex items-start gap-3 mb-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => handleSelectStudent(student._id, e.target.checked)}
+                                    className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600"
+                                  />
+                                  <div className="flex-1">
+                                    <h3 className={`font-semibold text-base ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      {getStudentDisplayName(student, language)}
+                                    </h3>
+                                    <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                      {getText('ID', 'መታወቂያ')}: <span className="font-medium">{student.studentId}</span>
+                                    </p>
+                                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                      {getText('Class', 'ክፍል')}: <span className="font-medium">{student.class} {student.section && `- ${student.section}`}</span>
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Parent Contacts */}
+                                <div className={`pt-3 border-t ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
+                                  <p className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {getText('Parent Contacts', 'የወላጅ ግንኙነቶች')}
+                                  </p>
+                                  <div className="space-y-2">
+                                    {contacts.map((contact, index) => (
+                                      <div key={index} className={`flex flex-col gap-1 p-2 rounded ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-100'}`}>
+                                        <div className="flex items-center gap-2">
+                                          <span className={`text-xs px-2 py-0.5 rounded font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'}`}>
+                                            {contact.relation}
+                                          </span>
+                                          <span className={`font-medium text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{contact.name}</span>
+                                        </div>
+                                        <a href={`tel:${contact.phone}`} className={`text-sm ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                                          {contact.phone}
+                                        </a>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Desktop Employee Table View */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className={`border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+                            <th className={`px-6 py-3 text-center text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                              <input
+                                type="checkbox"
+                                checked={selectedEmployees.length > 0 && selectedEmployees.length === filteredEmployees.length && filteredEmployees.length > 0}
+                                onChange={(e) => handleSelectAllEmployees(e.target.checked)}
+                                className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                              />
+                            </th>
+                            <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {getText('Employee', 'ሰራተኛ')}
+                            </th>
+                            <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {getText('Role / Position', 'የስራ ድርሻ')}
+                            </th>
+                            <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {getText('Phone Number', 'ስልክ ቁጥር')}
+                            </th>
+                            <th className={`px-6 py-3 text-left text-xs font-medium uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {getText('Portal Credentials', 'የፖርታል መለያ')}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-600' : 'divide-gray-100'}`}>
+                          {filteredEmployees.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="px-6 py-12 text-center">
+                                <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                                  {getText('No employees found with phone numbers', 'ስልክ ቁጥር ያላቸው ሰራተኞች አልተገኙም')}
+                                </p>
+                              </td>
+                            </tr>
+                          ) : (
+                            paginatedEmployees.map((emp) => {
+                              const isSelected = selectedEmployees.includes(emp._id)
+                              const username = emp.portalUsername || emp.teacherId || 'N/A'
+                              const hasPassword = !!emp.portalPassword
+                              return (
+                                <tr key={emp._id} className={`${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} ${isSelected ? theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50' : ''}`}>
+                                  <td className="px-6 py-4 text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={(e) => handleSelectEmployee(emp._id, e.target.checked)}
+                                      className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                                    />
+                                  </td>
+                                  <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                                    <div className="font-semibold">{emp.fullName}</div>
+                                    <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                                      {getText('ID', 'መታወቂያ')}: <span className="font-mono">{emp.teacherId}</span>
+                                    </div>
+                                  </td>
+                                  <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                                    <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded-full ${
+                                      theme === 'dark' ? 'bg-blue-900/40 text-blue-300 border border-blue-800' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    }`}>
+                                      {emp.role}
+                                    </span>
+                                  </td>
+                                  <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'} font-mono text-sm`}>
+                                    📞 {emp.phone}
+                                  </td>
+                                  <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                                    <div className="flex flex-col gap-1 text-xs">
+                                      <div>
+                                        <span className="font-medium text-gray-500 dark:text-gray-400">{getText('Username', 'መለያ')}: </span>
+                                        <span className="font-mono font-semibold">{username}</span>
+                                      </div>
+                                      <div>
+                                        <span className="font-medium text-gray-500 dark:text-gray-400">{getText('Password', 'የይለፍ ቃል')}: </span>
+                                        {hasPassword ? (
+                                          <span className="inline-block px-2 py-0.5 rounded font-mono bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-semibold">
+                                            {emp.portalPassword}
+                                          </span>
+                                        ) : (
+                                          <span className="inline-block px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                                            {getText('Not generated', 'አልተፈጠረም')}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Employee Card View */}
+                    <div className="md:hidden">
+                      {filteredEmployees.length === 0 ? (
+                        <div className="px-6 py-12 text-center">
+                          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                            {getText('No employees found with phone numbers', 'ስልክ ቁጥር ያላቸው ሰራተኞች አልተገኙም')}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-4 space-y-4">
+                          <div className={`flex items-center gap-3 px-2 py-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <input
+                              type="checkbox"
+                              checked={selectedEmployees.length > 0 && selectedEmployees.length === filteredEmployees.length && filteredEmployees.length > 0}
+                              onChange={(e) => handleSelectAllEmployees(e.target.checked)}
+                              className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                            />
+                            <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                              {getText('Select All', 'ሁሉንም ምረጥ')} ({filteredEmployees.length})
+                            </span>
+                          </div>
+                          {paginatedEmployees.map((emp) => {
+                            const isSelected = selectedEmployees.includes(emp._id)
+                            const username = emp.portalUsername || emp.teacherId || 'N/A'
+                            const hasPassword = !!emp.portalPassword
+                            return (
+                              <div
+                                key={emp._id}
+                                className={`rounded-lg border p-4 ${isSelected ? theme === 'dark' ? 'bg-blue-900/30 border-blue-600' : 'bg-blue-50 border-blue-400' : theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}
+                              >
+                                <div className="flex items-start gap-3 mb-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => handleSelectEmployee(emp._id, e.target.checked)}
+                                    className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600"
+                                  />
+                                  <div className="flex-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <h3 className={`font-semibold text-base ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                        {emp.fullName}
+                                      </h3>
+                                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                        theme === 'dark' ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'
+                                      }`}>
+                                        {emp.role}
+                                      </span>
+                                    </div>
+                                    <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                      {getText('ID', 'መታወቂያ')}: <span className="font-mono font-medium">{emp.teacherId}</span>
+                                    </p>
+                                    <p className="text-sm mt-1">
+                                      <a href={`tel:${emp.phone}`} className={`font-mono ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                                        📞 {emp.phone}
+                                      </a>
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className={`pt-3 border-t text-xs space-y-1 ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
+                                  <div>
+                                    <span className="text-gray-500 dark:text-gray-400">{getText('Username', 'መለያ')}: </span>
+                                    <span className="font-mono font-semibold">{username}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500 dark:text-gray-400">{getText('Password', 'የይለፍ ቃል')}: </span>
+                                    {hasPassword ? (
+                                      <span className="font-mono text-green-600 dark:text-green-400 font-semibold">{emp.portalPassword}</span>
+                                    ) : (
+                                      <span className="text-amber-600 dark:text-amber-400">{getText('Not generated', 'አልተፈጠረም')}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 {/* Pagination Controls */}
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
-                  totalItems={filteredStudents.length}
+                  totalItems={recipientType === 'students' ? filteredStudents.length : filteredEmployees.length}
                   pageSize={PAGE_SIZE}
                   onPageChange={(page) => setCurrentPage(page)}
-                  itemName={{ en: 'students', am: 'ተማሪዎች' }}
+                  itemName={recipientType === 'students' ? { en: 'students', am: 'ተማሪዎች' } : { en: 'employees', am: 'ሰራተኞች' }}
                 />
               </>
             )}
