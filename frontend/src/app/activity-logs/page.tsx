@@ -26,6 +26,7 @@ const MODULE_COLORS: Record<string, string> = {
   'Custom Payment':  'bg-teal-100 text-teal-700',
   'Pending Student': 'bg-yellow-100 text-yellow-700',
   'Profile':         'bg-purple-100 text-purple-700',
+  'Bank Transaction': 'bg-emerald-100 text-emerald-800',
 }
 
 const ACTION_COLORS: Record<string, string> = {
@@ -36,6 +37,9 @@ const ACTION_COLORS: Record<string, string> = {
   'Deactivated':    'bg-orange-50 text-orange-700 border-orange-200',
   'Activated':      'bg-green-50 text-green-700 border-green-200',
   'Approved':       'bg-green-50 text-green-700 border-green-200',
+  'Linked':         'bg-blue-50 text-blue-700 border-blue-200',
+  'Unlinked':       'bg-gray-50 text-gray-700 border-gray-200',
+  'Revoked Approval':'bg-orange-50 text-orange-700 border-orange-200',
   'Rejected':       'bg-orange-50 text-orange-700 border-orange-200',
   'Payment Added':  'bg-green-50 text-green-700 border-green-200',
   'Payment Deleted':'bg-red-50 text-red-600 border-red-200',
@@ -46,6 +50,31 @@ const ACTION_COLORS: Record<string, string> = {
   'Edited Entry':   'bg-blue-50 text-blue-700 border-blue-200',
   'Deleted Entry':  'bg-red-50 text-red-600 border-red-200',
   'Bulk Deleted':   'bg-red-50 text-red-600 border-red-200',
+}
+
+function renderDescriptionWithLinks(text: string) {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return parts.map((part, i) => {
+    if (/^https?:\/\//i.test(part)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 dark:text-blue-400 underline font-medium hover:text-blue-800 break-all inline-flex items-center gap-1 mx-1"
+        >
+          <span>{part.includes('mbreciept') || part.includes('awashpay') || part.toLowerCase().includes('receipt') ? 'View Official Receipt' : part}</span>
+          <svg className="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
 }
 
 export default function ActivityLogsPage() {
@@ -194,7 +223,7 @@ export default function ActivityLogsPage() {
                           <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${ACTION_COLORS[log.action] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>{log.action}</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${MODULE_COLORS[log.module] || 'bg-gray-100 text-gray-600'}`}>{log.module}</span>
                         </div>
-                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{log.description}</p>
+                        <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{renderDescriptionWithLinks(log.description)}</div>
                       </div>
 
                       {/* Time */}

@@ -3,6 +3,7 @@ const BankSetting = require('../models/BankSetting.model');
 const BankPayerMapping = require('../models/BankPayerMapping.model');
 const Student = require('../models/Student.model');
 const Payment = require('../models/Payment.model');
+const logActivity = require('../utils/logActivity');
 const { parseBankSms, parseBankSmsAsync, extractSourceBank, isDebitSms, extractTransactionNames, extractReceiptUrl, extractSenderAccount } = require('../utils/bankSmsParser');
 const { scrapeReceiptDetails } = require('../utils/receiptScraper');
 const { findMatchingStudent, findAllMatchingStudents } = require('../utils/studentMatcher');
@@ -1085,6 +1086,23 @@ exports.linkStudents = async (req, res) => {
       .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode fatherName motherName')
       .populate('matchedStudents', 'studentId firstName middleName lastName class section paymentCode fatherName motherName');
 
+    if (req.user) {
+      const studentNames = (updated?.matchedStudents && updated.matchedStudents.length > 0)
+        ? updated.matchedStudents.map(s => `${s.firstName || ''} ${s.lastName || ''} (${s.studentId || ''})`.trim()).join(', ')
+        : (updated?.matchedStudent ? `${updated.matchedStudent.firstName || ''} ${updated.matchedStudent.lastName || ''} (${updated.matchedStudent.studentId || ''})`.trim() : '');
+
+      const receiptPart = (updated?.receiptUrl || transaction.receiptUrl)
+        ? ` | Receipt Link: ${updated?.receiptUrl || transaction.receiptUrl}`
+        : (transaction.reference && !transaction.reference.startsWith('REF-') ? ` | Ref: ${transaction.reference}` : '');
+
+      const action = uniqueIds.length === 0 ? 'Unlinked' : 'Linked';
+      const desc = uniqueIds.length === 0
+        ? `Unlinked student(s) from ${transaction.bank} transaction of ${transaction.amount} ETB (Ref: ${transaction.reference || 'N/A'})`
+        : `Linked ${transaction.bank} transaction of ${transaction.amount} ETB to student(s): ${studentNames}${receiptPart}`;
+
+      await logActivity(req.user, action, 'Bank Transaction', desc);
+    }
+
     res.json({ success: true, transaction: updated });
   } catch (error) {
     res.status(500).json({ message: 'Failed to link students', error: error.message });
@@ -1300,6 +1318,27 @@ exports.approvePayment = async (req, res) => {
       .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode')
       .populate('matchedStudents', 'studentId firstName middleName lastName class section paymentCode');
 
+    if (req.user) {
+      const studentNames = (updatedTxn?.matchedStudents && updatedTxn.matchedStudents.length > 0)
+        ? updatedTxn.matchedStudents.map(s => `${s.firstName || ''} ${s.lastName || ''} (${s.studentId || ''})`.trim()).join(', ')
+        : (updatedTxn?.matchedStudent ? `${updatedTxn.matchedStudent.firstName || ''} ${updatedTxn.matchedStudent.lastName || ''} (${updatedTxn.matchedStudent.studentId || ''})`.trim() : 'N/A');
+
+      const receiptPart = (updatedTxn?.receiptUrl || transaction.receiptUrl)
+        ? ` | Receipt Link: ${updatedTxn?.receiptUrl || transaction.receiptUrl}`
+        : (transaction.reference && !transaction.reference.startsWith('REF-') ? ` | Ref: ${transaction.reference}` : '');
+
+      const firstMonth = paymentsCreated[0]?.month || '';
+      const firstYear = paymentsCreated[0]?.year || '';
+      const periodStr = firstMonth ? ` for ${firstMonth} ${firstYear} E.C.` : '';
+
+      await logActivity(
+        req.user,
+        'Approved',
+        'Bank Transaction',
+        `Approved ${transaction.bank} payment of ${transaction.amount} ETB for student(s): ${studentNames}${periodStr}${receiptPart}`
+      );
+    }
+
     const totalCount = paymentsCreated.length;
     const firstPay = paymentsCreated[0];
     const successMsg = totalCount > 1
@@ -1341,6 +1380,19 @@ exports.unapprovePayment = async (req, res) => {
     const updatedTxn = await BankTransaction.findById(id)
       .populate('matchedStudent', 'studentId firstName middleName lastName class section paymentCode');
 
+    if (req.user) {
+      const receiptPart = (transaction.receiptUrl)
+        ? ` | Receipt Link: ${transaction.receiptUrl}`
+        : (transaction.reference && !transaction.reference.startsWith('REF-') ? ` | Ref: ${transaction.reference}` : '');
+
+      await logActivity(
+        req.user,
+        'Revoked Approval',
+        'Bank Transaction',
+        `Revoked approval for ${transaction.bank} transaction of ${transaction.amount} ETB (Ref: ${transaction.reference || 'N/A'})${receiptPart}`
+      );
+    }
+
     res.json({
       success: true,
       message: 'Payment approval revoked and record removed from Payments page.',
@@ -1360,6 +1412,29 @@ exports.deleteTransaction = async (req, res) => {
     const transaction = await BankTransaction.findById(id);
     if (!transaction) {
       return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    // Populate matched student before deleting so we can record details in the activity log
+    await transaction.populate([
+      { path: 'matchedStudent', select: 'firstName lastName studentId' },
+      { path: 'matchedStudents', select: 'firstName lastName studentId' }
+    ]).catch(() => {});
+
+    if (req.user) {
+      const studentPart = (transaction.matchedStudents && transaction.matchedStudents.length > 0)
+        ? ` | Student(s): ${transaction.matchedStudents.map(s => `${s.firstName || ''} ${s.lastName || ''} (${s.studentId || ''})`.trim()).join(', ')}`
+        : (transaction.matchedStudent ? ` | Student: ${transaction.matchedStudent.firstName || ''} ${transaction.matchedStudent.lastName || ''} (${transaction.matchedStudent.studentId || ''})`.trim() : '');
+
+      const receiptPart = transaction.receiptUrl ? ` | Receipt Link: ${transaction.receiptUrl}` : '';
+      const payerPart = transaction.senderName ? ` | Payer: ${transaction.senderName}` : '';
+      const refPart = transaction.reference ? ` | Ref: ${transaction.reference}` : '';
+
+      await logActivity(
+        req.user,
+        'Deleted',
+        'Bank Transaction',
+        `Deleted ${transaction.bank} ${transaction.type || 'credit'} transaction of ${transaction.amount} ETB${refPart}${payerPart}${studentPart}${receiptPart}`
+      );
     }
 
     // 1. If it was reconciled, clean up payment record(s) so nothing is left orphaned
