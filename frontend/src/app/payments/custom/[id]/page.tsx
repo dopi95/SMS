@@ -63,7 +63,12 @@ export default function PaymentFilePage() {
       })
       setFile(response.data.file)
       setEntries(response.data.entries)
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.response?.status === 403) {
+        toast.error(error.response?.data?.message || getText('You do not have permission to view this file', 'ይህን ፋይል የማየት ፈቃድ የለዎትም'))
+        router.push('/payments/custom')
+        return
+      }
       toast.error(getText('Failed to fetch file data', 'የፋይል መረጃ መጫን አልተሳካም'))
     } finally {
       setLoading(false)

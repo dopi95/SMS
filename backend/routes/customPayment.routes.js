@@ -10,10 +10,16 @@ const {
   addEntry,
   updateEntry,
   deleteEntry,
-  exportFile
+  exportFile,
+  getVisibilityUsers,
+  updateFileVisibility
 } = require('../controllers/customPayment.controller');
 
 router.use(auth);
+
+// Visibility management (Superadmin only)
+router.get('/visibility-users', getVisibilityUsers);
+router.put('/files/:id/visibility', updateFileVisibility);
 
 // File routes
 router.post('/files', createFile);

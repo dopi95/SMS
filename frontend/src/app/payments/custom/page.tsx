@@ -9,6 +9,14 @@ import axios from 'axios'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 
+interface UserSummary {
+  _id: string
+  name: string
+  email: string
+  role: string
+  profilePhoto?: string
+}
+
 interface PaymentFile {
   _id: string
   title: string
@@ -17,12 +25,14 @@ interface PaymentFile {
     name: string
     email: string
   }
+  hiddenFromUsers?: UserSummary[]
   createdAt: string
 }
 
 export default function CustomPaymentsPage() {
   const { theme, getText } = useSettings()
-  const { canDo } = usePermissions()
+  const { canDo, role } = usePermissions()
+  const isSuperAdmin = role === 'superadmin'
   const router = useRouter()
   const [files, setFiles] = useState<PaymentFile[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,6 +42,14 @@ export default function CustomPaymentsPage() {
   const [year, setYear] = useState(2019)
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  // Visibility state (Super Admin only)
+  const [visibilityModalFile, setVisibilityModalFile] = useState<PaymentFile | null>(null)
+  const [eligibleUsers, setEligibleUsers] = useState<UserSummary[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [selectedHiddenUserIds, setSelectedHiddenUserIds] = useState<string[]>([])
+  const [userSearchTerm, setUserSearchTerm] = useState('')
+  const [savingVisibility, setSavingVisibility] = useState(false)
 
   useEffect(() => {
     fetchFiles()
@@ -106,6 +124,69 @@ export default function CustomPaymentsPage() {
     setTitle(file.title)
     setYear(file.year)
     setShowModal(true)
+  }
+
+  const openVisibilityModal = async (file: PaymentFile) => {
+    setVisibilityModalFile(file)
+    const existingHiddenIds = (file.hiddenFromUsers || []).map(u => (typeof u === 'string' ? u : u._id))
+    setSelectedHiddenUserIds(existingHiddenIds)
+    setUserSearchTerm('')
+    setLoadingUsers(true)
+    try {
+      const token = localStorage.getItem('token')
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/custom-payments/visibility-users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setEligibleUsers(res.data)
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || getText('Failed to load users', 'ተጠቃሚዎችን መጫን አልተሳካም'))
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  const toggleUserHidden = (userId: string) => {
+    setSelectedHiddenUserIds(prev =>
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    )
+  }
+
+  const filteredUsers = eligibleUsers.filter(u => {
+    const q = userSearchTerm.toLowerCase().trim()
+    if (!q) return true
+    return (u.name && u.name.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.role && u.role.toLowerCase().includes(q))
+  })
+
+  const handleSelectAll = () => {
+    const filteredIds = filteredUsers.map(u => u._id)
+    setSelectedHiddenUserIds(prev => Array.from(new Set([...prev, ...filteredIds])))
+  }
+
+  const handleDeselectAll = () => {
+    const filteredIds = new Set(filteredUsers.map(u => u._id))
+    setSelectedHiddenUserIds(prev => prev.filter(id => !filteredIds.has(id)))
+  }
+
+  const handleSaveVisibility = async () => {
+    if (!visibilityModalFile) return
+    setSavingVisibility(true)
+    try {
+      const token = localStorage.getItem('token')
+      await axios.put(
+        `${process.env.NEXT_PUBLIC_API_URL}/custom-payments/files/${visibilityModalFile._id}/visibility`,
+        { hiddenFromUsers: selectedHiddenUserIds },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      toast.success(getText('File visibility updated successfully', 'የፋይል የማየት ፈቃድ በተሳካ ሁኔታ ተዘምኗል'))
+      setVisibilityModalFile(null)
+      fetchFiles()
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || getText('Failed to update visibility', 'የማየት ፈቃድ ማዘመን አልተሳካም'))
+    } finally {
+      setSavingVisibility(false)
+    }
   }
 
   return (
@@ -211,6 +292,26 @@ export default function CustomPaymentsPage() {
                           </svg>
                         </button>
                         )}
+                        {isSuperAdmin && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openVisibilityModal(file) }}
+                          className={`p-2 rounded-lg transition-all relative ${
+                            file.hiddenFromUsers && file.hiddenFromUsers.length > 0
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                              : theme === 'dark' ? 'hover:bg-purple-900/30 text-purple-400' : 'hover:bg-purple-50 text-purple-600'
+                          }`}
+                          title={getText('Manage Visibility (Hide from users)', 'የማየት ፈቃድ ያስተዳድሩ')}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
+                          {file.hiddenFromUsers && file.hiddenFromUsers.length > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full shadow-sm">
+                              {file.hiddenFromUsers.length}
+                            </span>
+                          )}
+                        </button>
+                        )}
                       </div>
                     </div>
                     <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
@@ -219,6 +320,27 @@ export default function CustomPaymentsPage() {
                     <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
                       {new Date(file.createdAt).toLocaleDateString()}
                     </div>
+                    {isSuperAdmin && file.hiddenFromUsers && file.hiddenFromUsers.length > 0 && (
+                      <div className="mt-3 flex items-center justify-between text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800/50">
+                        <span className="flex items-center gap-1.5 font-medium">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
+                          <span>
+                            {getText(
+                              `Hidden from ${file.hiddenFromUsers.length} user${file.hiddenFromUsers.length > 1 ? 's' : ''}`,
+                              `ከ ${file.hiddenFromUsers.length} ተጠቃሚዎች ተሰውሯል`
+                            )}
+                          </span>
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openVisibilityModal(file) }}
+                          className="text-amber-800 dark:text-amber-200 underline font-semibold hover:opacity-80"
+                        >
+                          {getText('Edit', 'አስተካክል')}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -305,6 +427,190 @@ export default function CustomPaymentsPage() {
         confirmColor="red"
         icon={<svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
       />
+
+      {/* Manage File Visibility Modal (Superadmin Only) */}
+      {visibilityModalFile && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
+            {/* Modal Header */}
+            <div className={`px-6 py-5 border-b flex items-start justify-between ${theme === 'dark' ? 'border-gray-700 bg-gray-800/80' : 'border-gray-100 bg-gray-50/80'}`}>
+              <div className="flex items-center gap-3">
+                <span className="p-2.5 bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 rounded-xl">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                  </svg>
+                </span>
+                <div>
+                  <h2 className="text-lg font-bold">
+                    {getText('File Visibility Permissions', 'የፋይል የማየት ፈቃድ')}
+                  </h2>
+                  <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {visibilityModalFile.title} ({visibilityModalFile.year} E.C)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setVisibilityModalFile(null)}
+                className={`p-1.5 rounded-lg text-gray-400 hover:text-gray-600 ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Instruction banner */}
+            <div className={`px-6 py-3 text-xs border-b ${theme === 'dark' ? 'bg-purple-950/30 border-gray-700 text-purple-200' : 'bg-purple-50/80 border-purple-100 text-purple-800'}`}>
+              <p className="leading-relaxed">
+                {getText(
+                  'Check users who CANNOT see this file. Checked users will have this specific file completely hidden from their view.',
+                  'ይህን ፋይል ማየት የማይችሉትን ተጠቃሚዎች ይምረጡ። ምልክት የተደረገባቸው ተጠቃሚዎች ይህን ፋይል ጨርሶ ማየት አይችሉም።'
+                )}
+              </p>
+            </div>
+
+            {/* Search & Bulk Select Controls */}
+            <div className="px-6 py-3 flex items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700/50">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder={getText('Search user by name or email...', 'ተጠቃሚ በስም ወይም በኢሜይል ይፈልጉ...')}
+                  value={userSearchTerm}
+                  onChange={(e) => setUserSearchTerm(e.target.value)}
+                  className={`w-full pl-9 pr-4 py-2 border rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'}`}
+                />
+                <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAll}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                >
+                  {getText('Hide All', 'ሁሉንም ሰውር')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeselectAll}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                >
+                  {getText('Show to All', 'ለሁሉም አሳይ')}
+                </button>
+              </div>
+            </div>
+
+            {/* User Checkbox List */}
+            <div className="flex-1 overflow-y-auto px-6 py-2 divide-y divide-gray-100 dark:divide-gray-700/60 max-h-[380px]">
+              {loadingUsers ? (
+                <div className="py-12 flex justify-center items-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="py-12 text-center text-sm text-gray-400">
+                  {getText('No users found', 'ምንም ተጠቃሚ አልተገኘም')}
+                </div>
+              ) : (
+                filteredUsers.map((user) => {
+                  const isHidden = selectedHiddenUserIds.includes(user._id)
+                  return (
+                    <label
+                      key={user._id}
+                      onClick={() => toggleUserHidden(user._id)}
+                      className={`py-3 px-3 rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                        isHidden
+                          ? theme === 'dark' ? 'bg-red-950/20 hover:bg-red-950/30' : 'bg-red-50/70 hover:bg-red-50'
+                          : theme === 'dark' ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={isHidden}
+                          onChange={() => {}} // handled by click on container
+                          className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-gray-600"
+                        />
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold text-xs">
+                          {user.profilePhoto ? (
+                            <img src={user.profilePhoto} alt={user.name} className="w-full h-full object-cover" />
+                          ) : (
+                            user.name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-sm font-semibold truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {user.name}
+                          </p>
+                          <p className={`text-xs truncate ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {user.email}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full capitalize font-medium ${
+                          user.role === 'admin'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                        }`}>
+                          {user.role}
+                        </span>
+                        {isHidden ? (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800">
+                            {getText('Hidden', 'የተሰወረ')}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 border border-green-200 dark:border-green-800">
+                            {getText('Visible', 'የሚታይ')}
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className={`px-6 py-4 border-t flex items-center justify-between gap-3 ${theme === 'dark' ? 'border-gray-700 bg-gray-800/80' : 'border-gray-100 bg-gray-50/80'}`}>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {selectedHiddenUserIds.length > 0 ? (
+                  <span className="text-amber-600 dark:text-amber-400 font-medium">
+                    {getText(
+                      `Hidden from ${selectedHiddenUserIds.length} user(s)`,
+                      `ከ ${selectedHiddenUserIds.length} ተጠቃሚ(ዎች) ተሰውሯል`
+                    )}
+                  </span>
+                ) : (
+                  <span>{getText('Visible to all users', 'ለሁሉም ተጠቃሚዎች ይታያል')}</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibilityModalFile(null)}
+                  disabled={savingVisibility}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-colors ${theme === 'dark' ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-200 text-gray-700 hover:bg-gray-100'}`}
+                >
+                  {getText('Cancel', 'ሰርዝ')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveVisibility}
+                  disabled={savingVisibility}
+                  className="px-5 py-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {savingVisibility && (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  )}
+                  <span>{getText('Save Visibility', 'ፈቃድ አስቀምጥ')}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   )
 }
