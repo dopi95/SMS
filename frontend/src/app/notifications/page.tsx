@@ -24,6 +24,8 @@ interface Student {
   motherName?: string
   motherPhone?: string
   paymentCode?: string
+  portalUsername?: string
+  portalPassword?: string
 }
 
 interface PhoneContact {
@@ -92,6 +94,8 @@ export default function NotificationsPage() {
     { label: 'Student Name', value: '{{studentName}}', amharic: 'የተማሪ ስም' },
     { label: 'Student Class', value: '{{studentClass}}', amharic: 'የተማሪ ክፍል' },
     { label: 'Student ID', value: '{{studentId}}', amharic: 'የተማሪ መታወቂያ' },
+    { label: 'Username', value: '{{username}}', amharic: 'የመለያ ስም (Username)' },
+    { label: 'Password', value: '{{password}}', amharic: 'የይለፍ ቃል (Password)' },
     { label: 'Student Type', value: '{{studentType}}', amharic: 'የተማሪ አይነት' },
     { label: 'Payment Code', value: '{{paymentCode}}', amharic: 'የክፍያ ኮድ' },
     { label: 'Father Name', value: '{{fatherName}}', amharic: 'የአባት ስም' },
@@ -328,15 +332,20 @@ export default function NotificationsPage() {
         const contacts = getPhoneContacts(student)
         const studentType = student.paymentCode && student.paymentCode.trim() !== '' ? 'Special' : 'Regular'
         
+        const studentUsername = student.portalUsername || student.studentId || 'N/A'
+        const studentPassword = student.portalPassword || 'N/A'
+
         // Replace variables in message
         let personalizedMessage = message
-          .replace(/{{studentName}}/g, getStudentDisplayName(student, language))
-          .replace(/{{studentClass}}/g, student.class + (student.section ? ` - ${student.section}` : ''))
-          .replace(/{{studentId}}/g, student.studentId || '')
-          .replace(/{{studentType}}/g, studentType)
-          .replace(/{{paymentCode}}/g, student.paymentCode || 'N/A')
-          .replace(/{{fatherName}}/g, student.fatherName || 'N/A')
-          .replace(/{{motherName}}/g, student.motherName || 'N/A')
+          .replace(/{{studentName}}|{studentName}/g, getStudentDisplayName(student, language))
+          .replace(/{{studentClass}}|{studentClass}/g, student.class + (student.section ? ` - ${student.section}` : ''))
+          .replace(/{{studentId}}|{studentId}/g, student.studentId || '')
+          .replace(/{{username}}|{username}|{{portalUsername}}|{portalUsername}/g, studentUsername)
+          .replace(/{{password}}|{password}|{{portalPassword}}|{portalPassword}/g, studentPassword)
+          .replace(/{{studentType}}|{studentType}/g, studentType)
+          .replace(/{{paymentCode}}|{paymentCode}/g, student.paymentCode || 'N/A')
+          .replace(/{{fatherName}}|{fatherName}/g, student.fatherName || 'N/A')
+          .replace(/{{motherName}}|{motherName}/g, student.motherName || 'N/A')
         
         contacts.forEach(contact => {
           phoneNumbers.push({
@@ -563,7 +572,7 @@ export default function NotificationsPage() {
                             }}
                             className={`w-full text-left px-4 py-2 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-50 text-gray-700'}`}
                           >
-                            <div className="font-medium">{variable.label}</div>
+                            <div className="font-medium">{getText(variable.label, variable.amharic)}</div>
                             <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
                               {variable.value}
                             </div>
