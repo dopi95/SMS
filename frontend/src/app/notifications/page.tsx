@@ -315,14 +315,11 @@ export default function NotificationsPage() {
       if (!paymentFilteredIds.includes(student._id)) return false
     }
 
-    // Only show students with at least one phone number
-    const contacts = getPhoneContacts(student)
-    return contacts.length > 0
+    return true
   })
 
   const filteredEmployees = employees.filter(emp => {
     if (emp.isActive === false) return false
-    if (!emp.phone || !emp.phone.trim()) return false
 
     const search = employeeSearchTerm.toLowerCase().trim()
     if (search) {
@@ -398,6 +395,11 @@ export default function NotificationsPage() {
       total += getPhoneContacts(student).length
     })
     return total
+  }
+
+  const getTotalEmployeePhoneNumbers = () => {
+    const selectedEmpData = employees.filter(e => selectedEmployees.includes(e._id))
+    return selectedEmpData.filter(e => e.phone && e.phone.trim()).length
   }
 
   const handleSendNotification = async () => {
@@ -483,7 +485,7 @@ export default function NotificationsPage() {
       }
 
       if (phoneNumbers.length === 0) {
-        toast.error(getText('No valid phone numbers found for the selected recipients', 'ለተመረጡት ተቀባዮች ትክክለኛ ስልክ ቁጥር አልተገኘም'))
+        toast.error(getText('None of the selected recipients have a phone number', 'ከተመረጡት ተቀባዮች ውስጥ ስልክ ቁጥር ያለው የለም'))
         setSending(false)
         return
       }
@@ -804,7 +806,7 @@ export default function NotificationsPage() {
                         <span>
                           {recipientType === 'students'
                             ? getText(`Send to ${getTotalPhoneNumbers()} numbers`, `ወደ ${getTotalPhoneNumbers()} ቁጥሮች ላክ`)
-                            : getText(`Send to ${selectedEmployees.length} employees`, `ወደ ${selectedEmployees.length} ሰራተኞች ላክ`)}
+                            : getText(`Send to ${getTotalEmployeePhoneNumbers()} employee numbers`, `ወደ ${getTotalEmployeePhoneNumbers()} የሰራተኞች ቁጥሮች ላክ`)}
                         </span>
                       </>
                     )}
@@ -937,7 +939,7 @@ export default function NotificationsPage() {
                 <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                   {recipientType === 'students'
                     ? `${selectedStudents.length} ${getText('selected', 'ተመርጠዋል')} (${getTotalPhoneNumbers()} ${getText('phone numbers', 'ስልክ ቁጥሮች')})`
-                    : `${selectedEmployees.length} ${getText('selected', 'ተመርጠዋል')} (${selectedEmployees.length} ${getText('phone numbers', 'ስልክ ቁጥሮች')})`}
+                    : `${selectedEmployees.length} ${getText('selected', 'ተመርጠዋል')} (${getTotalEmployeePhoneNumbers()} ${getText('phone numbers', 'ስልክ ቁጥሮች')})`}
                 </span>
               </div>
             </div>
@@ -979,7 +981,7 @@ export default function NotificationsPage() {
                             <tr>
                               <td colSpan={4} className="px-6 py-12 text-center">
                                 <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                                  {getText('No students found with phone numbers', 'ስልክ ቁጥር ያላቸው ተማሪዎች አልተገኙም')}
+                                  {getText('No students found', 'ተማሪዎች አልተገኙም')}
                                 </p>
                               </td>
                             </tr>
@@ -1009,19 +1011,25 @@ export default function NotificationsPage() {
                                     {student.class} {student.section && `- ${student.section}`}
                                   </td>
                                   <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                    <div className="space-y-1">
-                                      {contacts.map((contact, index) => (
-                                        <div key={index} className="flex items-center gap-2">
-                                          <span className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                                            {contact.relation}
-                                          </span>
-                                          <span className="font-medium">{contact.name}</span>
-                                          <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                                            {contact.phone}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
+                                    {contacts.length > 0 ? (
+                                      <div className="space-y-1">
+                                        {contacts.map((contact, index) => (
+                                          <div key={index} className="flex items-center gap-2">
+                                            <span className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                                              {contact.relation}
+                                            </span>
+                                            <span className="font-medium">{contact.name}</span>
+                                            <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                                              {contact.phone}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">
+                                        {getText('No phone number', 'ስልክ ቁጥር የለም')}
+                                      </span>
+                                    )}
                                   </td>
                                 </tr>
                               )
@@ -1036,7 +1044,7 @@ export default function NotificationsPage() {
                       {filteredStudents.length === 0 ? (
                         <div className="px-6 py-12 text-center">
                           <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                            {getText('No students found with phone numbers', 'ስልክ ቁጥር ያላቸው ተማሪዎች አልተገኙም')}
+                            {getText('No students found', 'ተማሪዎች አልተገኙም')}
                           </p>
                         </div>
                       ) : (
@@ -1086,21 +1094,27 @@ export default function NotificationsPage() {
                                   <p className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                                     {getText('Parent Contacts', 'የወላጅ ግንኙነቶች')}
                                   </p>
-                                  <div className="space-y-2">
-                                    {contacts.map((contact, index) => (
-                                      <div key={index} className={`flex flex-col gap-1 p-2 rounded ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-100'}`}>
-                                        <div className="flex items-center gap-2">
-                                          <span className={`text-xs px-2 py-0.5 rounded font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'}`}>
-                                            {contact.relation}
-                                          </span>
-                                          <span className={`font-medium text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{contact.name}</span>
+                                  {contacts.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {contacts.map((contact, index) => (
+                                        <div key={index} className={`flex flex-col gap-1 p-2 rounded ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-100'}`}>
+                                          <div className="flex items-center gap-2">
+                                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'}`}>
+                                              {contact.relation}
+                                            </span>
+                                            <span className={`font-medium text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{contact.name}</span>
+                                          </div>
+                                          <a href={`tel:${contact.phone}`} className={`text-sm ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                                            {contact.phone}
+                                          </a>
                                         </div>
-                                        <a href={`tel:${contact.phone}`} className={`text-sm ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
-                                          {contact.phone}
-                                        </a>
-                                      </div>
-                                    ))}
-                                  </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">
+                                      {getText('No phone number', 'ስልክ ቁጥር የለም')}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             )
@@ -1143,7 +1157,7 @@ export default function NotificationsPage() {
                             <tr>
                               <td colSpan={5} className="px-6 py-12 text-center">
                                 <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                                  {getText('No employees found with phone numbers', 'ስልክ ቁጥር ያላቸው ሰራተኞች አልተገኙም')}
+                                  {getText('No employees found', 'ሰራተኞች አልተገኙም')}
                                 </p>
                               </td>
                             </tr>
@@ -1175,8 +1189,14 @@ export default function NotificationsPage() {
                                       {emp.role}
                                     </span>
                                   </td>
-                                  <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'} font-mono text-sm`}>
-                                    📞 {emp.phone}
+                                  <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'} text-sm`}>
+                                    {emp.phone && emp.phone.trim() ? (
+                                      <span className="font-mono">📞 {emp.phone}</span>
+                                    ) : (
+                                      <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">
+                                        {getText('No phone number', 'ስልክ ቁጥር የለም')}
+                                      </span>
+                                    )}
                                   </td>
                                   <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                                     <div className="flex flex-col gap-1 text-xs">
@@ -1211,7 +1231,7 @@ export default function NotificationsPage() {
                       {filteredEmployees.length === 0 ? (
                         <div className="px-6 py-12 text-center">
                           <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                            {getText('No employees found with phone numbers', 'ስልክ ቁጥር ያላቸው ሰራተኞች አልተገኙም')}
+                            {getText('No employees found', 'ሰራተኞች አልተገኙም')}
                           </p>
                         </div>
                       ) : (
@@ -1257,11 +1277,19 @@ export default function NotificationsPage() {
                                     <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                                       {getText('ID', 'መታወቂያ')}: <span className="font-mono font-medium">{emp.teacherId}</span>
                                     </p>
-                                    <p className="text-sm mt-1">
-                                      <a href={`tel:${emp.phone}`} className={`font-mono ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
-                                        📞 {emp.phone}
-                                      </a>
-                                    </p>
+                                    {emp.phone && emp.phone.trim() ? (
+                                      <p className="text-sm mt-1">
+                                        <a href={`tel:${emp.phone}`} className={`font-mono ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                                          📞 {emp.phone}
+                                        </a>
+                                      </p>
+                                    ) : (
+                                      <p className="mt-1">
+                                        <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">
+                                          {getText('No phone number', 'ስልክ ቁጥር የለም')}
+                                        </span>
+                                      </p>
+                                    )}
                                   </div>
                                 </div>
                                 <div className={`pt-3 border-t text-xs space-y-1 ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
