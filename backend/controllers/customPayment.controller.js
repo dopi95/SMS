@@ -5,14 +5,18 @@ const asyncHandler = require('../utils/asyncHandler');
 const PDFDocument = require('pdfkit');
 const logActivity = require('../utils/logActivity');
 
-// Get all active users eligible to be selected for file visibility hiding (Superadmin only)
+// Get all active admin users eligible to be selected for file visibility hiding (Superadmin only)
 exports.getVisibilityUsers = asyncHandler(async (req, res) => {
   if (req.user.role !== 'superadmin') {
     return res.status(403).json({ message: 'Only superadmins can access this' });
   }
 
   const users = await User.find(
-    { _id: { $ne: req.user._id }, isActive: { $ne: false } },
+    {
+      _id: { $ne: req.user._id },
+      role: { $nin: ['teacher', 'student', 'superadmin'] },
+      isActive: { $ne: false }
+    },
     'name email role profilePhoto phone'
   ).sort({ name: 1 });
 

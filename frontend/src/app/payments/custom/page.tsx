@@ -328,8 +328,8 @@ export default function CustomPaymentsPage() {
                           </svg>
                           <span>
                             {getText(
-                              `Hidden from ${file.hiddenFromUsers.length} user${file.hiddenFromUsers.length > 1 ? 's' : ''}`,
-                              `ከ ${file.hiddenFromUsers.length} ተጠቃሚዎች ተሰውሯል`
+                              `Hidden from ${file.hiddenFromUsers.length} admin${file.hiddenFromUsers.length > 1 ? 's' : ''}`,
+                              `ከ ${file.hiddenFromUsers.length} አድሚኖች ተሰውሯል`
                             )}
                           </span>
                         </span>
@@ -463,8 +463,8 @@ export default function CustomPaymentsPage() {
             <div className={`px-6 py-3 text-xs border-b ${theme === 'dark' ? 'bg-purple-950/30 border-gray-700 text-purple-200' : 'bg-purple-50/80 border-purple-100 text-purple-800'}`}>
               <p className="leading-relaxed">
                 {getText(
-                  'Check users who CANNOT see this file. Checked users will have this specific file completely hidden from their view.',
-                  'ይህን ፋይል ማየት የማይችሉትን ተጠቃሚዎች ይምረጡ። ምልክት የተደረገባቸው ተጠቃሚዎች ይህን ፋይል ጨርሶ ማየት አይችሉም።'
+                  'Check admins who CANNOT see this file. Checked admins will have this specific file completely hidden from their view.',
+                  'ይህን ፋይል ማየት የማይችሉትን አድሚኖች ይምረጡ። ምልክት የተደረገባቸው አድሚኖች ይህን ፋይል ጨርሶ ማየት አይችሉም።'
                 )}
               </p>
             </div>
@@ -474,7 +474,7 @@ export default function CustomPaymentsPage() {
               <div className="relative flex-1">
                 <input
                   type="text"
-                  placeholder={getText('Search user by name or email...', 'ተጠቃሚ በስም ወይም በኢሜይል ይፈልጉ...')}
+                  placeholder={getText('Search admin by name or email...', 'አድሚን በስም ወይም በኢሜይል ይፈልጉ...')}
                   value={userSearchTerm}
                   onChange={(e) => setUserSearchTerm(e.target.value)}
                   className={`w-full pl-9 pr-4 py-2 border rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'}`}
@@ -509,7 +509,7 @@ export default function CustomPaymentsPage() {
                 </div>
               ) : filteredUsers.length === 0 ? (
                 <div className="py-12 text-center text-sm text-gray-400">
-                  {getText('No users found', 'ምንም ተጠቃሚ አልተገኘም')}
+                  {getText('No admins found', 'ምንም አድሚን አልተገኘም')}
                 </div>
               ) : (
                 filteredUsers.map((user) => {
@@ -578,12 +578,12 @@ export default function CustomPaymentsPage() {
                 {selectedHiddenUserIds.length > 0 ? (
                   <span className="text-amber-600 dark:text-amber-400 font-medium">
                     {getText(
-                      `Hidden from ${selectedHiddenUserIds.length} user(s)`,
-                      `ከ ${selectedHiddenUserIds.length} ተጠቃሚ(ዎች) ተሰውሯል`
+                      `Hidden from ${selectedHiddenUserIds.length} admin(s)`,
+                      `ከ ${selectedHiddenUserIds.length} አድሚን(ዎች) ተሰውሯል`
                     )}
                   </span>
                 ) : (
-                  <span>{getText('Visible to all users', 'ለሁሉም ተጠቃሚዎች ይታያል')}</span>
+                  <span>{getText('Visible to all admins', 'ለሁሉም አድሚኖች ይታያል')}</span>
                 )}
               </div>
               <div className="flex gap-2">
