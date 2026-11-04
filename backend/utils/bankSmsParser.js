@@ -145,6 +145,16 @@ function extractTransactionNames(text, isDebit) {
 
   if (!text) return { senderName, recipientName, payerName: '', receiverName: '', reason };
 
+  // 0. E-school pattern: 'by BLUE208/2017 - Joshwa Mekonnen Aklilu - OCT'
+  const eschoolMatch = text.match(/(?:by|from)\s+([A-Za-z0-9_\/]+)\s*-\s*([A-Za-z\s]+?)(?:\s*-\s*([A-Za-z0-9\s]+?))?\s*(?:\.|\s*$|\s+Your|\s+For|\s+Txn|\s*,)/i);
+  if (eschoolMatch) {
+    const raw = eschoolMatch[2].replace(/\s+/g, ' ').trim();
+    if (!/^(your|account|etb|cbe|the|awash|a\/c|birr)/i.test(raw)) {
+      if (isDebit) recipientName = raw;
+      else senderName = raw;
+    }
+  }
+
   // 1. Parentheses name after account e.g. (Dagnachew Tesfaye) or (KEBEDE ABEBE)
   const parenMatch = text.match(/(?:account\s+[0-9*xX]+|payer|beneficiary|receiver|to)\s*\(([^)]+)\)/i)
     || text.match(/\(([A-Za-z\s]{3,35})\)\s*(?:account|has been|\.|\s*$)/i);
@@ -326,26 +336,39 @@ function parseAwashSms(text, fallbackDate = null) {
     }
   }
 
-  // 3. Sender Name (Payer)
+  // 3. Sender Name (Payer) & e-School student details
   let senderName = '';
-  // Check for parenthesis name: e.g. (Abebe)
-  const parenNameMatch = text.match(/(?:from\s+(?:account|a\/c)\s+[0-9*xX]+|payer)\s*\(([^)]+)\)/i);
-  // Check for "by [Name] via ..." pattern (IPS transfers e.g. by Elias Yenealem Atalay via IPS)
-  const byViaMatch = text.match(/by\s+([A-Za-z\s]{2,35}?)(?:\s+via|\s+on|\s*\.|\s*Txn|\s*,|\s*$)/i);
+  let studentCode = '';
+  let paymentMonth = '';
 
-  if (parenNameMatch) {
-    senderName = parenNameMatch[1].trim();
-  } else if (byViaMatch) {
-    const rawName = byViaMatch[1].trim();
-    if (!/^(your|account|etb|awash|the)/i.test(rawName)) {
-      senderName = rawName;
+  // E-school format: e.g. "by BLUE208/2017 -  Joshwa  Mekonnen  Aklilu - OCT."
+  const eschoolMatch = text.match(/(?:by|from)\s+([A-Za-z0-9_\/]+)\s*-\s*([A-Za-z\s]+?)(?:\s*-\s*([A-Za-z0-9\s]+?))?\s*(?:\.|\s*$|\s+Your|\s+For|\s+Txn|\s*,)/i);
+  if (eschoolMatch) {
+    studentCode = eschoolMatch[1].trim();
+    senderName = eschoolMatch[2].replace(/\s+/g, ' ').trim();
+    if (eschoolMatch[3]) {
+      paymentMonth = eschoolMatch[3].trim();
     }
   } else {
-    const senderMatch = text.match(/(?:by|from|payer)\s+([A-Za-z\s]{2,35}?)(?:\s+via|\s+on|\s*\.|\s*Txn|\s*,|\s*to\s+your|\s*$)/i);
-    if (senderMatch) {
-      const rawName = senderMatch[1].trim();
+    // Check for parenthesis name: e.g. (Abebe)
+    const parenNameMatch = text.match(/(?:from\s+(?:account|a\/c)\s+[0-9*xX]+|payer)\s*\(([^)]+)\)/i);
+    // Check for "by [Name] via ..." pattern (IPS transfers e.g. by Elias Yenealem Atalay via IPS)
+    const byViaMatch = text.match(/by\s+([A-Za-z\s]{2,35}?)(?:\s+via|\s+on|\s*\.|\s*Txn|\s*,|\s*$)/i);
+
+    if (parenNameMatch) {
+      senderName = parenNameMatch[1].trim();
+    } else if (byViaMatch) {
+      const rawName = byViaMatch[1].trim();
       if (!/^(your|account|etb|awash|the)/i.test(rawName)) {
         senderName = rawName;
+      }
+    } else {
+      const senderMatch = text.match(/(?:by|from|payer)\s+([A-Za-z\s]{2,35}?)(?:\s+via|\s+on|\s*\.|\s*Txn|\s*,|\s*to\s+your|\s*$)/i);
+      if (senderMatch) {
+        const rawName = senderMatch[1].trim();
+        if (!/^(your|account|etb|awash|the)/i.test(rawName)) {
+          senderName = rawName;
+        }
       }
     }
   }
@@ -391,6 +414,8 @@ function parseAwashSms(text, fallbackDate = null) {
     receiverAccount,
     reference,
     senderName,
+    studentCode,
+    paymentMonth,
     transactionDate
   };
 }
@@ -672,6 +697,8 @@ function parseBankSms(smsText, sender = '', settings = null, fallbackDate = null
     senderName: formattedSenderName,
     payerName,
     receiverName,
+    studentCode: parsed.studentCode || '',
+    paymentMonth: parsed.paymentMonth || '',
     sourceBank,
     transactionDate: parsed.transactionDate || new Date(),
     rawSms: smsText.trim()

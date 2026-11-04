@@ -205,6 +205,22 @@ function scoreStudentMatchDetailed(student, payerName, smsText = '') {
     }
   }
 
+  // 2. Student ID in SMS or payerName (e.g. BLUE208/2017, BLUE208)
+  if (student.studentId && (smsText || payerName)) {
+    const cleanId = student.studentId.trim();
+    if (cleanId.length >= 3) {
+      const escapedId = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const idRegex = new RegExp(`(?:^|[^a-zA-Z0-9])${escapedId}(?:$|[^a-zA-Z0-9])`, 'i');
+      if ((smsText && idRegex.test(smsText)) || (payerName && idRegex.test(payerName))) {
+        return {
+          matchType: 'exact',
+          score: 100,
+          reason: `Exact Student ID matched in SMS (${cleanId})`
+        };
+      }
+    }
+  }
+
   if (payerTokens.length === 0) {
     return bestResult;
   }

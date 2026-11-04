@@ -273,6 +273,19 @@ exports.handleWebhook = async (req, res) => {
     const matchedStudentsList = isDebit ? [] : await tryMatchStudents(smsText, parsed.senderName);
     const primaryMatched = matchedStudentsList.length > 0 ? matchedStudentsList[0] : null;
 
+    const eschoolNote = (parsed.studentCode || parsed.paymentMonth)
+      ? `e-School: ${[parsed.studentCode, parsed.paymentMonth].filter(Boolean).join(' - ')}`
+      : '';
+    const noteParts = [];
+    if (isDebit) {
+      noteParts.push('Debited transaction (ወጪ)');
+    } else {
+      if (eschoolNote) noteParts.push(eschoolNote);
+      if (matchedStudentsList.length > 1) {
+        noteParts.push(`Auto-matched ${matchedStudentsList.length} siblings`);
+      }
+    }
+
     const newTransaction = await BankTransaction.create({
       bank: parsed.bank,
       type: parsed.type || 'credit',
@@ -292,7 +305,7 @@ exports.handleWebhook = async (req, res) => {
       matchedStudent: primaryMatched ? primaryMatched._id : null,
       matchedStudents: matchedStudentsList.map(s => s._id),
       status: isDebit ? 'unmatched' : (matchedStudentsList.length > 0 ? 'matched' : 'unmatched'),
-      notes: isDebit ? 'Debited transaction (ወጪ)' : (matchedStudentsList.length > 1 ? `Auto-matched ${matchedStudentsList.length} siblings` : '')
+      notes: noteParts.join(' | ')
     });
 
     res.status(201).json({
@@ -366,6 +379,19 @@ exports.parseManual = async (req, res) => {
       const matchedStudentsList = isDebit ? [] : await tryMatchStudents(chunk, parsed.senderName);
       const primaryMatched = matchedStudentsList.length > 0 ? matchedStudentsList[0] : null;
 
+      const eschoolNote = (parsed.studentCode || parsed.paymentMonth)
+        ? `e-School: ${[parsed.studentCode, parsed.paymentMonth].filter(Boolean).join(' - ')}`
+        : '';
+      const noteParts = [];
+      if (isDebit) {
+        noteParts.push('Debited transaction (ወጪ)');
+      } else {
+        if (eschoolNote) noteParts.push(eschoolNote);
+        if (matchedStudentsList.length > 1) {
+          noteParts.push(`Auto-matched ${matchedStudentsList.length} siblings`);
+        }
+      }
+
       const created = await BankTransaction.create({
         bank: parsed.bank,
         type: parsed.type || (isDebit ? 'debit' : 'credit'),
@@ -385,7 +411,7 @@ exports.parseManual = async (req, res) => {
         matchedStudent: primaryMatched ? primaryMatched._id : null,
         matchedStudents: matchedStudentsList.map(s => s._id),
         status: isDebit ? 'unmatched' : (matchedStudentsList.length > 0 ? 'matched' : 'unmatched'),
-        notes: isDebit ? 'Debited transaction (ወጪ)' : (matchedStudentsList.length > 1 ? `Auto-matched ${matchedStudentsList.length} siblings` : '')
+        notes: noteParts.join(' | ')
       });
 
       results.push({
