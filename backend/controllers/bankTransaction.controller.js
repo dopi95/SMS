@@ -241,8 +241,8 @@ exports.handleWebhook = async (req, res) => {
 
     const parsed = await parseBankSmsAsync(smsText, sender, settings, fallbackDate);
 
-    // If ignored because it's for another account on the same phone number
-    if (parsed.accountIgnored || parsed.isDebit) {
+    // If ignored because it's for another account or non-bank message
+    if (parsed.accountIgnored || !parsed.success) {
       return res.json({
         success: true,
         ignored: true,
@@ -408,54 +408,111 @@ exports.parseManual = async (req, res) => {
   }
 };
 
+// Helper to construct query that strictly enforces active bank accounts configured in Bank Settings
+function buildFilteredBankQuery(params, settings) {
+  const { bank, status, search, type, startDate, endDate } = params;
+  const query = {};
+
+  // 1. Exclude non-bank telecom senders and telecom keywords
+  query.senderPhone = { $nin: ['251994', '994', '131', '810', '804', '802', '126', 'AATMA'] };
+
+  // 2. Strict Account filter matching settings
+  const activeBankConditions = [];
+  if (settings && settings.cbeActive && settings.cbeAccount && settings.cbeAccount.trim()) {
+    const cbeClean = settings.cbeAccount.replace(/\D/g, '');
+    const cbeTail = cbeClean.slice(-4);
+    activeBankConditions.push({
+      bank: 'CBE',
+      $or: [
+        { receiverAccount: new RegExp(cbeClean, 'i') },
+        { receiverAccount: new RegExp(cbeTail + '$', 'i') },
+        { rawSms: new RegExp(cbeClean, 'i') },
+        { rawSms: new RegExp(cbeTail, 'i') }
+      ]
+    });
+  }
+
+  if (settings && settings.awashActive && settings.awashAccount && settings.awashAccount.trim()) {
+    const awashClean = settings.awashAccount.replace(/\D/g, '');
+    const awashTail = awashClean.slice(-4);
+    activeBankConditions.push({
+      bank: 'AWASH',
+      $or: [
+        { receiverAccount: new RegExp(awashClean, 'i') },
+        { receiverAccount: new RegExp(awashTail + '$', 'i') },
+        { rawSms: new RegExp(awashClean, 'i') },
+        { rawSms: new RegExp(awashTail, 'i') }
+      ]
+    });
+  }
+
+  if (bank && bank !== 'all') {
+    query.bank = bank.toUpperCase();
+    const matchingCond = activeBankConditions.find(c => c.bank === bank.toUpperCase());
+    if (matchingCond) {
+      query.$or = matchingCond.$or;
+    }
+  } else if (activeBankConditions.length > 0) {
+    query.$or = activeBankConditions;
+  }
+
+  // 3. Status filter
+  if (status && status !== 'all') {
+    query.status = status;
+  }
+
+  // 4. Type filter (credit vs debit)
+  if (type && type !== 'all') {
+    if (type === 'debit') {
+      query.type = 'debit';
+    } else if (type === 'credit') {
+      query.$and = (query.$and || []).concat([{ $or: [{ type: 'credit' }, { type: { $exists: false } }] }]);
+    }
+  }
+
+  // 5. Date filter
+  if (startDate || endDate) {
+    query.transactionDate = {};
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      query.transactionDate.$gte = start;
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      query.transactionDate.$lte = end;
+    }
+  }
+
+  // 6. Search filter
+  if (search && search.trim()) {
+    const s = search.trim();
+    const regex = new RegExp(s, 'i');
+    const searchOr = [
+      { reference: regex },
+      { senderName: regex },
+      { payerName: regex },
+      { receiverName: regex },
+      { receiverAccount: regex },
+      { rawSms: regex }
+    ];
+    if (query.$or) {
+      query.$and = (query.$and || []).concat([{ $or: searchOr }]);
+    } else {
+      query.$or = searchOr;
+    }
+  }
+
+  return query;
+}
+
 // 5. Get transactions with filters and pagination
 exports.getTransactions = async (req, res) => {
   try {
-    const { bank, status, search, type, startDate, endDate, page = 1, limit = 20 } = req.query;
-
-    const query = {};
-
-    if (bank && bank !== 'all') {
-      query.bank = bank;
-    }
-
-    if (status && status !== 'all') {
-      query.status = status;
-    }
-
-    if (type && type !== 'all') {
-      if (type === 'debit') {
-        query.type = 'debit';
-      } else if (type === 'credit') {
-        query.$or = [{ type: 'credit' }, { type: { $exists: false } }];
-      }
-    }
-
-    if (startDate || endDate) {
-      query.transactionDate = {};
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        query.transactionDate.$gte = start;
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        query.transactionDate.$lte = end;
-      }
-    }
-
-    if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
-      query.$or = [
-        { reference: searchRegex },
-        { senderName: searchRegex },
-        { payerName: searchRegex },
-        { receiverName: searchRegex },
-        { receiverAccount: searchRegex },
-        { rawSms: searchRegex }
-      ];
-    }
+    const { page = 1, limit = 20 } = req.query;
+    const settings = await getOrCreateSettings();
+    const query = buildFilteredBankQuery(req.query, settings);
 
     const pageNum = Math.max(1, parseInt(page));
     const pageSize = Math.max(1, parseInt(limit));
@@ -670,50 +727,8 @@ exports.getTransactions = async (req, res) => {
 // 6. Get transaction summary stats with filter support
 exports.getStats = async (req, res) => {
   try {
-    const { bank, status, search, type, startDate, endDate } = req.query;
-
-    const query = {};
-
-    if (bank && bank !== 'all') {
-      query.bank = bank;
-    }
-
-    if (status && status !== 'all') {
-      query.status = status;
-    }
-
-    if (type && type !== 'all') {
-      if (type === 'debit') {
-        query.type = 'debit';
-      } else if (type === 'credit') {
-        query.$or = [{ type: 'credit' }, { type: { $exists: false } }];
-      }
-    }
-
-    if (startDate || endDate) {
-      query.transactionDate = {};
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        query.transactionDate.$gte = start;
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        query.transactionDate.$lte = end;
-      }
-    }
-
-    if (search && search.trim()) {
-      const s = search.trim();
-      const regex = new RegExp(s, 'i');
-      query.$or = [
-        { reference: regex },
-        { senderName: regex },
-        { receiverAccount: regex },
-        { rawSms: regex }
-      ];
-    }
+    const settings = await getOrCreateSettings();
+    const query = buildFilteredBankQuery(req.query, settings);
 
     const allTxns = await BankTransaction.find(query).lean();
 

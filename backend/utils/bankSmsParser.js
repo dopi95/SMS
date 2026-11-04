@@ -8,17 +8,54 @@ function normalizeAccount(acc) {
   return acc.toString().replace(/[\s\-_]/g, '').toLowerCase();
 }
 
+// Check if message is from non-bank telecom, airtime recharge, or personal P2P
+function isNonBankOrTelecomMessage(smsText, sender) {
+  const s = (sender || '').toLowerCase().trim();
+  const t = (smsText || '').toLowerCase().trim();
+
+  // 1. Telecom short codes & numbers: 994, 251994, 131, 810, 804, 802, 126, AATMA
+  if (/^(251)?(994|131|810|804|802|126)$/i.test(s) || s === 'aatma') {
+    return true;
+  }
+
+  // 2. Airtime & Data bundle & Telecom keywords
+  if (t.includes('airtime') ||
+      t.includes('internet plan') ||
+      t.includes('data plan') ||
+      t.includes('sim starter') ||
+      t.includes('bonus for recharging') ||
+      t.includes('recharged successfully') ||
+      t.includes('airtime top-up') ||
+      t.includes('package purchase') ||
+      t.includes('monthly sim') ||
+      t.includes('ethio telecom') ||
+      t.includes('for transport service to') ||
+      t.includes('recharged etb') ||
+      t.includes('silver coin') ||
+      t.includes('draw ticket') ||
+      t.includes('luckyslot') ||
+      t.includes('traffic violation')) {
+    return true;
+  }
+
+  // 3. Telebirr P2P / merchant transfers that are not bank account transfers
+  if ((s === '127' || t.includes('telebirr')) && !t.includes('cbe') && !t.includes('awash') && !/\b(1000[0-9*xX]{6,14}|01[0-9*xX]{8,18})\b/.test(t)) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Checks if the account number found in the SMS matches the target configured account.
  * Handles:
- * - Full account numbers (e.g. 1000437336591, 013201401837000)
- * - Asterisk-masked accounts (CBE: 1********6591 or 1000****6591)
- * - X-masked accounts (Awash: 01320xxxxxx7000 or 01320XXXXXX7000)
+ * - Full account numbers (e.g. 1000677952575, 013251373973500)
+ * - Asterisk-masked accounts (CBE: 1********2575 or 1000****2575)
+ * - X-masked accounts (Awash: 01325xxxxxx3500 or 01325XXXXXX3500)
  */
 function isAccountMatching(smsAccount, targetAccount) {
   if (!targetAccount || !targetAccount.trim()) {
-    // If no target account is configured yet, accept
-    return true;
+    return false;
   }
   if (!smsAccount || !smsAccount.trim()) {
     return false;
@@ -30,10 +67,12 @@ function isAccountMatching(smsAccount, targetAccount) {
   // 1. Direct equality
   if (sAcc === tAcc) return true;
 
-  // 2. Substring containment
-  if (tAcc.includes(sAcc) || sAcc.includes(tAcc)) return true;
+  // 2. Full account containment (target account fully inside string)
+  if (tAcc.length >= 10 && sAcc.includes(tAcc)) return true;
 
   // 3. Masked matching (supports both '*' and 'x' / 'X')
+  // Example: 1********2575 with 1000677952575
+  // Example: 01325xxxxxx3500 with 013251373973500
   if (sAcc.includes('*') || sAcc.includes('x')) {
     const prefixMatch = sAcc.match(/^([0-9]+)[*x]+/);
     const suffixMatch = sAcc.match(/[*x]+([0-9]+)$/);
@@ -49,16 +88,36 @@ function isAccountMatching(smsAccount, targetAccount) {
     }
   }
 
-  // 4. Fallback: compare last 4 digits
-  const cleanSmsDigits = sAcc.replace(/\D/g, '');
-  const cleanTargetDigits = tAcc.replace(/\D/g, '');
-  if (cleanSmsDigits.length >= 4 && cleanTargetDigits.length >= 4) {
-    if (cleanTargetDigits.endsWith(cleanSmsDigits.slice(-4))) {
-      return true;
+  return false;
+}
+
+/**
+ * Scans the SMS text to find an explicit account matching the target school account.
+ * Rejects random numbers or phone numbers.
+ */
+function findMatchingAccountInSms(smsText, targetAccount, bank) {
+  if (!targetAccount || !targetAccount.trim() || !smsText) return null;
+  const cleanTarget = targetAccount.replace(/\D/g, '');
+  if (!cleanTarget) return null;
+
+  // 1. Full account in text
+  if (smsText.includes(cleanTarget)) {
+    return cleanTarget;
+  }
+
+  // 2. Extract account candidates: e.g. 1********2575, 1000****2575, 01325xxxxxx3500
+  const pattern = bank === 'AWASH'
+    ? /\b(01[0-9]{1,4}[\*xX]{3,12}[0-9]{3,6}|01[0-9]{8,18})\b/gi
+    : /\b(1[0-9]{0,4}[\*xX]{3,12}[0-9]{3,6}|1000[0-9]{6,14})\b/gi;
+
+  const matches = smsText.match(pattern) || [];
+  for (const m of matches) {
+    if (isAccountMatching(m, cleanTarget)) {
+      return m;
     }
   }
 
-  return false;
+  return null;
 }
 
 /**
@@ -458,29 +517,18 @@ function detectBank(smsText, sender, settings = null) {
   if (s === 'awash' || s.includes('awash')) return 'AWASH';
   if (s === 'cbe') return 'CBE';
 
-  // 1. Check strong bank indicators
-  const isAwash = t.includes('awash bank') || t.includes('awashbank') || t.includes('awash_bank') || /\b01[0-9*xX]{8,18}\b/.test(t) || t.includes('awb');
-  const isCbe = t.includes('cbe.com.et') || t.includes('mbreciept') || t.includes('thanks for banking with cbe') || (/\b1000[0-9*xX]{6,14}\b/.test(t) && !isAwash);
+  // 1. Check strong bank indicators in SMS text
+  const isAwash = t.includes('awash bank') || t.includes('awashbank') || t.includes('awashpay') || /\b01[0-9*xX]{8,18}\b/.test(t) || t.includes('awb');
+  const isCbe = t.includes('commercial bank of ethiopia') || t.includes('cbe.com.et') || t.includes('mbreciept') || t.includes('thanks for banking with cbe') || /\b1000[0-9*xX]{6,14}\b/.test(t) || /\b1[\*xX]{6,12}[0-9]{3,6}\b/.test(t);
 
   // If both are mentioned (e.g. transfer "via IPS Commercial Bank of Ethiopia" into Awash Bank):
   if (isAwash && isCbe) {
-    // Check whose account is being credited
     if (/\b01[0-9*xX]{8,18}\b/.test(t)) return 'AWASH';
-    if (/\b1000[0-9*xX]{6,14}\b/.test(t)) return 'CBE';
+    if (/\b1000[0-9*xX]{6,14}\b/.test(t) || /\b1[\*xX]{6,12}[0-9]{3,6}\b/.test(t)) return 'CBE';
   }
 
   if (isAwash) return 'AWASH';
   if (isCbe) return 'CBE';
-
-  // 2. Settings account match check (if SMS text contains account ending)
-  if (settings) {
-    if (settings.awashAccount && settings.awashAccount.length >= 4 && t.includes(settings.awashAccount.slice(-4))) {
-      return 'AWASH';
-    }
-    if (settings.cbeAccount && settings.cbeAccount.length >= 4 && t.includes(settings.cbeAccount.slice(-4))) {
-      return 'CBE';
-    }
-  }
 
   return 'UNKNOWN';
 }
@@ -494,35 +542,39 @@ function parseBankSms(smsText, sender = '', settings = null, fallbackDate = null
     return { success: false, error: 'Empty SMS text provided' };
   }
 
-
-
-  const bank = detectBank(smsText, sender, settings);
-  let parsed = null;
-
-  if (bank === 'CBE') {
-    parsed = parseCbeSms(smsText, fallbackDate);
-  } else if (bank === 'AWASH') {
-    parsed = parseAwashSms(smsText, fallbackDate);
-  } else {
-    // Try Awash first if account matches 01, otherwise CBE
-    if (/\b01[0-9*xX]{8,18}\b/.test(smsText)) {
-      parsed = parseAwashSms(smsText, fallbackDate);
-    } else {
-      parsed = parseCbeSms(smsText, fallbackDate);
-    }
-    if (!parsed || (!parsed.amount && !parsed.reference)) {
-      return {
-        success: false,
-        bank: 'UNKNOWN',
-        error: 'Could not determine bank or extract transaction details from SMS'
-      };
-    }
-  }
-
-  if (!parsed.amount || isNaN(parsed.amount) || parsed.amount <= 0) {
+  // 1. Immediately drop non-bank telecom, airtime, or spam messages
+  if (isNonBankOrTelecomMessage(smsText, sender)) {
     return {
       success: false,
-      bank: parsed.bank,
+      bank: 'UNKNOWN',
+      accountIgnored: true,
+      error: 'Non-bank telecom, airtime, or personal message ignored'
+    };
+  }
+
+  // 2. Identify the bank (must be CBE or AWASH)
+  const bank = detectBank(smsText, sender, settings);
+  if (bank !== 'CBE' && bank !== 'AWASH') {
+    return {
+      success: false,
+      bank: 'UNKNOWN',
+      accountIgnored: true,
+      error: 'Message is not from Commercial Bank of Ethiopia (CBE) or Awash Bank'
+    };
+  }
+
+  // 3. Extract transaction details according to bank
+  let parsed = null;
+  if (bank === 'CBE') {
+    parsed = parseCbeSms(smsText, fallbackDate);
+  } else {
+    parsed = parseAwashSms(smsText, fallbackDate);
+  }
+
+  if (!parsed || !parsed.amount || isNaN(parsed.amount) || parsed.amount <= 0) {
+    return {
+      success: false,
+      bank,
       error: 'Could not extract valid amount from SMS'
     };
   }
@@ -532,16 +584,16 @@ function parseBankSms(smsText, sender = '', settings = null, fallbackDate = null
     parsed.reference = 'REF-' + Date.now().toString(36).toUpperCase();
   }
 
-  // Check account filter against user settings
+  // 4. Strict check against user's configured account in Bank Settings
   let targetAccount = '';
   let isAccountActive = true;
 
   if (settings) {
-    if (parsed.bank === 'CBE') {
-      targetAccount = settings.cbeAccount || '';
+    if (bank === 'CBE') {
+      targetAccount = (settings.cbeAccount || '').trim();
       isAccountActive = settings.cbeActive !== false;
-    } else if (parsed.bank === 'AWASH') {
-      targetAccount = settings.awashAccount || '';
+    } else if (bank === 'AWASH') {
+      targetAccount = (settings.awashAccount || '').trim();
       isAccountActive = settings.awashActive !== false;
     }
   }
@@ -549,62 +601,51 @@ function parseBankSms(smsText, sender = '', settings = null, fallbackDate = null
   if (!isAccountActive) {
     return {
       success: false,
-      bank: parsed.bank,
+      bank,
       accountIgnored: true,
-      error: `${parsed.bank} transactions are currently disabled in settings`
+      error: `${bank} transactions are currently disabled in settings`
     };
   }
 
-  // If a target account is configured, check if this SMS matches that account
-  if (targetAccount && targetAccount.trim() !== '') {
-    let isMatch = false;
-
-    // 1. Direct match with extracted account
-    if (parsed.receiverAccount && isAccountMatching(parsed.receiverAccount, targetAccount)) {
-      isMatch = true;
-    } else {
-      // 2. Check if raw SMS text contains target account, masked target account, or its last 4 digits (e.g. 7000)
-      const cleanTarget = targetAccount.replace(/\D/g, '');
-      if (isAccountMatching(smsText, targetAccount)) {
-        parsed.receiverAccount = targetAccount;
-        isMatch = true;
-      } else if (cleanTarget.length >= 4 && smsText.replace(/[\s\-_]/g, '').includes(cleanTarget.slice(-4))) {
-        parsed.receiverAccount = targetAccount;
-        isMatch = true;
-      } else {
-        // 3. Check if SMS text explicitly mentions a DIFFERENT, conflicting account number
-        const anyAccountMatch = smsText.match(/\b(01[0-9*xX]{8,18}|1000[0-9*xX]{6,14})\b/i);
-        if (anyAccountMatch) {
-          const foundAcc = anyAccountMatch[1];
-          if (isAccountMatching(foundAcc, targetAccount)) {
-            parsed.receiverAccount = targetAccount;
-            isMatch = true;
-          } else {
-            isMatch = false; // Conflicting account explicitly found in text
-          }
-        } else if (!parsed.receiverAccount || parsed.receiverAccount.trim() === '') {
-          // 4. No conflicting account mentioned in the SMS text -> default to configured school account
-          parsed.receiverAccount = targetAccount;
-          isMatch = true;
-        }
-      }
-    }
-
-    if (!isMatch) {
-      return {
-        success: false,
-        bank: parsed.bank,
-        accountIgnored: true,
-        extractedAccount: parsed.receiverAccount,
-        targetAccount,
-        error: `Account ${parsed.receiverAccount || 'unspecified'} does not match target school account ${targetAccount}. Ignored.`
-      };
-    }
+  if (!targetAccount) {
+    return {
+      success: false,
+      bank,
+      accountIgnored: true,
+      error: `No target ${bank} account configured in settings. Please set your account number in Bank Settings.`
+    };
   }
 
-  const isDebit = isDebitSms(smsText);
+  // MUST explicitly match the target account in the SMS (both credit or debit)
+  const matchedAcc = findMatchingAccountInSms(smsText, targetAccount, bank);
+  if (!matchedAcc) {
+    return {
+      success: false,
+      bank,
+      accountIgnored: true,
+      targetAccount,
+      extractedAccount: parsed.receiverAccount || '',
+      error: `SMS does not contain the configured ${bank} account (${targetAccount}). Ignored.`
+    };
+  }
+
+  // 5. Determine Credit vs Debit accurately
+  let isDebit = isDebitSms(smsText);
+
+  const cleanTarget = targetAccount.replace(/\D/g, '');
+  const fromAccMatch = smsText.match(/from\s+(?:your\s+)?account\s+([0-9*xX]+)/i);
+  const toAccMatch = smsText.match(/(?:to\s+(?:your\s+)?account|into\s+(?:your\s+)?account)\s+([0-9*xX]+)/i);
+
+  if (fromAccMatch && isAccountMatching(fromAccMatch[1], cleanTarget)) {
+    if (toAccMatch && !isAccountMatching(toAccMatch[1], cleanTarget)) {
+      isDebit = true; // explicitly debited from target account
+    }
+  } else if (toAccMatch && isAccountMatching(toAccMatch[1], cleanTarget)) {
+    isDebit = false; // explicitly credited to target account
+  }
+
   const type = isDebit ? 'debit' : 'credit';
-  const sourceBank = isDebit ? '' : extractSourceBank(smsText, parsed.bank);
+  const sourceBank = isDebit ? '' : extractSourceBank(smsText, bank);
   const names = extractTransactionNames(smsText, isDebit);
 
   const payerName = isDebit ? '' : (names.senderName || parsed.senderName || '').trim();
@@ -615,15 +656,16 @@ function parseBankSms(smsText, sender = '', settings = null, fallbackDate = null
   const hasBankReference = Boolean(parsed.reference && parsed.reference.trim() !== '' && !parsed.reference.includes('WISQB'));
   const fallbackRef = hasBankReference
     ? parsed.reference.trim()
-    : 'REF-' + parsed.bank + '-' + (parsed.transactionDate ? new Date(parsed.transactionDate).getTime() : Date.now()) + '-' + Math.round(parsed.amount);
+    : 'REF-' + bank + '-' + (parsed.transactionDate ? new Date(parsed.transactionDate).getTime() : Date.now()) + '-' + Math.round(parsed.amount);
 
   return {
     success: true,
-    bank: parsed.bank,
+    bank,
     type,
     amount: parsed.amount,
     currency: 'ETB',
-    receiverAccount: parsed.receiverAccount || targetAccount || '',
+    receiverAccount: targetAccount,
+    matchedAccountInSms: matchedAcc,
     reference: fallbackRef,
     hasBankReference,
     receiptUrl,
