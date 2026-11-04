@@ -12,7 +12,8 @@ import {
   calcAgeFromDOB,
   ETHIOPIAN_ACADEMIC_MONTHS,
   getCurrentEthiopianAcademicMonth,
-  getCurrentEthiopianYear
+  getCurrentEthiopianYear,
+  calculateMonthlyFeePenalty
 } from '@/utils/dateUtils';
 
 interface Student {
@@ -54,6 +55,16 @@ interface Payment {
   status: string;
 }
 
+
+interface FeeSetting {
+  _id: string;
+  year: number;
+  month: string;
+  monthlyFee: number;
+  penaltyFee: number;
+  penaltyDay: number;
+}
+
 interface Credential {
   username: string | null;
   password: string | null;
@@ -83,6 +94,24 @@ export default function ViewStudentPage() {
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<Payment[]>([])
+  const [feeSettings, setFeeSettings] = useState<FeeSetting[]>([]);
+
+  useEffect(() => {
+    fetchFeeSettings();
+  }, []);
+
+  const fetchFeeSettings = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/fee-settings`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setFeeSettings(res.data || []);
+    } catch (error) {
+      console.error('Failed to fetch fee settings:', error);
+    }
+  };
+
   const [credential, setCredential] = useState<Credential | null>(null);
   const [credLoading, setCredLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -546,16 +575,134 @@ export default function ViewStudentPage() {
                     )}
                   </div>
                 </div>
+                {/* Summary of configured fees & accrued penalties for selectedYear */}
+                {(() => {
+                  const yearFeeSettings = feeSettings.filter(fs => fs.year === selectedYear);
+                  if (yearFeeSettings.length === 0) return null;
+
+                  const feeDetails = yearFeeSettings.map(setting => {
+                    const isPaid = isMonthPaid(setting.month);
+                    const calc = calculateMonthlyFeePenalty({
+                      monthlyFee: setting.monthlyFee,
+                      penaltyFee: setting.penaltyFee,
+                      penaltyDay: setting.penaltyDay,
+                      feeYear: selectedYear,
+                      feeMonth: setting.month,
+                      isPaid
+                    });
+                    return { setting, isPaid, calc };
+                  });
+
+                  const unpaidFeeDetails = feeDetails.filter(d => !d.isPaid);
+                  const totalUnpaidBase = unpaidFeeDetails.reduce((sum, d) => sum + d.calc.monthlyFee, 0);
+                  const totalPenalty = unpaidFeeDetails.reduce((sum, d) => sum + d.calc.accruedPenalty, 0);
+                  const totalLeftToPay = totalUnpaidBase + totalPenalty;
+
+                  return (
+                    <div className={`p-4 sm:p-5 rounded-xl border mb-5 ${
+                      unpaidFeeDetails.length > 0
+                        ? theme === 'dark'
+                          ? 'bg-amber-950/20 border-amber-800/60 text-amber-200'
+                          : 'bg-amber-50 border-amber-200 text-amber-900'
+                        : theme === 'dark'
+                          ? 'bg-emerald-950/20 border-emerald-800/60 text-emerald-200'
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    }`}>
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{unpaidFeeDetails.length > 0 ? '⚠️' : '✅'}</span>
+                          <h4 className="font-bold text-base">
+                            {getText(`Monthly Fee & Penalty Tracking (${selectedYear} E.C)`, `የወርሃዊ ክፍያ እና የቅጣት መረጃ (${selectedYear} ዓ.ም)`)}
+                          </h4>
+                        </div>
+                        <span className="text-xs px-2.5 py-1 rounded-full bg-white/70 dark:bg-black/30 font-medium">
+                          {getText('Informational Tracking', 'መረጃዊ እይታ')}
+                        </span>
+                      </div>
+
+                      {unpaidFeeDetails.length > 0 ? (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="p-3 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-amber-200/60 dark:border-amber-800/40">
+                              <span className="block text-xs font-semibold uppercase tracking-wide opacity-75">
+                                {getText('Unpaid Base Fees', 'ያልተከፈለ ወርሃዊ ክፍያ')}
+                              </span>
+                              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                                {totalUnpaidBase.toLocaleString()} ETB
+                              </span>
+                            </div>
+                            <div className="p-3 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-amber-200/60 dark:border-amber-800/40">
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                                {getText('Accrued Penalty', 'የተጠራቀመ ቅጣት')}
+                              </span>
+                              <span className="text-lg font-bold text-rose-600 dark:text-rose-400">
+                                +{totalPenalty.toLocaleString()} ETB
+                              </span>
+                            </div>
+                            <div className="p-3 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-amber-300 dark:border-amber-700">
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                                {getText('Total Left to Pay', 'አጠቃላይ የሚቀረው')}
+                              </span>
+                              <span className="text-xl font-extrabold text-red-600 dark:text-red-400">
+                                {totalLeftToPay.toLocaleString()} ETB
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-xs space-y-1 pt-1 opacity-95">
+                            <p>
+                              💡 <strong>{getText('Breakdown', 'ዝርዝር')}:</strong>{' '}
+                              {unpaidFeeDetails.map(d => {
+                                const mMeta = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value === d.setting.month);
+                                const mLabel = mMeta ? (language === 'am' ? mMeta.am : mMeta.en) : d.setting.month;
+                                return `${mLabel}: Left ${d.calc.totalDue.toLocaleString()} ETB (${d.setting.monthlyFee.toLocaleString()} base${d.calc.isOverdue ? ` + ${d.calc.accruedPenalty.toLocaleString()} penalty (${d.calc.overdueDays}d overdue @ ${d.setting.penaltyFee} ETB/d)` : ` - penalty starts after day ${d.setting.penaltyDay}`})`;
+                              }).join(' | ')}
+                            </p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 italic">
+                              * {getText(
+                                'Penalty amount is calculated automatically for student tracking and does not force payment entry to match.',
+                                'የቅጣት ስሌት ለክትትል ብቻ የቀረበ ሲሆን ክፍያ ሲገባ ከቅጣቱ ጋር እኩል እንዲሆን አይገደድም።'
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <span>🎉</span>
+                          <span>
+                            {getText(
+                              'All configured monthly fees for this academic year are fully paid! Balance left: 0 ETB.',
+                              'ለዚህ ዓመተ ምህረት የተመዘገቡ ወርሃዊ ክፍያዎች በሙሉ ተከፍለዋል! የሚቀረው ቀሪ፡ 0 ብር።'
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                   {ETHIOPIAN_ACADEMIC_MONTHS.map((m) => {
                     const isPaid = isMonthPaid(m.value)
                     const isCurrent = m.value === currentEcMonth && selectedYear === currentEcYear
+                    const setting = feeSettings.find(fs => fs.year === selectedYear && fs.month === m.value)
+                    const calc = setting ? calculateMonthlyFeePenalty({
+                      monthlyFee: setting.monthlyFee,
+                      penaltyFee: setting.penaltyFee,
+                      penaltyDay: setting.penaltyDay,
+                      feeYear: selectedYear,
+                      feeMonth: m.value,
+                      isPaid
+                    }) : null
+
                     return (
                       <div
                         key={m.value}
-                        className={`p-3 rounded-lg border-2 transition-all relative ${
+                        className={`p-3 rounded-lg border-2 transition-all relative flex flex-col justify-between ${
                           isPaid
                             ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                            : calc?.isOverdue
+                            ? 'border-red-400 bg-red-50/40 dark:bg-red-950/20 dark:border-red-800'
                             : theme === 'dark'
                             ? 'border-gray-600 bg-gray-700'
                             : 'border-gray-300 bg-gray-50'
@@ -566,38 +713,87 @@ export default function ViewStudentPage() {
                             {getText('Now', 'አሁን')}
                           </span>
                         )}
-                        <div className="flex items-center justify-between">
-                          <div className="flex flex-col">
-                            <span className={`text-sm font-semibold ${
-                              isPaid
-                                ? 'text-green-700 dark:text-green-400'
-                                : theme === 'dark'
-                                ? 'text-gray-200'
-                                : 'text-gray-800'
-                            }`}>
-                              {language === 'am' ? m.am : m.en}
-                            </span>
-                            <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                              {language === 'am' ? m.en : m.am}
-                            </span>
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                              <span className={`text-sm font-semibold ${
+                                isPaid
+                                  ? 'text-green-700 dark:text-green-400'
+                                  : calc?.isOverdue
+                                  ? 'text-red-700 dark:text-red-300'
+                                  : theme === 'dark'
+                                  ? 'text-gray-200'
+                                  : 'text-gray-800'
+                              }`}>
+                                {language === 'am' ? m.am : m.en}
+                              </span>
+                              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                {language === 'am' ? m.en : m.am}
+                              </span>
+                            </div>
+                            {isPaid ? (
+                              <svg className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <svg className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                              </svg>
+                            )}
                           </div>
-                          {isPaid ? (
-                            <svg className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                          ) : (
-                            <svg className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                          )}
+                          <p className={`text-xs mt-2 font-medium ${
+                            isPaid
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}>
+                            {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
+                          </p>
                         </div>
-                        <p className={`text-xs mt-2 font-medium ${
-                          isPaid
-                            ? 'text-green-600 dark:text-green-400'
-                            : 'text-red-600 dark:text-red-400'
-                        }`}>
-                          {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
-                        </p>
+
+                        {/* Fee and penalty breakdown if configured for this month */}
+                        {setting && (
+                          <div className="mt-2.5 pt-2 border-t border-gray-200/80 dark:border-gray-600/60 text-[11px] space-y-1">
+                            <div className="flex justify-between items-center text-gray-600 dark:text-gray-300">
+                              <span>{getText('Fee', 'ክፍያ')}:</span>
+                              <span className="font-semibold">{setting.monthlyFee.toLocaleString()} ETB</span>
+                            </div>
+
+                            {isPaid ? (
+                              <div className="flex justify-between items-center text-green-600 dark:text-green-400 font-bold">
+                                <span>{getText('Left', 'የሚቀረው')}:</span>
+                                <span>0 ETB</span>
+                              </div>
+                            ) : (
+                              <>
+                                {calc?.isOverdue ? (
+                                  <>
+                                    <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 text-[10px]">
+                                      <span>{getText('Penalty', 'ቅጣት')}:</span>
+                                      <span className="font-semibold">+{calc.accruedPenalty.toLocaleString()} ETB</span>
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate" title={`${calc.overdueDays} days @ ${setting.penaltyFee} ETB/day`}>
+                                      {calc.overdueDays}d @ {setting.penaltyFee} ETB/d
+                                    </div>
+                                    <div className="flex justify-between items-center text-red-600 dark:text-red-400 font-extrabold pt-1 border-t border-red-200/80 dark:border-red-900/40">
+                                      <span>{getText('Left', 'የሚቀረው')}:</span>
+                                      <span>{calc.totalDue.toLocaleString()} ETB</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="text-[10px] text-gray-500 dark:text-gray-400">
+                                      {getText(`Penalty after day ${setting.penaltyDay}`, `ቅጣት ከቀን ${setting.penaltyDay} በኋላ`)}
+                                    </div>
+                                    <div className="flex justify-between items-center text-amber-700 dark:text-amber-400 font-bold pt-1 border-t border-gray-200/80 dark:border-gray-600/40">
+                                      <span>{getText('Left', 'የሚቀረው')}:</span>
+                                      <span>{setting.monthlyFee.toLocaleString()} ETB</span>
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}

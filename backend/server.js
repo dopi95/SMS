@@ -78,6 +78,7 @@ app.use('/api/notices', require('./routes/notice.routes'));
 app.use('/api/backup', require('./routes/backup.routes'));
 app.use('/api/sms', require('./routes/sms.routes'));
 app.use('/api/bank-transactions', require('./routes/bankTransaction.routes'));
+app.use('/api/fee-settings', require('./routes/feeSetting.routes'));
 
 app.get('/', (req, res) => {
   res.json({ 

@@ -205,3 +205,78 @@ export function formatDateWithBothCalendars(dateString: string): string {
   
   return `${gcDate} (${ecDate} E.C)`
 }
+
+/**
+ * Convert Ethiopian date (Year, Month 1..13, Day 1..30) to an absolute day count.
+ * In Ethiopian calendar, leap year occurs every 4 years (when year % 4 === 3).
+ * Months 1..12 have exactly 30 days. Month 13 (Pagume) has 5 days (6 in leap year).
+ */
+export function ethiopianToAbsoluteDays(ey: number, em: number, ed: number): number {
+  return (ey - 1) * 365 + Math.floor(ey / 4) + (em - 1) * 30 + ed
+}
+
+export interface FeePenaltyCalculation {
+  monthlyFee: number
+  penaltyFee: number
+  penaltyDay: number
+  isPaid: boolean
+  isOverdue: boolean
+  overdueDays: number
+  accruedPenalty: number
+  totalDue: number
+  penaltyStartsDateText: string
+}
+
+export function calculateMonthlyFeePenalty(params: {
+  monthlyFee: number
+  penaltyFee: number
+  penaltyDay: number
+  feeYear: number
+  feeMonth: string
+  isPaid: boolean
+  currentDate?: Date
+}): FeePenaltyCalculation {
+  const { monthlyFee, penaltyFee, penaltyDay, feeYear, feeMonth, isPaid } = params
+  const baseFee = Math.max(0, Number(monthlyFee) || 0)
+  const dailyPenalty = Math.max(0, Number(penaltyFee) || 0)
+  const applyAfterDay = Math.max(1, Math.min(30, Number(penaltyDay) || 10))
+
+  if (isPaid) {
+    return {
+      monthlyFee: baseFee,
+      penaltyFee: dailyPenalty,
+      penaltyDay: applyAfterDay,
+      isPaid: true,
+      isOverdue: false,
+      overdueDays: 0,
+      accruedPenalty: 0,
+      totalDue: 0,
+      penaltyStartsDateText: '',
+    }
+  }
+
+  const feeMonthIndex = getAcademicMonthIndex(feeMonth) || 1
+  const monthMeta = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.ecIndex === feeMonthIndex)
+  const monthName = monthMeta ? `${monthMeta.en} (${monthMeta.am})` : feeMonth
+
+  const curr = getCurrentEthiopianDate(params.currentDate || new Date())
+  const penaltyStartAbsolute = ethiopianToAbsoluteDays(feeYear, feeMonthIndex, applyAfterDay)
+  const currentAbsolute = ethiopianToAbsoluteDays(curr.year, curr.month, curr.day)
+
+  const overdueDays = Math.max(0, currentAbsolute - penaltyStartAbsolute)
+  const isOverdue = overdueDays > 0
+  const accruedPenalty = overdueDays * dailyPenalty
+  const totalDue = baseFee + accruedPenalty
+
+  return {
+    monthlyFee: baseFee,
+    penaltyFee: dailyPenalty,
+    penaltyDay: applyAfterDay,
+    isPaid: false,
+    isOverdue,
+    overdueDays,
+    accruedPenalty,
+    totalDue,
+    penaltyStartsDateText: `After ${monthName} ${applyAfterDay}, ${feeYear} E.C`,
+  }
+}
