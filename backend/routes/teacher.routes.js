@@ -1,5 +1,5 @@
 const express = require('express');
-const { getTeachers, getTeacher, createTeacher, updateTeacher, deleteTeacher, bulkImportTeachers, generateEmployeeCredentials, generateEmployeeCredentialSingle, getEmployeeCredential, getAllEmployeeCredentials } = require('../controllers/teacher.controller');
+const { getTeachers, getTeacherRoles, getTeacher, createTeacher, updateTeacher, deleteTeacher, bulkImportTeachers, generateEmployeeCredentials, generateEmployeeCredentialSingle, getEmployeeCredential, getAllEmployeeCredentials } = require('../controllers/teacher.controller');
 const auth = require('../middleware/auth.middleware');
 const upload = require('../middleware/upload.middleware');
 
@@ -8,6 +8,7 @@ const router = express.Router();
 router.post('/bulk/import', auth, bulkImportTeachers);
 router.post('/generate-credentials', auth, generateEmployeeCredentials);
 router.get('/all-credentials', auth, getAllEmployeeCredentials);
+router.get('/roles', auth, getTeacherRoles);
 router.get('/', auth, getTeachers);
 router.get('/:id', auth, getTeacher);
 router.post('/', auth, upload.single('photo'), createTeacher);

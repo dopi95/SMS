@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import DashboardLayout from '@/components/DashboardLayout'
 import Pagination from '@/components/Pagination'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -333,14 +333,32 @@ export default function NotificationsPage() {
       }
     }
 
-    if (employeeRoleFilter !== 'all' && emp.role !== employeeRoleFilter) {
+    if (employeeRoleFilter !== 'all' && emp.role?.trim() !== employeeRoleFilter) {
       return false
     }
 
     return true
   })
 
-  const employeeRoles = Array.from(new Set(employees.map(e => e.role).filter(Boolean))).sort()
+  // Dynamic roles computed from active employees currently stored in database
+  const employeeRoles = useMemo(() => {
+    const activeEmployees = employees.filter(emp => emp.isActive !== false)
+    const counts: Record<string, number> = {}
+    activeEmployees.forEach(emp => {
+      const r = emp.role?.trim()
+      if (r) counts[r] = (counts[r] || 0) + 1
+    })
+    return Object.entries(counts)
+      .map(([role, count]) => ({ role, count }))
+      .sort((a, b) => a.role.localeCompare(b.role))
+  }, [employees])
+
+  // Automatically reset to 'all' if the currently selected role no longer exists in DB
+  useEffect(() => {
+    if (employeeRoleFilter !== 'all' && !employeeRoles.some(r => r.role === employeeRoleFilter)) {
+      setEmployeeRoleFilter('all')
+    }
+  }, [employeeRoles, employeeRoleFilter])
 
   const PAGE_SIZE = 20
   const [currentPage, setCurrentPage] = useState(1)
@@ -913,17 +931,53 @@ export default function NotificationsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
-                  <div className="w-full md:w-64">
-                    <select
-                      value={employeeRoleFilter}
-                      onChange={(e) => setEmployeeRoleFilter(e.target.value)}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                    >
-                      <option value="all">{getText('All Roles', 'ሁሉም የስራ ድርሻዎች')}</option>
-                      {employeeRoles.map(role => (
-                        <option key={role} value={role}>{role}</option>
-                      ))}
-                    </select>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+                    <div className="w-full md:w-72">
+                      <select
+                        value={employeeRoleFilter}
+                        onChange={(e) => setEmployeeRoleFilter(e.target.value)}
+                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                      >
+                        <option value="all">
+                          {getText('All Roles', 'ሁሉም የስራ ድርሻዎች')} ({employees.filter(e => e.isActive !== false).length})
+                        </option>
+                        {employeeRoles.map(({ role, count }) => (
+                          <option key={role} value={role}>
+                            {role} ({count})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {employeeRoleFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const roleEmpIds = filteredEmployees.map(e => e._id)
+                          const allSelected = roleEmpIds.length > 0 && roleEmpIds.every(id => selectedEmployees.includes(id))
+                          if (allSelected) {
+                            setSelectedEmployees(prev => prev.filter(id => !roleEmpIds.includes(id)))
+                          } else {
+                            setSelectedEmployees(prev => Array.from(new Set([...prev, ...roleEmpIds])))
+                          }
+                        }}
+                        className={`px-3 py-3 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border flex items-center justify-center gap-1.5 shadow-sm ${
+                          filteredEmployees.length > 0 && filteredEmployees.every(e => selectedEmployees.includes(e._id))
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700 text-blue-400 border-gray-600' : 'bg-white hover:bg-gray-50 text-blue-600 border-gray-300'
+                        }`}
+                        title={getText(`Select all ${employeeRoleFilter}s`, `ሁሉንም ${employeeRoleFilter} ምረጥ`)}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>
+                          {filteredEmployees.length > 0 && filteredEmployees.every(e => selectedEmployees.includes(e._id))
+                            ? getText(`All ${employeeRoleFilter}s Selected`, `ሁሉም ${employeeRoleFilter} ተመርጧል`)
+                            : getText(`Select All ${employeeRoleFilter}s`, `ሁሉንም ${employeeRoleFilter} ምረጥ`)}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

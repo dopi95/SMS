@@ -221,4 +221,14 @@ const getAllEmployeeCredentials = async (req, res) => {
   } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
-module.exports = { getTeachers, getTeacher, createTeacher, updateTeacher, deleteTeacher, bulkImportTeachers, generateEmployeeCredentials, generateEmployeeCredentialSingle, getEmployeeCredential, getAllEmployeeCredentials };
+const getTeacherRoles = async (req, res) => {
+  try {
+    const roles = await Teacher.distinct('role', { isActive: { $ne: false } });
+    const cleanRoles = roles.map(r => r && r.trim()).filter(Boolean).sort();
+    res.json(cleanRoles);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getTeachers, getTeacherRoles, getTeacher, createTeacher, updateTeacher, deleteTeacher, bulkImportTeachers, generateEmployeeCredentials, generateEmployeeCredentialSingle, getEmployeeCredential, getAllEmployeeCredentials };
