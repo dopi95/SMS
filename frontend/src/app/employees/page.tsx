@@ -327,7 +327,7 @@ export default function EmployeesPage() {
             {getText('Delete', 'ሰርዝ')}
           </button>
         )}
-        {userRole === 'superadmin' && (teacher.role === 'Teacher' || teacher.role === 'Principal') && (
+        {userRole === 'superadmin' && teacher.role === 'Teacher' && (
           <button onClick={() => handleGenerateSingleCredential(teacher._id)}
             className={`${cls} ${theme === 'dark' ? 'bg-rose-800 text-rose-200 hover:bg-rose-700' : 'bg-rose-100 text-rose-700 hover:bg-rose-200'}`}
             title={getText('Generate Credential', 'ምስክርነት ፍጠር')}>

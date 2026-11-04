@@ -464,8 +464,9 @@ export default function NotificationsPage() {
         const selectedEmpData = employees.filter(e => selectedEmployees.includes(e._id))
         selectedEmpData.forEach(emp => {
           if (!emp.phone || !emp.phone.trim()) return
-          const username = emp.portalUsername || emp.teacherId || 'N/A'
-          const password = emp.portalPassword || 'N/A'
+          const isTeacher = emp.role === 'Teacher'
+          const username = isTeacher ? (emp.portalUsername || emp.teacherId || 'N/A') : 'N/A'
+          const password = isTeacher ? (emp.portalPassword || 'N/A') : 'N/A'
 
           let personalizedMessage = message
             .replace(/{{employeeName}}|{employeeName}|{{name}}|{name}|{{fullName}}|{fullName}/g, emp.fullName || '')
@@ -1199,24 +1200,30 @@ export default function NotificationsPage() {
                                     )}
                                   </td>
                                   <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                    <div className="flex flex-col gap-1 text-xs">
-                                      <div>
-                                        <span className="font-medium text-gray-500 dark:text-gray-400">{getText('Username', 'መለያ')}: </span>
-                                        <span className="font-mono font-semibold">{username}</span>
+                                    {emp.role === 'Teacher' ? (
+                                      <div className="flex flex-col gap-1 text-xs">
+                                        <div>
+                                          <span className="font-medium text-gray-500 dark:text-gray-400">{getText('Username', 'መለያ')}: </span>
+                                          <span className="font-mono font-semibold">{username}</span>
+                                        </div>
+                                        <div>
+                                          <span className="font-medium text-gray-500 dark:text-gray-400">{getText('Password', 'የይለፍ ቃል')}: </span>
+                                          {hasPassword ? (
+                                            <span className="inline-block px-2 py-0.5 rounded font-mono bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-semibold">
+                                              {emp.portalPassword}
+                                            </span>
+                                          ) : (
+                                            <span className="inline-block px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                                              {getText('Not generated', 'አልተፈጠረም')}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
-                                      <div>
-                                        <span className="font-medium text-gray-500 dark:text-gray-400">{getText('Password', 'የይለፍ ቃል')}: </span>
-                                        {hasPassword ? (
-                                          <span className="inline-block px-2 py-0.5 rounded font-mono bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-semibold">
-                                            {emp.portalPassword}
-                                          </span>
-                                        ) : (
-                                          <span className="inline-block px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
-                                            {getText('Not generated', 'አልተፈጠረም')}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">
+                                        {getText('N/A (Teachers only)', 'አይመለከትም (ለመምህራን ብቻ)')}
+                                      </span>
+                                    )}
                                   </td>
                                 </tr>
                               )
@@ -1293,18 +1300,26 @@ export default function NotificationsPage() {
                                   </div>
                                 </div>
                                 <div className={`pt-3 border-t text-xs space-y-1 ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
-                                  <div>
-                                    <span className="text-gray-500 dark:text-gray-400">{getText('Username', 'መለያ')}: </span>
-                                    <span className="font-mono font-semibold">{username}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-gray-500 dark:text-gray-400">{getText('Password', 'የይለፍ ቃል')}: </span>
-                                    {hasPassword ? (
-                                      <span className="font-mono text-green-600 dark:text-green-400 font-semibold">{emp.portalPassword}</span>
-                                    ) : (
-                                      <span className="text-amber-600 dark:text-amber-400">{getText('Not generated', 'አልተፈጠረም')}</span>
-                                    )}
-                                  </div>
+                                  {emp.role === 'Teacher' ? (
+                                    <>
+                                      <div>
+                                        <span className="text-gray-500 dark:text-gray-400">{getText('Username', 'መለያ')}: </span>
+                                        <span className="font-mono font-semibold">{username}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500 dark:text-gray-400">{getText('Password', 'የይለፍ ቃል')}: </span>
+                                        {hasPassword ? (
+                                          <span className="font-mono text-green-600 dark:text-green-400 font-semibold">{emp.portalPassword}</span>
+                                        ) : (
+                                          <span className="text-amber-600 dark:text-amber-400">{getText('Not generated', 'አልተፈጠረም')}</span>
+                                        )}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <p className="text-xs text-gray-400 italic">
+                                      {getText('Portal Login: N/A (Teachers only)', 'የፖርታል መለያ: አይመለከትም (ለመምህራን ብቻ)')}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             )

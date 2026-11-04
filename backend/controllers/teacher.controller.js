@@ -9,6 +9,9 @@ const generateRandomPassword = () => {
 };
 
 const upsertTeacherCredential = async (teacher) => {
+  if (teacher.role !== 'Teacher') {
+    throw new Error('Credentials can only be generated for teachers');
+  }
   const username = teacher.teacherId;
   const plainPassword = generateRandomPassword();
   const email = teacher.email || `${username.toLowerCase()}@bluelight.edu`;
@@ -172,12 +175,12 @@ const bulkImportTeachers = async (req, res) => {
 const generateEmployeeCredentials = async (req, res) => {
   try {
     if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
-    const teachers = await Teacher.find({ isActive: true, role: { $in: ['Teacher', 'Principal'] } });
-    if (teachers.length === 0) return res.status(404).json({ message: 'No active teachers/principals found' });
+    const teachers = await Teacher.find({ isActive: true, role: 'Teacher' });
+    if (teachers.length === 0) return res.status(404).json({ message: 'No active teachers found' });
     const results = [];
     for (const t of teachers) results.push(await upsertTeacherCredential(t));
-    await logActivity(req.user, 'Generated Credentials', 'Employee', `Generated credentials for ${results.length} employees`);
-    res.json({ message: `Credentials generated for ${results.length} employees`, credentials: results });
+    await logActivity(req.user, 'Generated Credentials', 'Employee', `Generated credentials for ${results.length} teachers`);
+    res.json({ message: `Credentials generated for ${results.length} teachers`, credentials: results });
   } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
@@ -186,6 +189,9 @@ const generateEmployeeCredentialSingle = async (req, res) => {
     if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Forbidden' });
     const teacher = await Teacher.findById(req.params.id);
     if (!teacher) return res.status(404).json({ message: 'Employee not found' });
+    if (teacher.role !== 'Teacher') {
+      return res.status(400).json({ message: 'Credentials can only be generated for teachers' });
+    }
     const result = await upsertTeacherCredential(teacher);
     await logActivity(req.user, 'Generated Credential', 'Employee', `Generated credential for ${teacher.fullName}`);
     res.json(result);
