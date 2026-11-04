@@ -794,13 +794,13 @@ export default function NotificationsPage() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows={4}
-                maxLength={160}
+                maxLength={220}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
                 placeholder={getText('Type your message here...', 'መልእክትዎን እዚህ ይተይቡ...')}
               />
               <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mt-2">
                 <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {message.length}/160 {getText('characters', 'ቁምፊዎች')}
+                  {message.length}/220 {getText('characters', 'ቁምፊዎች')} {message.length > 160 ? `(2 ${getText('SMS parts', 'ክፍል ኤስኤምኤስ')})` : `(1 SMS)`}
                 </span>
                 {((recipientType === 'students' && selectedStudents.length > 0) || (recipientType === 'employees' && selectedEmployees.length > 0)) && (
                   <button
