@@ -37,6 +37,7 @@ interface Student {
   fatherPhone?: string
   motherPhone?: string
   paymentCode?: string
+  clearedBalanceMonths?: { year: number; month: string }[]
 }
 
 interface Payment {
@@ -48,6 +49,18 @@ interface Payment {
   description: string
   paymentDate: string
   status: string
+  balanceCleared?: boolean
+}
+
+interface FeeSetting {
+  _id: string
+  year: number
+  month: string
+  monthlyFee: number
+  penaltyAssignTo?: 'all' | 'regular' | 'special' | 'none'
+  penaltyFee?: number
+  penaltyDay?: number
+  siblingDiscount?: number
 }
 
 const CLASS_OPTIONS = [
@@ -156,7 +169,8 @@ export default function PaymentsPage() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
-  const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid' | 'paid_but_left'>('all')
+  const [feeSettings, setFeeSettings] = useState<FeeSetting[]>([])
   const [classFilter, setClassFilter] = useState<string>('all')
   const [sectionFilter, setSectionFilter] = useState<string>('all')
   const [dateFrom, setDateFrom] = useState('')
@@ -216,7 +230,20 @@ export default function PaymentsPage() {
   useEffect(() => {
     fetchStudents()
     fetchAllPayments()
+    fetchFeeSettings()
   }, [])
+
+  const fetchFeeSettings = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/fee-settings`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setFeeSettings(res.data || [])
+    } catch (e) {
+      console.error('Failed to fetch fee settings:', e)
+    }
+  }
 
 
 
@@ -376,6 +403,122 @@ export default function PaymentsPage() {
     )
   }
 
+  const siblingMap = useMemo(() => {
+    const parentMap: { [key: string]: number } = {}
+    students.forEach(s => {
+      const father = s.fatherName ? s.fatherName.trim().toLowerCase() : ''
+      const mother = s.motherName ? s.motherName.trim().toLowerCase() : ''
+      if (father) parentMap['f:' + father] = (parentMap['f:' + father] || 0) + 1
+      if (mother) parentMap['m:' + mother] = (parentMap['m:' + mother] || 0) + 1
+    })
+
+    const hasSiblingsMap: { [studentId: string]: boolean } = {}
+    students.forEach(s => {
+      const father = s.fatherName ? s.fatherName.trim().toLowerCase() : ''
+      const mother = s.motherName ? s.motherName.trim().toLowerCase() : ''
+      const hasSib = (father && (parentMap['f:' + father] || 0) > 1) || (mother && (parentMap['m:' + mother] || 0) > 1)
+      hasSiblingsMap[s._id] = Boolean(hasSib)
+    })
+    return hasSiblingsMap
+  }, [students])
+
+  const getStudentMonthFinancials = (student: Student, monthName: string) => {
+    const numericYear = Number(selectedYear)
+    const payment = payments.find(p => {
+      const pStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+      return pStudentId === student._id && p.month === monthName && Number(p.year) === numericYear
+    })
+
+    const isMarkedPaid = Boolean(payment && (payment.status ? payment.status === 'paid' : true))
+    const paidAmount = payment ? (Number(payment.amount) || 0) : 0
+    const isBalanceCleared = Boolean(payment?.balanceCleared || (student.clearedBalanceMonths || []).some(c => c.year === numericYear && c.month === monthName))
+
+    const exactSetting = feeSettings.find(fs => fs.year === numericYear && fs.month === monthName)
+    const anyInYear = feeSettings.find(fs => fs.year === numericYear)
+    const fallbackSetting = exactSetting || anyInYear || (feeSettings.length > 0 ? feeSettings[0] : null)
+
+    const baseFee = fallbackSetting ? fallbackSetting.monthlyFee : 0
+    const hasSiblings = Boolean(siblingMap[student._id])
+    const discountPercent = hasSiblings ? Math.max(0, Math.min(100, Number(fallbackSetting?.siblingDiscount) || 0)) : 0
+    const expectedFee = Math.max(0, baseFee - (baseFee * discountPercent / 100))
+
+    let leftAmount = 0
+    if (isBalanceCleared) {
+      leftAmount = 0
+    } else if (isMarkedPaid) {
+      leftAmount = Math.max(0, expectedFee - paidAmount)
+    } else {
+      leftAmount = expectedFee
+    }
+
+    const isPaidButLeft = isMarkedPaid && !isBalanceCleared && leftAmount > 0
+
+    return {
+      payment,
+      isMarkedPaid,
+      paidAmount,
+      isBalanceCleared,
+      baseFee,
+      discountPercent,
+      expectedFee,
+      leftAmount,
+      isPaidButLeft
+    }
+  }
+
+  const getStudentYearFinancials = (student: Student, yearPaymentsList: Payment[]) => {
+    const numericYear = Number(selectedYear)
+    let totalPaid = 0
+    let totalExpected = 0
+    let totalLeft = 0
+    const paidButLeftMonths: string[] = []
+
+    ETHIOPIAN_ACADEMIC_MONTHS.forEach(m => {
+      const payment = yearPaymentsList.find(p => {
+        const pStudentId = typeof p.studentId === 'string' ? p.studentId : (p.studentId as any)?._id
+        return pStudentId === student._id && p.month?.toLowerCase() === m.value.toLowerCase() && Number(p.year) === numericYear
+      })
+
+      const isMarkedPaid = Boolean(payment && (payment.status ? payment.status === 'paid' : true))
+      const paidAmount = payment ? (Number(payment.amount) || 0) : 0
+      const isBalanceCleared = Boolean(payment?.balanceCleared || (student.clearedBalanceMonths || []).some(c => c.year === numericYear && c.month === m.value))
+
+      const exactSetting = feeSettings.find(fs => fs.year === numericYear && fs.month === m.value)
+      const anyInYear = feeSettings.find(fs => fs.year === numericYear)
+      const fallbackSetting = exactSetting || anyInYear || (feeSettings.length > 0 ? feeSettings[0] : null)
+
+      const baseFee = fallbackSetting ? fallbackSetting.monthlyFee : 0
+      const hasSiblings = Boolean(siblingMap[student._id])
+      const discountPercent = hasSiblings ? Math.max(0, Math.min(100, Number(fallbackSetting?.siblingDiscount) || 0)) : 0
+      const expectedFee = Math.max(0, baseFee - (baseFee * discountPercent / 100))
+
+      let left = 0
+      if (isBalanceCleared) {
+        left = 0
+      } else if (isMarkedPaid) {
+        left = Math.max(0, expectedFee - paidAmount)
+      } else {
+        left = expectedFee
+      }
+
+      totalPaid += paidAmount
+      totalExpected += expectedFee
+      totalLeft += left
+
+      if (isMarkedPaid && !isBalanceCleared && left > 0) {
+        paidButLeftMonths.push(m.value)
+      }
+    })
+
+    return {
+      totalPaid,
+      totalExpected,
+      totalLeft,
+      paidButLeftMonths,
+      hasPaidButLeft: paidButLeftMonths.length > 0
+    }
+  }
+
   const handleSelectStudent = (studentId: string, isChecked: boolean, isPaid: boolean) => {
     if (isPaid) {
       if (isChecked) {
@@ -501,7 +644,7 @@ export default function PaymentsPage() {
     return formatted.join(', ')
   }
 
-  const exportToPDF = async (type: 'paid' | 'unpaid' | 'all') => {
+  const exportToPDF = async (type: 'paid' | 'unpaid' | 'paid_but_left' | 'all') => {
     setShowExportMenu(false)
     const isAllMonths = selectedMonth === 'all'
 
@@ -523,7 +666,11 @@ export default function PaymentsPage() {
         ? 'Bluelight Academy - Paid Students Report (All Months)'
         : type === 'unpaid'
         ? 'Bluelight Academy - Unpaid Students Report (All Months)'
+        : type === 'paid_but_left'
+        ? 'Bluelight Academy - Paid but Left Students Report (All Months)'
         : 'Bluelight Academy - Payment Report (All Months)'
+      : type === 'paid_but_left'
+      ? 'Bluelight Academy - Paid but Left Balance Report'
       : 'Bluelight Academy - Payment Report'
     doc.text(titleText, 14, 18)
 
@@ -593,6 +740,12 @@ export default function PaymentsPage() {
 
       const paidStudentsList = studentAnalysis.filter(s => s.paidCount > 0)
       const unpaidStudentsList = studentAnalysis.filter(s => s.unpaidCount > 0)
+      const paidButLeftStudentsList = studentAnalysis
+        .map(item => ({
+          student: item.student,
+          fin: getStudentYearFinancials(item.student, yearPayments)
+        }))
+        .filter(item => item.fin.hasPaidButLeft)
 
       if (type === 'paid' || type === 'all') {
         const totalPaidCollected = paidStudentsList.reduce((sum, s) => sum + s.totalAmountPaid, 0)
@@ -650,6 +803,67 @@ export default function PaymentsPage() {
         } else {
           doc.setFont(fontName, 'italic')
           doc.text('No students with paid months found.', 14, yPosition + 5)
+          yPosition += 15
+        }
+      }
+
+      if (type === 'paid_but_left') {
+        const totalPaidCollected = paidButLeftStudentsList.reduce((sum, item) => sum + item.fin.totalPaid, 0)
+        const totalLeftDue = paidButLeftStudentsList.reduce((sum, item) => sum + item.fin.totalLeft, 0)
+        doc.setFont(fontName, 'normal')
+        doc.setFontSize(11)
+        doc.text(
+          `Total Students: ${paidButLeftStudentsList.length} of ${filteredStudents.length}  |  Total Paid: ${totalPaidCollected.toLocaleString()} ETB  |  Total Left Due: ${totalLeftDue.toLocaleString()} ETB`,
+          14,
+          yPosition
+        )
+        yPosition += 8
+
+        if (paidButLeftStudentsList.length > 0) {
+          doc.setFont(fontName, 'bold')
+          doc.setFontSize(13)
+          doc.setTextColor(217, 119, 6)
+          doc.text('Paid but Left Balance Students (ተከፍሎ ቀሪ ያለባቸው ተማሪዎች)', 14, yPosition)
+          doc.setTextColor(0, 0, 0)
+
+          const tableData = paidButLeftStudentsList.map((item, idx) => [
+            String(idx + 1),
+            item.student.studentId || '-',
+            getStudentDisplayName(item.student, language),
+            formatClassBoth(item.student.class),
+            item.student.section ? formatSectionBoth(item.student.section) : '-',
+            formatMonthNamesForExport(item.fin.paidButLeftMonths),
+            `${item.fin.totalPaid.toLocaleString()} ETB`,
+            `${item.fin.totalLeft.toLocaleString()} ETB`,
+            item.student.fatherPhone || item.student.motherPhone || '-'
+          ])
+
+          autoTable(doc, {
+            startY: yPosition + 4,
+            head: [['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Paid but Left Months (ያልተጠናቀቁ ወራት)', 'Total Paid', 'Total Left Due', 'Parent Phone']],
+            body: tableData,
+            showHead: 'firstPage',
+            theme: 'grid',
+            styles: { font: fontName, fontSize: 8, overflow: 'linebreak' },
+            headStyles: { fillColor: [217, 119, 6], font: fontName, fontStyle: 'bold', halign: 'center' },
+            margin: { left: 14, right: 14 },
+            columnStyles: {
+              0: { cellWidth: 10, halign: 'center' },
+              1: { cellWidth: 22, halign: 'center' },
+              2: { cellWidth: 42 },
+              3: { cellWidth: 22 },
+              4: { cellWidth: 16, halign: 'center' },
+              5: { cellWidth: 85 },
+              6: { cellWidth: 24, halign: 'right' },
+              7: { cellWidth: 24, halign: 'right' },
+              8: { cellWidth: 25, halign: 'center' }
+            }
+          })
+
+          yPosition = (doc as any).lastAutoTable.finalY + 12
+        } else {
+          doc.setFont(fontName, 'italic')
+          doc.text('No students with remaining left balance found.', 14, yPosition + 5)
           yPosition += 15
         }
       }
@@ -734,6 +948,8 @@ export default function PaymentsPage() {
         ? `Paid_Students_All_Months_${selectedYear}EC.pdf`
         : type === 'unpaid'
         ? `Unpaid_Students_All_Months_${selectedYear}EC.pdf`
+        : type === 'paid_but_left'
+        ? `Paid_But_Left_All_Months_${selectedYear}EC.pdf`
         : `Payment_Report_All_Months_${selectedYear}EC.pdf`
 
       doc.save(fileName)
@@ -744,6 +960,68 @@ export default function PaymentsPage() {
     // Single Month Export Logic
     const paidStudents = filteredStudents.filter(s => isStudentPaid(s._id))
     const unpaidStudents = filteredStudents.filter(s => !isStudentPaid(s._id))
+    const paidButLeftStudents = filteredStudents
+      .map(s => ({ student: s, fin: getStudentMonthFinancials(s, selectedMonth) }))
+      .filter(item => item.fin.isPaidButLeft)
+
+    if (type === 'paid_but_left') {
+      const totalPaidSum = paidButLeftStudents.reduce((sum, item) => sum + item.fin.paidAmount, 0)
+      const totalLeftSum = paidButLeftStudents.reduce((sum, item) => sum + item.fin.leftAmount, 0)
+
+      doc.setFont(fontName, 'normal')
+      doc.setFontSize(11)
+      doc.text(
+        `Total Students: ${paidButLeftStudents.length}  |  Total Paid: ${totalPaidSum.toLocaleString()} ETB  |  Total Left Due: ${totalLeftSum.toLocaleString()} ETB`,
+        14,
+        yPosition
+      )
+      yPosition += 8
+
+      if (paidButLeftStudents.length > 0) {
+        doc.setFont(fontName, 'bold')
+        doc.setFontSize(13)
+        doc.setTextColor(217, 119, 6)
+        doc.text('Paid but Left Balance Students (ተከፍሎ ቀሪ ያለባቸው ተማሪዎች)', 14, yPosition)
+        doc.setTextColor(0, 0, 0)
+
+        const tableData = paidButLeftStudents.map((item, idx) => [
+          String(idx + 1),
+          item.student.studentId || '-',
+          getStudentDisplayName(item.student, language),
+          formatClassBoth(item.student.class),
+          item.student.section ? formatSectionBoth(item.student.section) : '-',
+          `${item.fin.paidAmount.toLocaleString()} ETB`,
+          `${item.fin.expectedFee.toLocaleString()} ETB`,
+          `${item.fin.leftAmount.toLocaleString()} ETB`,
+          item.student.fatherPhone || item.student.motherPhone || '-'
+        ])
+
+        autoTable(doc, {
+          startY: yPosition + 4,
+          head: [['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Paid (የተከፈለ)', 'Expected (የሚጠበቅ)', 'Left Due (የሚቀረው)', 'Parent Phone']],
+          body: tableData,
+          showHead: 'firstPage',
+          theme: 'grid',
+          styles: { font: fontName, fontSize: 8, overflow: 'linebreak' },
+          headStyles: { fillColor: [217, 119, 6], font: fontName, fontStyle: 'bold', halign: 'center' },
+          margin: { left: 14, right: 14 },
+          columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 22, halign: 'center' },
+            2: { cellWidth: 42 },
+            3: { cellWidth: 20 },
+            4: { cellWidth: 16, halign: 'center' },
+            5: { cellWidth: 22, halign: 'right' },
+            6: { cellWidth: 22, halign: 'right' },
+            7: { cellWidth: 22, halign: 'right' },
+            8: { cellWidth: 24, halign: 'center' }
+          }
+        })
+      } else {
+        doc.setFont(fontName, 'italic')
+        doc.text('No students with paid but left balance found for this month.', 14, yPosition + 5)
+      }
+    }
 
     if (type === 'paid' || type === 'all') {
       doc.setFont(fontName, 'normal')
@@ -840,13 +1118,15 @@ export default function PaymentsPage() {
       ? `Paid_Students_${selectedMonth}_${selectedYear}.pdf`
       : type === 'unpaid'
       ? `Unpaid_Students_${selectedMonth}_${selectedYear}.pdf`
+      : type === 'paid_but_left'
+      ? `Paid_But_Left_${selectedMonth}_${selectedYear}.pdf`
       : `Payment_Report_${selectedMonth}_${selectedYear}.pdf`
 
     doc.save(fileName)
     toast.success(getText('PDF exported successfully', 'ፒዲኤፍ በተሳካ ሁኔታ ወጥቷል'))
   }
 
-  const exportToExcel = async (type: 'paid' | 'unpaid' | 'all') => {
+  const exportToExcel = async (type: 'paid' | 'unpaid' | 'paid_but_left' | 'all') => {
     setShowExportMenu(false)
     const isAllMonths = selectedMonth === 'all'
 
@@ -898,7 +1178,28 @@ export default function PaymentsPage() {
       let rows: string[][] = []
       let fileName = ''
 
-      if (type === 'paid') {
+      if (type === 'paid_but_left') {
+        const list = studentAnalysis
+          .map(item => ({ student: item.student, fin: getStudentYearFinancials(item.student, yearPayments) }))
+          .filter(item => item.fin.hasPaidButLeft)
+        fileName = `Paid_But_Left_All_Months_${selectedYear}EC.csv`
+        rows = [
+          ['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Paid but Left Months', 'Total Paid (ETB)', 'Total Expected (ETB)', 'Total Left Due (ETB)', 'Father Phone', 'Mother Phone'],
+          ...list.map((item, idx) => [
+            String(idx + 1),
+            item.student.studentId || '',
+            getStudentDisplayName(item.student, language),
+            item.student.class || '',
+            item.student.section || '',
+            formatMonthNamesForExport(item.fin.paidButLeftMonths),
+            String(item.fin.totalPaid),
+            String(item.fin.totalExpected),
+            String(item.fin.totalLeft),
+            item.student.fatherPhone || '',
+            item.student.motherPhone || ''
+          ])
+        ]
+      } else if (type === 'paid') {
         const list = studentAnalysis.filter(s => s.paidCount > 0)
         fileName = `Paid_Students_All_Months_${selectedYear}EC.csv`
         rows = [
@@ -971,7 +1272,29 @@ export default function PaymentsPage() {
     let rows: string[][] = []
     let fileName = ''
 
-    if (type === 'paid') {
+    if (type === 'paid_but_left') {
+      fileName = `Paid_But_Left_${selectedMonth}_${selectedYear}EC.csv`
+      const list = filteredStudents
+        .map(s => ({ s, fin: getStudentMonthFinancials(s, selectedMonth) }))
+        .filter(item => item.fin.isPaidButLeft)
+      rows = [
+        ['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Month', 'Year', 'Paid Amount (ETB)', 'Expected Fee (ETB)', 'Left Due (ETB)', 'Father Phone', 'Mother Phone'],
+        ...list.map((item, idx) => [
+          String(idx + 1),
+          item.s.studentId || '',
+          getStudentDisplayName(item.s, language),
+          item.s.class || '',
+          item.s.section || '',
+          selectedMonth,
+          String(selectedYear),
+          String(item.fin.paidAmount),
+          String(item.fin.expectedFee),
+          String(item.fin.leftAmount),
+          item.s.fatherPhone || '',
+          item.s.motherPhone || ''
+        ])
+      ]
+    } else if (type === 'paid') {
       fileName = `Paid_Students_${selectedMonth}_${selectedYear}EC.csv`
       rows = [
         ['#', 'Student ID', 'Student Name', 'Class', 'Section', 'Month', 'Year', 'Amount (ETB)', 'Payment Date', 'Description'],
@@ -1327,7 +1650,15 @@ export default function PaymentsPage() {
     
     // Payment status filter
     const isPaid = isStudentPaid(student._id)
-    if (selectedMonth === 'all') {
+    if (paymentFilter === 'paid_but_left') {
+      if (selectedMonth === 'all') {
+        const yearFin = getStudentYearFinancials(student, allPayments)
+        if (!yearFin.hasPaidButLeft) return false
+      } else {
+        const fin = getStudentMonthFinancials(student, selectedMonth)
+        if (!fin.isPaidButLeft) return false
+      }
+    } else if (selectedMonth === 'all') {
       const paidMonthsCount = getStudentPaidMonths(student._id).length
       if (paymentFilter === 'paid' && paidMonthsCount === 0) return false
       if (paymentFilter === 'unpaid' && paidMonthsCount === ETHIOPIAN_ACADEMIC_MONTHS.length) return false
@@ -1590,6 +1921,13 @@ export default function PaymentsPage() {
                                 <span className="font-medium truncate">{getText('Export Unpaid Students (PDF)', 'ያልተከፈለ ተማሪዎች (PDF)')}</span>
                               </button>
                               <button
+                                onClick={() => exportToPDF('paid_but_left')}
+                                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-amber-50 text-gray-700'}`}
+                              >
+                                <div className="w-2.5 h-2.5 bg-amber-500 rounded-full flex-shrink-0"></div>
+                                <span className="font-medium truncate">{getText('Export Paid but Left (PDF)', 'ተከፍሎ የቀረበት (PDF)')}</span>
+                              </button>
+                              <button
                                 onClick={() => exportToPDF('all')}
                                 className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-blue-50 text-gray-700'}`}
                               >
@@ -1616,6 +1954,13 @@ export default function PaymentsPage() {
                               >
                                 <div className="w-2.5 h-2.5 bg-rose-600 rounded-full flex-shrink-0"></div>
                                 <span className="font-medium truncate">{getText('Export Unpaid (Excel)', 'ያልተከፈለ (Excel)')}</span>
+                              </button>
+                              <button
+                                onClick={() => exportToExcel('paid_but_left')}
+                                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-amber-50 text-gray-700'}`}
+                              >
+                                <div className="w-2.5 h-2.5 bg-amber-600 rounded-full flex-shrink-0"></div>
+                                <span className="font-medium truncate">{getText('Export Paid but Left (Excel)', 'ተከፍሎ የቀረበት (Excel)')}</span>
                               </button>
                               <button
                                 onClick={() => exportToExcel('all')}
@@ -1704,6 +2049,21 @@ export default function PaymentsPage() {
                                   </button>
 
                                   <button
+                                    onClick={() => exportToPDF('paid_but_left')}
+                                    className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
+                                      theme === 'dark'
+                                        ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
+                                        : 'bg-amber-50/60 hover:bg-amber-50 border-amber-200/80 text-gray-800 active:bg-amber-100'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="w-3 h-3 bg-amber-500 rounded-full flex-shrink-0"></div>
+                                      <span className="font-medium text-sm break-words">{getText('Export Paid but Left (PDF)', 'ተከፍሎ የቀረበት (PDF)')}</span>
+                                    </div>
+                                    <span className="text-xs px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold flex-shrink-0 ml-2">PDF</span>
+                                  </button>
+
+                                  <button
                                     onClick={() => exportToPDF('all')}
                                     className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
                                       theme === 'dark'
@@ -1755,6 +2115,21 @@ export default function PaymentsPage() {
                                       <span className="font-medium text-sm break-words">{getText('Export Unpaid (Excel)', 'ያልተከፈለ (Excel)')}</span>
                                     </div>
                                     <span className="text-xs px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-bold flex-shrink-0 ml-2">CSV</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => exportToExcel('paid_but_left')}
+                                    className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
+                                      theme === 'dark'
+                                        ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
+                                        : 'bg-amber-50/60 hover:bg-amber-50 border-amber-200/80 text-gray-800 active:bg-amber-100'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="w-3 h-3 bg-amber-600 rounded-full flex-shrink-0"></div>
+                                      <span className="font-medium text-sm break-words">{getText('Export Paid but Left (Excel)', 'ተከፍሎ የቀረበት (Excel)')}</span>
+                                    </div>
+                                    <span className="text-xs px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold flex-shrink-0 ml-2">CSV</span>
                                   </button>
 
                                   <button
@@ -1886,12 +2261,13 @@ export default function PaymentsPage() {
                 <div className="flex flex-wrap items-center gap-3">
                   <select
                     value={paymentFilter}
-                    onChange={(e) => setPaymentFilter(e.target.value as 'all' | 'paid' | 'unpaid')}
+                    onChange={(e) => setPaymentFilter(e.target.value as any)}
                     className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                   >
                     <option value="all">{getText('All Students', 'ሁሉም ተማሪዎች')}</option>
                     <option value="paid">{getText('Paid Only', 'የተከፈለ ብቻ')}</option>
                     <option value="unpaid">{getText('Unpaid Only', 'ያልተከፈለ ብቻ')}</option>
+                    <option value="paid_but_left">{getText('Paid but Left', 'ተከፍሎ የቀረበት')}</option>
                   </select>
                   <select
                     value={classFilter}
@@ -2213,13 +2589,37 @@ export default function PaymentsPage() {
                                             : 'border-gray-300 accent-gray-400'
                                         }`}
                                       />
-                                      <span className={`text-sm font-medium ${
-                                        isPaid 
-                                          ? 'text-green-600' 
-                                          : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                                      }`}>
-                                        {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
-                                      </span>
+                                      <div className="flex flex-col items-start gap-0.5">
+                                        <span className={`text-sm font-medium ${
+                                          isPaid 
+                                            ? 'text-green-600' 
+                                            : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                        }`}>
+                                          {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
+                                        </span>
+                                        {(() => {
+                                          if (selectedMonth === 'all') {
+                                            const yFin = getStudentYearFinancials(student, allPayments);
+                                            if (yFin.hasPaidButLeft) {
+                                              return (
+                                                <span className="text-[11px] px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-semibold whitespace-nowrap">
+                                                  {getText('Left', 'ቀሪ')}: {yFin.totalLeft.toLocaleString()} ETB
+                                                </span>
+                                              );
+                                            }
+                                          } else {
+                                            const mFin = getStudentMonthFinancials(student, selectedMonth);
+                                            if (mFin.isPaidButLeft) {
+                                              return (
+                                                <span className="text-[11px] px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-semibold whitespace-nowrap">
+                                                  {getText('Left', 'ቀሪ')}: {mFin.leftAmount.toLocaleString()} ETB
+                                                </span>
+                                              );
+                                            }
+                                          }
+                                          return null;
+                                        })()}
+                                      </div>
                                     </div>
                                     {isPaid && canManagePayments && (
                                       <button
@@ -2366,13 +2766,37 @@ export default function PaymentsPage() {
                                           : 'border-gray-300 accent-gray-400'
                                       }`}
                                     />
-                                    <span className={`text-sm font-semibold ${
-                                      isPaid 
-                                        ? 'text-green-600' 
-                                        : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                                    }`}>
-                                      {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
-                                    </span>
+                                    <div className="flex flex-col items-start gap-0.5">
+                                      <span className={`text-sm font-semibold ${
+                                        isPaid 
+                                          ? 'text-green-600' 
+                                          : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                      }`}>
+                                        {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
+                                      </span>
+                                      {(() => {
+                                        if (selectedMonth === 'all') {
+                                          const yFin = getStudentYearFinancials(student, allPayments);
+                                          if (yFin.hasPaidButLeft) {
+                                            return (
+                                              <span className="text-[11px] px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-semibold">
+                                                {getText('Left', 'ቀሪ')}: {yFin.totalLeft.toLocaleString()} ETB
+                                              </span>
+                                            );
+                                          }
+                                        } else {
+                                          const mFin = getStudentMonthFinancials(student, selectedMonth);
+                                          if (mFin.isPaidButLeft) {
+                                            return (
+                                              <span className="text-[11px] px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-semibold">
+                                                {getText('Left', 'ቀሪ')}: {mFin.leftAmount.toLocaleString()} ETB
+                                              </span>
+                                            );
+                                          }
+                                        }
+                                        return null;
+                                      })()}
+                                    </div>
                                   </label>
                                   {isPaid && canManagePayments && (
                                     <button

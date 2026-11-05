@@ -47,6 +47,24 @@ interface PhoneContact {
   relation: string
 }
 
+const isValidParentName = (name?: string) => {
+  if (!name) return false
+  const trimmed = name.trim().toLowerCase()
+  if (trimmed.length < 2) return false
+  if (
+    trimmed === '-' ||
+    trimmed === '--' ||
+    trimmed === '---' ||
+    trimmed === 'n/a' ||
+    trimmed === 'none' ||
+    trimmed === 'null' ||
+    trimmed === 'unknown'
+  ) {
+    return false
+  }
+  return true
+}
+
 interface FailedRecipient {
   phone: string
   studentName?: string
@@ -79,6 +97,7 @@ export default function NotificationsPage() {
   const [classFilter, setClassFilter] = useState<string>('all')
   const [sectionFilter, setSectionFilter] = useState<string>('all')
   const [studentTypeFilter, setStudentTypeFilter] = useState<'all' | 'regular' | 'special'>('all')
+  const [siblingFilter, setSiblingFilter] = useState<'all' | 'siblings' | 'non_siblings'>('all')
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
   const [filterYear, setFilterYear] = useState<string>('2019')
   const [filterMonth, setFilterMonth] = useState<string>('')
@@ -126,6 +145,83 @@ export default function NotificationsPage() {
   const variables = recipientType === 'students' ? studentVariables : employeeVariables
 
   const months = ['September','October','November','December','January','February','March','April','May','June']
+
+  // Identify real sibling students in DB based on fatherName or motherName
+  const { siblingStudentIds, siblingCountMap } = useMemo(() => {
+    if (!students || students.length === 0) {
+      return { siblingStudentIds: new Set<string>(), siblingCountMap: new Map<string, number>() }
+    }
+
+    const n = students.length
+    const parent = Array.from({ length: n }, (_, i) => i)
+
+    const find = (i: number): number => {
+      if (parent[i] === i) return i
+      parent[i] = find(parent[i])
+      return parent[i]
+    }
+
+    const union = (i: number, j: number) => {
+      const rootI = find(i)
+      const rootJ = find(j)
+      if (rootI !== rootJ) {
+        parent[rootI] = rootJ
+      }
+    }
+
+    const fatherMap = new Map<string, number[]>()
+    const motherMap = new Map<string, number[]>()
+
+    students.forEach((s, idx) => {
+      if (isValidParentName(s.fatherName)) {
+        const fn = s.fatherName!.trim().toLowerCase()
+        const list = fatherMap.get(fn) || []
+        list.push(idx)
+        fatherMap.set(fn, list)
+      }
+
+      if (isValidParentName(s.motherName)) {
+        const mn = s.motherName!.trim().toLowerCase()
+        const list = motherMap.get(mn) || []
+        list.push(idx)
+        motherMap.set(mn, list)
+      }
+    })
+
+    fatherMap.forEach(indices => {
+      for (let i = 1; i < indices.length; i++) {
+        union(indices[0], indices[i])
+      }
+    })
+
+    motherMap.forEach(indices => {
+      for (let i = 1; i < indices.length; i++) {
+        union(indices[0], indices[i])
+      }
+    })
+
+    const componentMap = new Map<number, Student[]>()
+    for (let i = 0; i < n; i++) {
+      const root = find(i)
+      const list = componentMap.get(root) || []
+      list.push(students[i])
+      componentMap.set(root, list)
+    }
+
+    const idSet = new Set<string>()
+    const countMap = new Map<string, number>()
+
+    componentMap.forEach(groupStudents => {
+      if (groupStudents.length > 1) {
+        groupStudents.forEach(s => {
+          idSet.add(s._id)
+          countMap.set(s._id, groupStudents.length)
+        })
+      }
+    })
+
+    return { siblingStudentIds: idSet, siblingCountMap: countMap }
+  }, [students])
 
   useEffect(() => {
     const savedMonth = localStorage.getItem('notif_filterMonth')
@@ -309,6 +405,10 @@ export default function NotificationsPage() {
       if (studentTypeFilter === 'regular' && !hasPaymentCode) return false
       if (studentTypeFilter === 'special' && hasPaymentCode) return false
     }
+
+    // Sibling filter (select only sibling students)
+    if (siblingFilter === 'siblings' && !siblingStudentIds.has(student._id)) return false
+    if (siblingFilter === 'non_siblings' && siblingStudentIds.has(student._id)) return false
     
     // Payment filter
     if (paymentFilter !== 'all' && paymentFilteredIds !== null) {
@@ -365,7 +465,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [recipientType, searchTerm, classFilter, sectionFilter, studentTypeFilter, paymentFilter, filterYear, filterMonth, employeeSearchTerm, employeeRoleFilter])
+  }, [recipientType, searchTerm, classFilter, sectionFilter, studentTypeFilter, siblingFilter, paymentFilter, filterYear, filterMonth, employeeSearchTerm, employeeRoleFilter])
 
   const currentTotal = recipientType === 'students' ? filteredStudents.length : filteredEmployees.length
   const totalPages = Math.max(1, Math.ceil(currentTotal / PAGE_SIZE))
@@ -555,14 +655,14 @@ export default function NotificationsPage() {
 
   return (
     <DashboardLayout pageTitle={getText('Send Notifications', 'ማሳወቂያዎችን ላክ')}>
-      <div className={`min-h-screen p-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
-        <div className="max-w-7xl mx-auto">
+      <div className={`min-h-screen p-3 sm:p-5 lg:p-6 pb-24 md:pb-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <div className="max-w-7xl mx-auto w-full min-w-0 overflow-x-hidden">
           {/* Header */}
           <div className={`rounded-xl shadow-lg border mb-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-            <div className="px-6 py-5">
+            <div className="p-4 sm:px-6 sm:py-5">
               <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
                 <div>
-                  <h1 className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  <h1 className={`text-xl sm:text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                     {getText('Send Notifications', 'ማሳወቂያዎችን ላክ')}
                   </h1>
                   <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -572,21 +672,21 @@ export default function NotificationsPage() {
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
                   {/* Toggle: Students | Employees */}
-                  <div className={`p-1 rounded-xl border flex items-center gap-1 ${
+                  <div className={`p-1 rounded-xl border flex items-center justify-between sm:justify-start gap-1 w-full sm:w-auto ${
                     theme === 'dark' ? 'bg-gray-700/80 border-gray-600' : 'bg-gray-100 border-gray-200'
                   }`}>
                     <button
                       type="button"
                       onClick={() => { setRecipientType('students'); setCurrentPage(1); }}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                      className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-200 ${
                         recipientType === 'students'
                           ? 'bg-blue-600 text-white shadow-md'
                           : theme === 'dark' ? 'text-gray-300 hover:text-white hover:bg-gray-600/50' : 'text-gray-700 hover:text-gray-900 hover:bg-white'
                       }`}
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
                       </svg>
@@ -600,13 +700,13 @@ export default function NotificationsPage() {
                     <button
                       type="button"
                       onClick={() => { setRecipientType('employees'); setCurrentPage(1); if (employees.length === 0) fetchEmployees(); }}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                      className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-200 ${
                         recipientType === 'employees'
                           ? 'bg-blue-600 text-white shadow-md'
                           : theme === 'dark' ? 'text-gray-300 hover:text-white hover:bg-gray-600/50' : 'text-gray-700 hover:text-gray-900 hover:bg-white'
                       }`}
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                       <span>{getText('Employees', 'ሰራተኞች')}</span>
@@ -620,7 +720,7 @@ export default function NotificationsPage() {
 
                   <button
                     onClick={() => setShowHistory(!showHistory)}
-                    className={`w-full sm:w-auto px-4 md:px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg ${showHistory ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white' : theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                    className={`w-full sm:w-auto px-4 py-2.5 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 ${showHistory ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white' : theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -707,7 +807,7 @@ export default function NotificationsPage() {
                                 {notification.title}
                               </p>
                             )}
-                            <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                            <p className={`text-sm break-words ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
                               {notification.message}
                             </p>
                           </div>
@@ -736,7 +836,7 @@ export default function NotificationsPage() {
           {/* Message Input & Filters */}
           <div className={`rounded-xl shadow-lg border mb-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             {/* Message Input */}
-            <div className={`px-6 py-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
+            <div id="composer-box" className={`p-4 sm:px-6 sm:py-5 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
               <div className="mb-4">
                 <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
                   {getText('Message Title', 'የመልእክት ርዕስ')} *
@@ -757,36 +857,55 @@ export default function NotificationsPage() {
                 <div className="relative">
                   <button
                     onClick={() => setShowVariables(!showVariables)}
-                    className={`text-sm px-3 py-2 rounded-lg transition-all flex items-center gap-2 w-full md:w-auto justify-center ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                    className={`text-xs sm:text-sm px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 w-full sm:w-auto justify-center font-medium shadow-sm ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200'}`}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                     </svg>
-                    {getText('Insert Variable', 'ተጨማሪ ያክሉ')}
+                    <span>{getText('Insert Variable', 'ተጨማሪ ያክሉ')}</span>
                   </button>
                   {showVariables && (
-                    <div className={`absolute right-0 mt-2 w-64 rounded-lg shadow-xl z-10 ${theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
-                      <div className="py-2">
-                        <div className={`px-4 py-2 text-xs font-semibold uppercase ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {getText('Choose a variable', 'ተጨማሪ ይምረጡ')}
+                    <>
+                      {/* Mobile backdrop */}
+                      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs sm:hidden" onClick={() => setShowVariables(false)} />
+
+                      {/* Dropdown on desktop / Bottom sheet on mobile */}
+                      <div className={`fixed sm:absolute inset-x-3 bottom-3 sm:bottom-auto sm:inset-x-auto sm:right-0 sm:mt-2 sm:w-80 max-h-[75vh] overflow-y-auto rounded-2xl sm:rounded-xl shadow-2xl z-50 border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                        <div className="p-3.5 sm:p-3">
+                          <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100 dark:border-gray-700">
+                            <span className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {getText('Choose a variable', 'ተጨማሪ ይምረጡ')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowVariables(false)}
+                              className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="space-y-1">
+                            {variables.map((variable, index) => (
+                              <button
+                                key={index}
+                                onClick={() => {
+                                  setMessage(prev => prev + variable.value)
+                                  setShowVariables(false)
+                                }}
+                                className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center justify-between gap-2 ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200 active:bg-gray-600' : 'hover:bg-blue-50 text-gray-800 active:bg-blue-100'}`}
+                              >
+                                <span className="font-semibold text-xs sm:text-sm">{getText(variable.label, variable.amharic)}</span>
+                                <span className={`text-[11px] font-mono px-2 py-0.5 rounded-md font-bold ${theme === 'dark' ? 'bg-gray-700 text-blue-300' : 'bg-blue-50 text-blue-600 border border-blue-200'}`}>
+                                  {variable.value}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        {variables.map((variable, index) => (
-                          <button
-                            key={index}
-                            onClick={() => {
-                              setMessage(prev => prev + variable.value)
-                              setShowVariables(false)
-                            }}
-                            className={`w-full text-left px-4 py-2 transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-50 text-gray-700'}`}
-                          >
-                            <div className="font-medium">{getText(variable.label, variable.amharic)}</div>
-                            <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
-                              {variable.value}
-                            </div>
-                          </button>
-                        ))}
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -806,10 +925,10 @@ export default function NotificationsPage() {
                   <button
                     onClick={handleSendNotification}
                     disabled={sending || !message.trim() || !title.trim()}
-                    className={`w-full md:w-auto px-6 py-2.5 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
-                      sending || !message.trim()
+                    className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 ${
+                      sending || !message.trim() || !title.trim()
                         ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-md hover:shadow-lg'
+                        : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'
                     } text-white`}
                   >
                     {sending ? (
@@ -835,7 +954,7 @@ export default function NotificationsPage() {
             </div>
 
             {/* Filters */}
-            <div className={`px-6 py-4 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+            <div className={`p-4 sm:px-6 sm:py-5 ${theme === 'dark' ? 'bg-gray-700/60' : 'bg-gray-50'}`}>
               {recipientType === 'students' ? (
                 <div className="flex flex-col gap-4">
                   <div className="relative flex-1">
@@ -850,11 +969,11 @@ export default function NotificationsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
-                  <div className="flex flex-col md:flex-row gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
                     <select
                       value={classFilter}
                       onChange={(e) => setClassFilter(e.target.value)}
-                      className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      className={`w-full px-3 py-2.5 sm:px-4 sm:py-3 border rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                     >
                       <option value="all">{getText('All Classes', 'ሁሉም ክፍሎች')}</option>
                       <option value="Nursery">Nursery</option>
@@ -864,7 +983,7 @@ export default function NotificationsPage() {
                     <select
                       value={sectionFilter}
                       onChange={(e) => setSectionFilter(e.target.value)}
-                      className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      className={`w-full px-3 py-2.5 sm:px-4 sm:py-3 border rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                     >
                       <option value="all">{getText('All Sections', 'ሁሉም ክፍሎች')}</option>
                       <option value="A">Section A</option>
@@ -875,28 +994,72 @@ export default function NotificationsPage() {
                     <select
                       value={studentTypeFilter}
                       onChange={(e) => setStudentTypeFilter(e.target.value as 'all' | 'regular' | 'special')}
-                      className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      className={`w-full px-3 py-2.5 sm:px-4 sm:py-3 border rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                     >
                       <option value="all">{getText('All Types', 'ሁሉም አይነቶች')}</option>
                       <option value="regular">{getText('Regular', 'መደበኛ')}</option>
                       <option value="special">{getText('Special', 'ልዩ')}</option>
                     </select>
                     <select
-                      value={paymentFilter}
-                      onChange={(e) => { setPaymentFilter(e.target.value as 'all' | 'paid' | 'unpaid'); setPaymentFilteredIds(null) }}
-                      className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      value={siblingFilter}
+                      onChange={(e) => setSiblingFilter(e.target.value as 'all' | 'siblings' | 'non_siblings')}
+                      className={`w-full px-3 py-2.5 sm:px-4 sm:py-3 border rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                     >
-                      <option value="all">{getText('All Payment Status', 'ሁሉም የክፍያ ሁኔታ')}</option>
-                      <option value="paid">{getText('Paid', 'የከፈሉ')}</option>
-                      <option value="unpaid">{getText('Unpaid', 'ያልከፈሉ')}</option>
+                      <option value="all">{getText('All Students', 'ሁሉም ተማሪዎች')}</option>
+                      <option value="siblings">
+                        👨‍👩‍👧‍👦 {getText('Siblings Only', 'ወንድም/እህት ብቻ')} ({siblingStudentIds.size})
+                      </option>
+                      <option value="non_siblings">{getText('Non-Siblings Only', 'ወንድም/እህት የሌላቸው')}</option>
                     </select>
+                    <div className="col-span-2 sm:col-span-1">
+                      <select
+                        value={paymentFilter}
+                        onChange={(e) => { setPaymentFilter(e.target.value as 'all' | 'paid' | 'unpaid'); setPaymentFilteredIds(null) }}
+                        className={`w-full px-3 py-2.5 sm:px-4 sm:py-3 border rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                      >
+                        <option value="all">{getText('All Payment Status', 'ሁሉም የክፍያ ሁኔታ')}</option>
+                        <option value="paid">{getText('Paid', 'የከፈሉ')}</option>
+                        <option value="unpaid">{getText('Unpaid', 'ያልከፈሉ')}</option>
+                      </select>
+                    </div>
+                    {siblingFilter === 'siblings' && (
+                      <div className="col-span-2 sm:col-span-3 lg:col-span-5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const siblingIds = filteredStudents.map(s => s._id)
+                            const allSelected = siblingIds.length > 0 && siblingIds.every(id => selectedStudents.includes(id))
+                            if (allSelected) {
+                              setSelectedStudents(prev => prev.filter(id => !siblingIds.includes(id)))
+                            } else {
+                              setSelectedStudents(prev => Array.from(new Set([...prev, ...siblingIds])))
+                            }
+                          }}
+                          className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold transition-all border flex items-center justify-center gap-2 shadow-sm active:scale-98 ${
+                            filteredStudents.length > 0 && filteredStudents.every(s => selectedStudents.includes(s._id))
+                              ? 'bg-purple-600 text-white border-purple-600 shadow-purple-200 dark:shadow-none'
+                              : theme === 'dark' ? 'bg-gray-800 hover:bg-gray-750 text-purple-400 border-gray-600' : 'bg-white hover:bg-purple-50 text-purple-700 border-purple-200'
+                          }`}
+                          title={getText('Select all sibling students', 'ሁሉንም ወንድም/እህት ተማሪዎች ምረጥ')}
+                        >
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span>
+                            {filteredStudents.length > 0 && filteredStudents.every(s => selectedStudents.includes(s._id))
+                              ? getText('All Siblings Selected', 'ሁሉም ወንድም/እህቶች ተመርጠዋል')
+                              : getText('Select All Siblings', 'ሁሉንም ወንድም/እህቶች ምረጥ')} ({filteredStudents.length})
+                          </span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {paymentFilter !== 'all' && (
-                    <div className="flex flex-col md:flex-row gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3 items-center">
                       <select
                         value={filterYear}
                         onChange={(e) => setFilterYear(e.target.value)}
-                        className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                        className={`w-full px-4 py-3 border rounded-xl font-medium focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                       >
                         {[2018,2019,2020,2021,2022,2023,2024,2025,2026].map(y => (
                           <option key={y} value={y}>{y} E.C.</option>
@@ -905,13 +1068,14 @@ export default function NotificationsPage() {
                       <select
                         value={filterMonth}
                         onChange={(e) => setFilterMonth(e.target.value)}
-                        className={`px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                        className={`w-full px-4 py-3 border rounded-xl font-medium focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                       >
                         {months.map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
                       {paymentFilterLoading && (
-                        <div className="flex items-center px-2">
+                        <div className="flex items-center gap-2 px-2 py-1 text-sm text-blue-600 dark:text-blue-400">
                           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                          <span>{getText('Loading payments...', 'ክፍያዎችን በመጫን ላይ...')}</span>
                         </div>
                       )}
                     </div>
@@ -986,15 +1150,19 @@ export default function NotificationsPage() {
 
           {/* Recipients List (Students or Employees) */}
           <div className={`rounded-xl shadow-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-            <div className={`px-6 py-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
-              <div className="flex justify-between items-center">
-                <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            <div className={`p-4 sm:px-6 sm:py-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                <h2 className={`text-base sm:text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                   {recipientType === 'students' ? getText('Select Recipients', 'ተቀባዮችን ይምረጡ') : getText('Select Employees', 'ሰራተኞችን ይምረጡ')}
                 </h2>
-                <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold self-start sm:self-auto ${
+                  (recipientType === 'students' ? selectedStudents.length : selectedEmployees.length) > 0
+                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                    : 'bg-gray-100 dark:bg-gray-750 text-gray-600 dark:text-gray-400'
+                }`}>
                   {recipientType === 'students'
-                    ? `${selectedStudents.length} ${getText('selected', 'ተመርጠዋል')} (${getTotalPhoneNumbers()} ${getText('phone numbers', 'ስልክ ቁጥሮች')})`
-                    : `${selectedEmployees.length} ${getText('selected', 'ተመርጠዋል')} (${getTotalEmployeePhoneNumbers()} ${getText('phone numbers', 'ስልክ ቁጥሮች')})`}
+                    ? `${selectedStudents.length} ${getText('selected', 'ተመርጠዋል')} • ${getTotalPhoneNumbers()} ${getText('SMS phones', 'ስልኮች')}`
+                    : `${selectedEmployees.length} ${getText('selected', 'ተመርጠዋል')} • ${getTotalEmployeePhoneNumbers()} ${getText('SMS phones', 'ስልኮች')}`}
                 </span>
               </div>
             </div>
@@ -1055,8 +1223,18 @@ export default function NotificationsPage() {
                                     />
                                   </td>
                                   <td className={`px-6 py-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                    <div className="font-medium">
-                                      {getStudentDisplayName(student, language)}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-medium">
+                                        {getStudentDisplayName(student, language)}
+                                      </span>
+                                      {siblingStudentIds.has(student._id) && (
+                                        <span
+                                          className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-semibold"
+                                          title={getText(`Has ${siblingCountMap.get(student._id) || ''} siblings in database`, `በዳታቤዝ ውስጥ ${siblingCountMap.get(student._id) || ''} ወንድም/እህት አለው`)}
+                                        >
+                                          👨‍👩‍👧‍👦 {getText('Sibling', 'ወንድም/እህት')}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                                       {student.studentId}
@@ -1121,52 +1299,79 @@ export default function NotificationsPage() {
                             return (
                               <div
                                 key={student._id}
-                                className={`rounded-lg border p-4 ${isSelected ? theme === 'dark' ? 'bg-blue-900/30 border-blue-600' : 'bg-blue-50 border-blue-400' : theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}
+                                className={`rounded-xl border p-3.5 sm:p-4 w-full min-w-0 overflow-hidden ${isSelected ? theme === 'dark' ? 'bg-blue-900/30 border-blue-600' : 'bg-blue-50 border-blue-400' : theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}
                               >
-                                {/* Student Info */}
-                                <div className="flex items-start gap-3 mb-3">
+                                {/* Student Info with full tappable label */}
+                                <label className="flex items-start gap-3 mb-3 cursor-pointer select-none">
                                   <input
                                     type="checkbox"
                                     checked={isSelected}
                                     onChange={(e) => handleSelectStudent(student._id, e.target.checked)}
-                                    className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600"
+                                    className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600 flex-shrink-0"
                                   />
-                                  <div className="flex-1">
-                                    <h3 className={`font-semibold text-base ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                      {getStudentDisplayName(student, language)}
-                                    </h3>
-                                    <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                      {getText('ID', 'መታወቂያ')}: <span className="font-medium">{student.studentId}</span>
-                                    </p>
-                                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                      {getText('Class', 'ክፍል')}: <span className="font-medium">{student.class} {student.section && `- ${student.section}`}</span>
-                                    </p>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <h3 className={`font-bold text-base ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                        {getStudentDisplayName(student, language)}
+                                      </h3>
+                                      {siblingStudentIds.has(student._id) && (
+                                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-semibold">
+                                          👨‍👩‍👧‍👦 {getText('Sibling', 'ወንድም/እህት')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3 mt-1 text-xs">
+                                      <span className={`font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        {getText('ID', 'መታወቂያ')}: <span className="font-semibold text-gray-900 dark:text-gray-200">{student.studentId}</span>
+                                      </span>
+                                      <span className={`font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        {getText('Class', 'ክፍል')}: <span className="font-semibold text-gray-900 dark:text-gray-200">{student.class} {student.section && `- ${student.section}`}</span>
+                                      </span>
+                                    </div>
                                   </div>
-                                </div>
+                                </label>
 
                                 {/* Parent Contacts */}
-                                <div className={`pt-3 border-t ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
-                                  <p className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                    {getText('Parent Contacts', 'የወላጅ ግንኙነቶች')}
-                                  </p>
+                                <div className={`pt-3 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'} w-full min-w-0`}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                                      {getText('Parent Contacts', 'የወላጅ ግንኙነቶች')}
+                                    </span>
+                                    <span className="text-[11px] text-gray-400">
+                                      {contacts.length} {getText('contacts', 'ግንኙነት')}
+                                    </span>
+                                  </div>
                                   {contacts.length > 0 ? (
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 w-full min-w-0">
                                       {contacts.map((contact, index) => (
-                                        <div key={index} className={`flex flex-col gap-1 p-2 rounded ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-100'}`}>
-                                          <div className="flex items-center gap-2">
-                                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'}`}>
+                                        <div
+                                          key={index}
+                                          className={`p-2.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 w-full min-w-0 overflow-hidden ${
+                                            theme === 'dark' ? 'bg-gray-750/70 border-gray-700' : 'bg-gray-50 border-gray-200/80'
+                                          }`}
+                                        >
+                                          <div className="min-w-0 flex items-center gap-2 flex-1 w-full sm:w-auto">
+                                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md flex-shrink-0 ${
+                                              theme === 'dark' ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-700 border border-gray-200'
+                                            }`}>
                                               {contact.relation}
                                             </span>
-                                            <span className={`font-medium text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>{contact.name}</span>
+                                            <span className={`font-semibold text-xs sm:text-sm truncate ${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>
+                                              {contact.name}
+                                            </span>
                                           </div>
-                                          <a href={`tel:${contact.phone}`} className={`text-sm ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
-                                            {contact.phone}
+                                          <a
+                                            href={`tel:${contact.phone}`}
+                                            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 transition-colors shadow-sm active:scale-95 flex-shrink-0"
+                                          >
+                                            <span>📞</span>
+                                            <span className="truncate">{contact.phone}</span>
                                           </a>
                                         </div>
                                       ))}
                                     </div>
                                   ) : (
-                                    <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">
+                                    <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-medium">
                                       {getText('No phone number', 'ስልክ ቁጥር የለም')}
                                     </span>
                                   )}
@@ -1315,44 +1520,47 @@ export default function NotificationsPage() {
                             return (
                               <div
                                 key={emp._id}
-                                className={`rounded-lg border p-4 ${isSelected ? theme === 'dark' ? 'bg-blue-900/30 border-blue-600' : 'bg-blue-50 border-blue-400' : theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}
+                                className={`rounded-xl border p-3.5 sm:p-4 w-full min-w-0 overflow-hidden ${isSelected ? theme === 'dark' ? 'bg-blue-900/30 border-blue-600' : 'bg-blue-50 border-blue-400' : theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}
                               >
-                                <div className="flex items-start gap-3 mb-3">
+                                <label className="flex items-start gap-3 mb-3 cursor-pointer select-none">
                                   <input
                                     type="checkbox"
                                     checked={isSelected}
                                     onChange={(e) => handleSelectEmployee(emp._id, e.target.checked)}
-                                    className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600"
+                                    className="w-5 h-5 mt-1 rounded cursor-pointer accent-blue-600 flex-shrink-0"
                                   />
-                                  <div className="flex-1">
+                                  <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between gap-2">
-                                      <h3 className={`font-semibold text-base ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      <h3 className={`font-bold text-base truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                                         {emp.fullName}
                                       </h3>
-                                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                                        theme === 'dark' ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'
+                                      <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ${
+                                        theme === 'dark' ? 'bg-blue-900/40 text-blue-300 border border-blue-800' : 'bg-blue-50 text-blue-700 border border-blue-200'
                                       }`}>
                                         {emp.role}
                                       </span>
                                     </div>
-                                    <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                      {getText('ID', 'መታወቂያ')}: <span className="font-mono font-medium">{emp.teacherId}</span>
+                                    <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                      {getText('ID', 'መታወቂያ')}: <span className="font-mono font-semibold">{emp.teacherId}</span>
                                     </p>
-                                    {emp.phone && emp.phone.trim() ? (
-                                      <p className="text-sm mt-1">
-                                        <a href={`tel:${emp.phone}`} className={`font-mono ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
-                                          📞 {emp.phone}
+                                    <div className="mt-2">
+                                      {emp.phone && emp.phone.trim() ? (
+                                        <a
+                                          href={`tel:${emp.phone}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 transition-colors shadow-sm active:scale-95"
+                                        >
+                                          <span>📞</span>
+                                          <span>{emp.phone}</span>
                                         </a>
-                                      </p>
-                                    ) : (
-                                      <p className="mt-1">
-                                        <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">
+                                      ) : (
+                                        <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-medium">
                                           {getText('No phone number', 'ስልክ ቁጥር የለም')}
                                         </span>
-                                      </p>
-                                    )}
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
+                                </label>
                                 <div className={`pt-3 border-t text-xs space-y-1 ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
                                   {emp.role === 'Teacher' ? (
                                     <>
@@ -1398,6 +1606,46 @@ export default function NotificationsPage() {
           </div>
         </div>
       </div>
+
+      {/* Sticky Mobile Action Bar */}
+      {((recipientType === 'students' && selectedStudents.length > 0) || (recipientType === 'employees' && selectedEmployees.length > 0)) && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-700 shadow-2xl z-40">
+          <div className="flex items-center justify-between gap-3 max-w-lg mx-auto">
+            <div className="min-w-0">
+              <span className="block text-xs font-bold text-gray-900 dark:text-white truncate">
+                {recipientType === 'students'
+                  ? `${selectedStudents.length} ${getText('students', 'ተማሪዎች')}`
+                  : `${selectedEmployees.length} ${getText('employees', 'ሰራተኞች')}`}
+              </span>
+              <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                {recipientType === 'students'
+                  ? `${getTotalPhoneNumbers()} ${getText('SMS phones', 'ስልኮች')}`
+                  : `${getTotalEmployeePhoneNumbers()} ${getText('SMS phones', 'ስልኮች')}`}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSendNotification}
+              disabled={sending}
+              className="flex-1 max-w-[210px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg active:scale-95 transition-all flex items-center justify-center gap-1.5"
+            >
+              {sending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>{getText('Sending...', 'በመላክ ላይ...')}</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                  <span>{getText('Send SMS Now', 'አሁን ኤስኤምኤስ ላክ')}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal showing which student name & phone number failed */}
       {selectedFailedNotification && (

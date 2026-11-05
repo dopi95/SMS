@@ -47,18 +47,19 @@ export default function Pagination({
 
   return (
     <div
-      className={`px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t ${
+      className={`px-3 py-3 sm:px-6 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 border-t w-full max-w-full overflow-hidden ${
         theme === 'dark' ? 'bg-gray-800/80 border-gray-700' : 'bg-gray-50/70 border-gray-100'
       }`}
     >
-      <div className={`text-xs sm:text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+      <div className={`text-xs sm:text-sm text-center sm:text-left ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
         {getText(
           `Showing ${startItem} to ${endItem} of ${totalItems} ${itemName.en}`,
           `ከ ${totalItems} ${itemName.am} ${startItem} እስከ ${endItem} እያሳየ`
         )}
       </div>
 
-      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+      {/* Desktop Pagination: Full multi-page numbers */}
+      <div className="hidden sm:flex items-center gap-1.5 flex-wrap justify-center max-w-full">
         {/* Previous Button */}
         <button
           type="button"
@@ -76,7 +77,7 @@ export default function Pagination({
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          <span className="hidden sm:inline">{getText('Previous', 'ወደ ኋላ')}</span>
+          <span>{getText('Previous', 'ወደ ኋላ')}</span>
         </button>
 
         {/* Page numbers */}
@@ -127,7 +128,52 @@ export default function Pagination({
           }`}
           title={getText('Next Page', 'ቀጣይ ገጽ')}
         >
-          <span className="hidden sm:inline">{getText('Next', 'ቀጣይ')}</span>
+          <span>{getText('Next', 'ቀጣይ')}</span>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile Compact Pagination: Prev - Page X of Y - Next */}
+      <div className="flex sm:hidden items-center justify-between w-full gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 border ${
+            currentPage === 1
+              ? 'opacity-40 cursor-not-allowed text-gray-400 dark:text-gray-500 border-transparent'
+              : theme === 'dark'
+              ? 'hover:bg-gray-700 text-gray-200 bg-gray-800 border-gray-700 active:scale-95'
+              : 'hover:bg-gray-100 text-gray-700 bg-white border-gray-200 shadow-sm active:scale-95'
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          <span>{getText('Prev', 'ቀዳሚ')}</span>
+        </button>
+
+        <span className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${
+          theme === 'dark' ? 'bg-gray-750 text-gray-300 border-gray-700' : 'bg-white text-gray-700 border-gray-200'
+        }`}>
+          {currentPage} / {totalPages}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 border ${
+            currentPage === totalPages
+              ? 'opacity-40 cursor-not-allowed text-gray-400 dark:text-gray-500 border-transparent'
+              : theme === 'dark'
+              ? 'hover:bg-gray-700 text-gray-200 bg-gray-800 border-gray-700 active:scale-95'
+              : 'hover:bg-gray-100 text-gray-700 bg-white border-gray-200 shadow-sm active:scale-95'
+          }`}
+        >
+          <span>{getText('Next', 'ቀጣይ')}</span>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>

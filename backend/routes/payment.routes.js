@@ -13,6 +13,7 @@ router.use(auth);
 
 router.post('/parse-import', upload.single('file'), paymentController.parseImportFile);
 router.post('/bulk-import', paymentController.bulkImportPayments);
+router.post('/clear-balance', paymentController.clearBalanceToZero);
 
 router.post('/', paymentController.createPayment);
 router.get('/', paymentController.getPayments);

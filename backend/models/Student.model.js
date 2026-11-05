@@ -27,6 +27,10 @@ const studentSchema = new mongoose.Schema({
   portalUsername: { type: String, default: '' },
   portalPassword: { type: String, default: '' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+  clearedBalanceMonths: [{
+    year: { type: Number },
+    month: { type: String }
+  }],
   enrollmentDate: { type: Date, default: Date.now }
 }, { timestamps: true });
 

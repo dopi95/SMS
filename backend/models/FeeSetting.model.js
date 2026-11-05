@@ -16,6 +16,11 @@ const feeSettingSchema = new mongoose.Schema({
     min: 0,
     default: 0
   },
+  penaltyAssignTo: {
+    type: String,
+    enum: ['all', 'regular', 'special', 'none'],
+    default: 'all'
+  },
   penaltyFee: {
     type: Number,
     required: true,
@@ -28,6 +33,12 @@ const feeSettingSchema = new mongoose.Schema({
     min: 1,
     max: 30,
     default: 10
+  },
+  siblingDiscount: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 0
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -42,4 +53,6 @@ feeSettingSchema.index({ year: 1, month: 1 }, { unique: true });
 const { registerMirrorHooks } = require('../utils/mirrorSync');
 registerMirrorHooks(feeSettingSchema, 'FeeSetting');
 
-module.exports = mongoose.model('FeeSetting', feeSettingSchema);
+const FeeSettingModel = mongoose.model('FeeSetting', feeSettingSchema);
+
+module.exports = FeeSettingModel;

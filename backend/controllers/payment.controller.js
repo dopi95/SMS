@@ -497,3 +497,61 @@ exports.bulkImportPayments = asyncHandler(async (req, res) => {
 });
 
 
+
+
+// Clear balance to 0 (superadmin only)
+exports.clearBalanceToZero = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({ message: 'Only superadmin can make the left balance 0' });
+  }
+
+  const { studentId, month, year } = req.body;
+
+  if (!studentId || !month || !year) {
+    return res.status(400).json({ message: 'studentId, month, and year are required' });
+  }
+
+  const student = await Student.findById(studentId);
+  if (!student) {
+    return res.status(404).json({ message: 'Student not found' });
+  }
+
+  const numericYear = parseInt(year);
+
+  // Mark balanceCleared on Payment without modifying payment.amount
+  let payment = await Payment.findOne({
+    studentId,
+    month,
+    year: numericYear
+  });
+
+  if (payment) {
+    // Preserve the exact previous amount paid on payment page
+    payment.balanceCleared = true;
+    payment.balanceClearedAt = new Date();
+    payment.balanceClearedBy = req.user._id || req.user.id;
+    await payment.save();
+  }
+
+  // Also record on student.clearedBalanceMonths
+  student.clearedBalanceMonths = student.clearedBalanceMonths || [];
+  const alreadyCleared = student.clearedBalanceMonths.some(c => c.year === numericYear && c.month === month);
+  if (!alreadyCleared) {
+    student.clearedBalanceMonths.push({ year: numericYear, month });
+    await student.save();
+  }
+
+  const sName = formatStudentName(student) || studentId;
+  await logActivity(
+    req.user,
+    'Balance Cleared',
+    'Payment',
+    `Superadmin cleared left balance for ${sName} (${month} ${year}) to 0 ETB (without modifying paid amount)`
+  );
+
+  res.json({
+    message: 'Left balance successfully cleared to 0 without modifying paid amount',
+    payment,
+    clearedBalanceMonths: student.clearedBalanceMonths
+  });
+});

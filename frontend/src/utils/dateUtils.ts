@@ -219,6 +219,11 @@ export interface FeePenaltyCalculation {
   monthlyFee: number
   penaltyFee: number
   penaltyDay: number
+  isPenaltyAssigned: boolean
+  penaltyAssignTo: 'all' | 'regular' | 'special' | 'none'
+  siblingDiscountPercent: number
+  siblingDiscountAmount: number
+  netMonthlyFee: number
   isPaid: boolean
   isOverdue: boolean
   overdueDays: number
@@ -231,27 +236,71 @@ export function calculateMonthlyFeePenalty(params: {
   monthlyFee: number
   penaltyFee: number
   penaltyDay: number
+  penaltyAssignTo?: 'all' | 'regular' | 'special' | 'none'
+  isPenaltyAssigned?: boolean
   feeYear: number
   feeMonth: string
   isPaid: boolean
+  hasSiblings?: boolean
+  siblingDiscountPercent?: number
   currentDate?: Date
 }): FeePenaltyCalculation {
-  const { monthlyFee, penaltyFee, penaltyDay, feeYear, feeMonth, isPaid } = params
+  const {
+    monthlyFee,
+    penaltyFee,
+    penaltyDay,
+    penaltyAssignTo = 'all',
+    isPenaltyAssigned = true,
+    feeYear,
+    feeMonth,
+    isPaid,
+    hasSiblings,
+    siblingDiscountPercent
+  } = params
+
   const baseFee = Math.max(0, Number(monthlyFee) || 0)
   const dailyPenalty = Math.max(0, Number(penaltyFee) || 0)
   const applyAfterDay = Math.max(1, Math.min(30, Number(penaltyDay) || 10))
+  const discountPercent = hasSiblings ? Math.max(0, Math.min(100, Number(siblingDiscountPercent) || 0)) : 0
+  const siblingDiscountAmount = (baseFee * discountPercent) / 100
+  const netMonthlyFee = Math.max(0, baseFee - siblingDiscountAmount)
 
   if (isPaid) {
     return {
       monthlyFee: baseFee,
       penaltyFee: dailyPenalty,
       penaltyDay: applyAfterDay,
+      isPenaltyAssigned,
+      penaltyAssignTo,
+      siblingDiscountPercent: discountPercent,
+      siblingDiscountAmount,
+      netMonthlyFee,
       isPaid: true,
       isOverdue: false,
       overdueDays: 0,
       accruedPenalty: 0,
       totalDue: 0,
       penaltyStartsDateText: '',
+    }
+  }
+
+  // If penalty is NOT assigned to this student (e.g. unassigned or regular-only and student is special)
+  if (!isPenaltyAssigned || penaltyAssignTo === 'none') {
+    return {
+      monthlyFee: baseFee,
+      penaltyFee: 0,
+      penaltyDay: applyAfterDay,
+      isPenaltyAssigned: false,
+      penaltyAssignTo,
+      siblingDiscountPercent: discountPercent,
+      siblingDiscountAmount,
+      netMonthlyFee,
+      isPaid: false,
+      isOverdue: false,
+      overdueDays: 0,
+      accruedPenalty: 0,
+      totalDue: netMonthlyFee,
+      penaltyStartsDateText: 'Penalty unassigned for this student',
     }
   }
 
@@ -266,12 +315,17 @@ export function calculateMonthlyFeePenalty(params: {
   const overdueDays = Math.max(0, currentAbsolute - penaltyStartAbsolute)
   const isOverdue = overdueDays > 0
   const accruedPenalty = overdueDays * dailyPenalty
-  const totalDue = baseFee + accruedPenalty
+  const totalDue = netMonthlyFee + accruedPenalty
 
   return {
     monthlyFee: baseFee,
     penaltyFee: dailyPenalty,
     penaltyDay: applyAfterDay,
+    isPenaltyAssigned: true,
+    penaltyAssignTo,
+    siblingDiscountPercent: discountPercent,
+    siblingDiscountAmount,
+    netMonthlyFee,
     isPaid: false,
     isOverdue,
     overdueDays,

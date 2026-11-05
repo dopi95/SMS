@@ -198,7 +198,7 @@ export default function DashboardLayout({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col lg:ml-64">
+      <div className="flex-1 flex flex-col min-w-0 w-full max-w-full overflow-x-hidden lg:ml-64">
         {/* Top bar */}
         <div className={`fixed top-0 left-0 right-0 shadow-sm border-b lg:hidden z-40 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center justify-between h-16 px-4">
@@ -214,7 +214,7 @@ export default function DashboardLayout({
         </div>
 
         {/* Page content */}
-        <main className="flex-1 pt-16 lg:pt-0">
+        <main className="flex-1 pt-16 lg:pt-0 min-w-0 w-full max-w-full overflow-x-hidden">
           {!hideBell && <NotificationBell />}
           {children}
         </main>

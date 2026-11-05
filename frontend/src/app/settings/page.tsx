@@ -36,8 +36,11 @@ interface FeeSetting {
   year: number
   month: string
   monthlyFee: number
+  penaltyAssignTo?: 'all' | 'regular' | 'special' | 'none'
+  applyFor?: 'all' | 'regular' | 'special' | 'none'
   penaltyFee: number
   penaltyDay: number
+  siblingDiscount?: number
   createdAt?: string
   updatedAt?: string
 }
@@ -62,9 +65,11 @@ export default function SettingsPage() {
 
   const [formYear, setFormYear] = useState<number>(currentEcYear)
   const [formMonth, setFormMonth] = useState<string>(currentEcMonth)
+  const [formPenaltyAssignTo, setFormPenaltyAssignTo] = useState<'all' | 'regular' | 'special' | 'none'>('all')
   const [formMonthlyFee, setFormMonthlyFee] = useState<string>('4000')
   const [formPenaltyFee, setFormPenaltyFee] = useState<string>('20')
   const [formPenaltyDay, setFormPenaltyDay] = useState<string>('10')
+  const [formSiblingDiscount, setFormSiblingDiscount] = useState<string>('10')
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const availableYears = [
@@ -143,6 +148,7 @@ export default function SettingsPage() {
     const monthly = Number(formMonthlyFee)
     const penalty = Number(formPenaltyFee)
     const penaltyDayNum = Number(formPenaltyDay)
+    const discountNum = Math.max(0, Math.min(100, Number(formSiblingDiscount) || 0))
 
     if (isNaN(monthly) || monthly < 0) {
       toast.error(getText('Please enter a valid monthly fee', 'እባክዎ ትክክለኛ ወርሃዊ ክፍያ ያስገቡ'))
@@ -163,11 +169,15 @@ export default function SettingsPage() {
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/fee-settings`,
         {
+          id: editingId || undefined,
           year: Number(formYear),
           month: formMonth,
+          penaltyAssignTo: formPenaltyAssignTo,
+          applyFor: formPenaltyAssignTo,
           monthlyFee: monthly,
           penaltyFee: penalty,
-          penaltyDay: penaltyDayNum
+          penaltyDay: penaltyDayNum,
+          siblingDiscount: discountNum
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -221,9 +231,11 @@ export default function SettingsPage() {
     setEditingId(setting._id)
     setFormYear(setting.year)
     setFormMonth(setting.month)
+    setFormPenaltyAssignTo(setting.penaltyAssignTo || (setting.applyFor as any) || 'all')
     setFormMonthlyFee(String(setting.monthlyFee))
     setFormPenaltyFee(String(setting.penaltyFee))
     setFormPenaltyDay(String(setting.penaltyDay))
+    setFormSiblingDiscount(String(setting.siblingDiscount ?? 0))
 
     const monthMeta = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value === setting.month)
     const monthLabel = monthMeta ? (language === 'am' ? monthMeta.am : monthMeta.en) : setting.month
@@ -308,8 +320,8 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout pageTitle={getText('Settings', 'ቅንብሮች')}>
-      <div className="p-4 sm:p-6 lg:p-8">
-        <div className="max-w-4xl mx-auto space-y-8">
+      <div className="p-3 sm:p-6 lg:p-8">
+        <div className="max-w-6xl mx-auto space-y-8">
           {/* General Preferences Card */}
           <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-8 py-6">
@@ -370,7 +382,7 @@ export default function SettingsPage() {
                 </div>
                 
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-xl border border-blue-100 dark:border-blue-900/40">
-                  <div className="flex items-start space-x-4">
+                  <div className="flex flex-col sm:flex-row items-start gap-4">
                     <ArrowDownTrayIcon className="h-8 w-8 text-blue-600 flex-shrink-0 mt-1" />
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -393,7 +405,7 @@ export default function SettingsPage() {
                       </p>
 
                       {isInstalled ? (
-                        <div className="inline-flex items-center px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium shadow-sm">
+                        <div className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium shadow-sm">
                           <CheckCircleIcon className="h-5 w-5 mr-2" />
                           {getText('Already Installed on This Device', 'በዚህ መሳሪያ ላይ አስቀድሞ ተጭኗል')}
                         </div>
@@ -402,7 +414,7 @@ export default function SettingsPage() {
                           <button
                             type="button"
                             onClick={() => setShowIOSInstructions((prev) => !prev)}
-                            className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
+                            className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium shadow-sm"
                           >
                             <DevicePhoneMobileIcon className="h-5 w-5 mr-2" />
                             {showIOSInstructions
@@ -512,12 +524,12 @@ export default function SettingsPage() {
                     <BanknotesIcon className="h-8 w-8 text-emerald-100" />
                     <div>
                       <h2 className="text-xl sm:text-2xl font-bold text-white">
-                        {getText('Monthly Fee & Penalty Settings', 'የወርሃዊ ክፍያ እና የቅጣት ቅንብሮች')}
+                        {getText('Monthly Fee, Penalty & Sibling Discount Settings', 'የወርሃዊ ክፍያ፣ ቅጣት እና የወንድም/እህት ቅናሽ ቅንብሮች')}
                       </h2>
                       <p className="text-emerald-100 text-xs sm:text-sm mt-0.5">
                         {getText(
-                          'Configure base monthly fee and daily penalty rate per Ethiopian month (Superadmin Access Only)',
-                          'ለእያንዳንዱ የኢትዮጵያ ወር ወርሃዊ ክፍያ እና የቀን ቅጣት መጠን ያዘጋጁ (ለሱፐርአድሚን ብቻ የተፈቀደ)'
+                          'Configure base fee, penalty rules, and sibling discount % by student category (Superadmin Access Only)',
+                          'ወርሃዊ ክፍያ፣ የቅጣት ደንብ እና የወንድም/እህት ቅናሽ % ያዘጋጁ (ለሱፐርአድሚን ብቻ የተፈቀደ)'
                         )}
                       </p>
                     </div>
@@ -549,11 +561,11 @@ export default function SettingsPage() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-4">
                     {/* Ethiopian Year */}
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
-                        {getText('Ethiopian Year', 'ዓመተ ምህረት')}
+                        {getText('Year', 'ዓመተ ምህረት')}
                       </label>
                       <select
                         value={formYear}
@@ -562,7 +574,7 @@ export default function SettingsPage() {
                       >
                         {availableYears.map(y => (
                           <option key={y} value={y}>
-                            {y} {language === 'am' ? 'ዓ.ም' : 'E.C'} {y === currentEcYear ? '• Current' : ''}
+                            {y} {language === 'am' ? 'ዓ.ም' : 'E.C'} {y === currentEcYear ? '• Now' : ''}
                           </option>
                         ))}
                       </select>
@@ -571,7 +583,7 @@ export default function SettingsPage() {
                     {/* Ethiopian Month */}
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
-                        {getText('Ethiopian Month', 'የኢትዮጵያ ወር')}
+                        {getText('Month', 'የኢትዮጵያ ወር')}
                       </label>
                       <select
                         value={formMonth}
@@ -586,23 +598,49 @@ export default function SettingsPage() {
                       </select>
                     </div>
 
+                    {/* Assign Penalty To */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
+                        {getText('Assign Penalty To', 'ቅጣት ተፈጻሚ የሚሆንበት')}
+                      </label>
+                      <select
+                        value={formPenaltyAssignTo}
+                        onChange={(e) => setFormPenaltyAssignTo(e.target.value as 'all' | 'regular' | 'special' | 'none')}
+                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-medium"
+                      >
+                        <option value="all">
+                          {language === 'am' ? 'ሁሉም ተማሪዎች (All Students)' : 'All Students (ለሁሉም)'}
+                        </option>
+                        <option value="regular">
+                          {language === 'am' ? 'መደበኛ ተማሪዎች ብቻ (Regular Only)' : 'Regular Only (ለመደበኛ ብቻ)'}
+                        </option>
+                        <option value="special">
+                          {language === 'am' ? 'ልዩ ተማሪዎች ብቻ (Special Only)' : 'Special Only (ለልዩ ብቻ)'}
+                        </option>
+                        <option value="none">
+                          {language === 'am' ? 'አይተገበርም - ቅጣት የለም (Unassigned)' : 'Unassigned / No Penalty (ቅጣት የለም)'}
+                        </option>
+                      </select>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                        {getText('Penalty targets this group', 'ቅጣቱ የሚመለከተው')}
+                      </p>
+                    </div>
+
                     {/* Monthly Base Fee */}
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
                         {getText('Monthly Fee (ETB)', 'ወርሃዊ ክፍያ (ብር)')}
                       </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          required
-                          value={formMonthlyFee}
-                          onChange={(e) => setFormMonthlyFee(e.target.value)}
-                          placeholder="e.g. 4000"
-                          className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
-                        />
-                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        required
+                        value={formMonthlyFee}
+                        onChange={(e) => setFormMonthlyFee(e.target.value)}
+                        placeholder="e.g. 4000"
+                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
+                      />
                     </div>
 
                     {/* Apply After Day */}
@@ -610,20 +648,18 @@ export default function SettingsPage() {
                       <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
                         {getText('Penalty After Day', 'ቅጣት ከስንት ቀን በኋላ')}
                       </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min="1"
-                          max="30"
-                          required
-                          value={formPenaltyDay}
-                          onChange={(e) => setFormPenaltyDay(e.target.value)}
-                          placeholder="e.g. 10"
-                          className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
-                        />
-                      </div>
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        required
+                        value={formPenaltyDay}
+                        onChange={(e) => setFormPenaltyDay(e.target.value)}
+                        placeholder="e.g. 10"
+                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
+                      />
                       <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                        {getText('Accrues after this day', 'ከዚህ ቀን በኋላ ይቆጥራል')}
+                        {getText('Accrues after this day', 'ከዚህ ቀን በኋላ')}
                       </p>
                     </div>
 
@@ -632,37 +668,81 @@ export default function SettingsPage() {
                       <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
                         {getText('Penalty (ETB/day)', 'የቀን ቅጣት (ብር/ቀን)')}
                       </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          required
-                          value={formPenaltyFee}
-                          onChange={(e) => setFormPenaltyFee(e.target.value)}
-                          placeholder="e.g. 20"
-                          className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
-                        />
-                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        required
+                        value={formPenaltyFee}
+                        onChange={(e) => setFormPenaltyFee(e.target.value)}
+                        placeholder="e.g. 20"
+                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
+                      />
                       <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
                         {getText('Added every single day', 'በየቀኑ የሚጨመር')}
+                      </p>
+                    </div>
+
+                    {/* Sibling Discount % */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
+                        {getText('Sibling Discount (%)', 'የወንድም/እህት ቅናሽ (%)')}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={formSiblingDiscount}
+                        onChange={(e) => setFormSiblingDiscount(e.target.value)}
+                        placeholder="e.g. 10"
+                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
+                      />
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                        {getText('Decreased from siblings total', 'ከወንድማማቾች ድምር')}
                       </p>
                     </div>
                   </div>
 
                   {/* Summary preview & Submit */}
                   <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-t border-emerald-200 dark:border-emerald-800">
-                    <div className="text-xs text-emerald-800 dark:text-emerald-300">
-                      💡 <strong>{getText('Formula', 'ስሌት')}:</strong>{' '}
-                      {getText(
-                        `Base fee ${Number(formMonthlyFee) || 0} ETB. If unpaid after day ${Number(formPenaltyDay) || 10} of that month, penalty increases by ${Number(formPenaltyFee) || 0} ETB every day continuously until paid.`,
-                        `መደበኛ ክፍያ ${Number(formMonthlyFee) || 0} ብር። በወሩ ከ${Number(formPenaltyDay) || 10}ኛው ቀን በኋላ ካልተከፈለ፣ እስኪከፈል ድረስ በየቀኑ ${Number(formPenaltyFee) || 0} ብር እየተጨመረ ያለማቋረጥ ይቆጥራል።`
+                    <div className="text-xs text-emerald-800 dark:text-emerald-300 space-y-0.5">
+                      <p>
+                        💡 <strong>{getText('Rule Preview', 'የደንብ ቅድመ እይታ')}:</strong>{' '}
+                        {getText(
+                          `Base fee ${Number(formMonthlyFee) || 0} ETB applies to all students. Penalty (+${Number(formPenaltyFee) || 0} ETB/day after day ${Number(formPenaltyDay) || 10}) is assigned to: ${
+                            formPenaltyAssignTo === 'regular'
+                              ? 'Regular Students Only'
+                              : formPenaltyAssignTo === 'special'
+                              ? 'Special Students Only'
+                              : formPenaltyAssignTo === 'none'
+                              ? 'No one (Unassigned / Disabled)'
+                              : 'All Students'
+                          }.`,
+                          `መደበኛ ክፍያ ${Number(formMonthlyFee) || 0} ብር ለሁሉም ተማሪዎች ተፈጻሚ ይሆናል። ቅጣት (ከቀን ${Number(formPenaltyDay) || 10} በኋላ በየቀኑ +${Number(formPenaltyFee) || 0} ብር) ተፈጻሚ የሚሆነው ለ${
+                            formPenaltyAssignTo === 'regular'
+                              ? 'መደበኛ ተማሪዎች ብቻ'
+                              : formPenaltyAssignTo === 'special'
+                              ? 'ልዩ ተማሪዎች ብቻ'
+                              : formPenaltyAssignTo === 'none'
+                              ? 'ለማንም አይደለም (አይተገበርም)'
+                              : 'ለሁሉም ተማሪዎች'
+                          } ነው።`
+                        )}
+                      </p>
+                      {Number(formSiblingDiscount) > 0 && (
+                        <p className="text-emerald-700 dark:text-emerald-400 font-medium">
+                          👨‍👩‍👧‍👦 {getText(
+                            `Sibling Discount: ${formSiblingDiscount}% will be deducted from the siblings combined monthly total.`,
+                            `የወንድም/እህት ቅናሽ፡ ${formSiblingDiscount}% ከወንድማማቾች አጠቃላይ ድምር ክፍያ ላይ ይቀነሳል።`
+                          )}
+                        </p>
                       )}
                     </div>
                     <button
                       type="submit"
                       disabled={savingFee}
-                      className="inline-flex items-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-60 whitespace-nowrap self-end sm:self-auto"
+                      className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-60 whitespace-nowrap"
                     >
                       {savingFee ? (
                         <span className="flex items-center gap-2">
@@ -703,82 +783,244 @@ export default function SettingsPage() {
                       )}
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-                        <thead className="bg-gray-50 dark:bg-gray-800/80">
-                          <tr>
-                            <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
-                              {getText('Year & Month', 'ዓመት እና ወር')}
-                            </th>
-                            <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
-                              {getText('Monthly Fee', 'ወርሃዊ ክፍያ')}
-                            </th>
-                            <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
-                              {getText('Penalty Applies After', 'ቅጣት የሚጀምረው')}
-                            </th>
-                            <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
-                              {getText('Daily Penalty Rate', 'የቀን ቅጣት መጠን')}
-                            </th>
-                            <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-gray-300">
-                              {getText('Actions', 'እርምጃዎች')}
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
-                          {feeSettings.map((setting) => {
-                            const monthMeta = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value === setting.month)
-                            const monthName = monthMeta
-                              ? (language === 'am' ? `${monthMeta.am} (${monthMeta.en})` : `${monthMeta.en} (${monthMeta.am})`)
-                              : setting.month
+                    <>
+                      {/* Desktop Fee Settings Table */}
+                      <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                          <thead className="bg-gray-50 dark:bg-gray-800/80">
+                            <tr>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                                {getText('Year & Month', 'ዓመት እና ወር')}
+                              </th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                                {getText('Penalty Assigned To', 'ቅጣት የተመደበው')}
+                              </th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                                {getText('Monthly Fee', 'ወርሃዊ ክፍያ')}
+                              </th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                                {getText('Penalty Applies After', 'ቅጣት የሚጀምረው')}
+                              </th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                                {getText('Daily Penalty Rate', 'የቀን ቅጣት መጠን')}
+                              </th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                                {getText('Sibling Discount', 'የወንድም/እህት ቅናሽ')}
+                              </th>
+                              <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-gray-300">
+                                {getText('Actions', 'እርምጃዎች')}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
+                            {feeSettings.map((setting) => {
+                              const monthMeta = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value === setting.month)
+                              const monthName = monthMeta
+                                ? (language === 'am' ? `${monthMeta.am} (${monthMeta.en})` : `${monthMeta.en} (${monthMeta.am})`)
+                                : setting.month
 
-                            return (
-                              <tr key={setting._id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
-                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                  <div className="flex items-center gap-2">
-                                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-                                    <span>{monthName}</span>
-                                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {setting.year} {language === 'am' ? 'ዓ.ም' : 'E.C'}
+                              const penaltyTarget = setting.penaltyAssignTo || setting.applyFor || 'all'
+
+                              return (
+                                <tr key={setting._id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                                      <span>{monthName}</span>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {setting.year} {language === 'am' ? 'ዓ.ም' : 'E.C'}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {penaltyTarget === 'regular' ? (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                        {getText('Regular Only', 'መደበኛ ብቻ')}
+                                      </span>
+                                    ) : penaltyTarget === 'special' ? (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                        {getText('Special Only', 'ልዩ ብቻ')}
+                                      </span>
+                                    ) : penaltyTarget === 'none' ? (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
+                                        {getText('Unassigned / None', 'አይተገበርም')}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                        {getText('All Students', 'ሁሉም ተማሪዎች')}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-gray-900 dark:text-white font-semibold">
+                                    {setting.monthlyFee.toLocaleString()} ETB
+                                    <span className="block text-[10px] text-gray-400 font-normal">
+                                      {getText('All Students', 'ለሁሉም')}
                                     </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                      {getText(`After Day ${setting.penaltyDay}`, `ከቀን ${setting.penaltyDay} በኋላ`)}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-rose-600 dark:text-rose-400 font-semibold">
+                                    +{setting.penaltyFee.toLocaleString()} {getText('ETB/day', 'ብር/ቀን')}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {setting.siblingDiscount && setting.siblingDiscount > 0 ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-800">
+                                        -{setting.siblingDiscount}%
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-400 dark:text-gray-500 text-xs">—</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEdit(setting)}
+                                        className="p-1.5 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                                        title={getText('Edit', 'አርትዕ')}
+                                      >
+                                        <PencilSquareIcon className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteFeeSetting(setting._id, `${setting.month} ${setting.year} (${penaltyTarget})`)}
+                                        className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                                        title={getText('Delete', 'ሰርዝ')}
+                                      >
+                                        <TrashIcon className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile Fee Settings Cards View */}
+                      <div className="md:hidden space-y-3">
+                        {feeSettings.map((setting) => {
+                          const monthMeta = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value === setting.month)
+                          const monthName = monthMeta
+                            ? (language === 'am' ? `${monthMeta.am} (${monthMeta.en})` : `${monthMeta.en} (${monthMeta.am})`)
+                            : setting.month
+
+                          const penaltyTarget = setting.penaltyAssignTo || setting.applyFor || 'all'
+
+                          return (
+                            <div
+                              key={setting._id}
+                              className={`p-4 rounded-2xl border transition-all shadow-sm ${
+                                editingId === setting._id
+                                  ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 ring-2 ring-emerald-500/20'
+                                  : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+                              }`}
+                            >
+                              {/* Header: Month / Year + Action Buttons */}
+                              <div className="flex items-center justify-between gap-2 pb-3 border-b border-gray-100 dark:border-gray-700">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className="w-3 h-3 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                                  <div className="min-w-0">
+                                    <h4 className="font-bold text-gray-900 dark:text-white text-base truncate">
+                                      {monthName}
+                                    </h4>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                      {setting.year} {language === 'am' ? 'ዓ.ም' : 'E.C'}
+                                    </p>
                                   </div>
-                                </td>
-                                <td className="px-4 py-3 text-gray-900 dark:text-white font-semibold">
-                                  {setting.monthlyFee.toLocaleString()} ETB
-                                </td>
-                                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEdit(setting)}
+                                    className="p-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 rounded-xl bg-blue-50 dark:bg-blue-900/30 transition-colors active:scale-95"
+                                    title={getText('Edit', 'አርትዕ')}
+                                  >
+                                    <PencilSquareIcon className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteFeeSetting(setting._id, `${setting.month} ${setting.year} (${penaltyTarget})`)}
+                                    className="p-2 text-red-600 hover:text-red-800 dark:text-red-400 rounded-xl bg-red-50 dark:bg-red-900/30 transition-colors active:scale-95"
+                                    title={getText('Delete', 'ሰርዝ')}
+                                  >
+                                    <TrashIcon className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Card Content Grid */}
+                              <div className="pt-3 grid grid-cols-2 gap-2.5 text-xs">
+                                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-750/70 border border-gray-100 dark:border-gray-700/60">
+                                  <span className="text-gray-500 dark:text-gray-400 block text-[11px] mb-0.5">
+                                    {getText('Monthly Fee', 'ወርሃዊ ክፍያ')}
+                                  </span>
+                                  <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
+                                    {setting.monthlyFee.toLocaleString()} <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">ETB</span>
+                                  </span>
+                                </div>
+
+                                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-750/70 border border-gray-100 dark:border-gray-700/60 flex flex-col justify-between">
+                                  <span className="text-gray-500 dark:text-gray-400 block text-[11px] mb-0.5">
+                                    {getText('Penalty Assigned To', 'ቅጣት ተፈጻሚ')}
+                                  </span>
+                                  <div>
+                                    {penaltyTarget === 'regular' ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
+                                        {getText('Regular Only', 'መደበኛ ብቻ')}
+                                      </span>
+                                    ) : penaltyTarget === 'special' ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                        {getText('Special Only', 'ልዩ ብቻ')}
+                                      </span>
+                                    ) : penaltyTarget === 'none' ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                                        {getText('Unassigned / None', 'አይተገበርም')}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                                        {getText('All Students', 'ሁሉም ተማሪዎች')}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-750/70 border border-gray-100 dark:border-gray-700/60">
+                                  <span className="text-gray-500 dark:text-gray-400 block text-[11px] mb-0.5">
+                                    {getText('Daily Penalty Rate', 'የቀን ቅጣት')}
+                                  </span>
+                                  <span className="font-bold text-sm text-rose-600 dark:text-rose-400">
+                                    +{setting.penaltyFee.toLocaleString()} ETB/day
+                                  </span>
+                                  <span className="block text-[10px] text-gray-400 mt-0.5">
                                     {getText(`After Day ${setting.penaltyDay}`, `ከቀን ${setting.penaltyDay} በኋላ`)}
                                   </span>
-                                </td>
-                                <td className="px-4 py-3 text-rose-600 dark:text-rose-400 font-semibold">
-                                  +{setting.penaltyFee.toLocaleString()} {getText('ETB/day', 'ብር/ቀን')}
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <div className="flex items-center justify-end gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStartEdit(setting)}
-                                      className="p-1.5 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-                                      title={getText('Edit', 'አርትዕ')}
-                                    >
-                                      <PencilSquareIcon className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteFeeSetting(setting._id, `${setting.month} ${setting.year}`)}
-                                      className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-                                      title={getText('Delete', 'ሰርዝ')}
-                                    >
-                                      <TrashIcon className="w-4 h-4" />
-                                    </button>
+                                </div>
+
+                                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-750/70 border border-gray-100 dark:border-gray-700/60 flex flex-col justify-between">
+                                  <span className="text-gray-500 dark:text-gray-400 block text-[11px] mb-0.5">
+                                    {getText('Sibling Discount', 'የወንድም/እህት ቅናሽ')}
+                                  </span>
+                                  <div>
+                                    {setting.siblingDiscount && setting.siblingDiscount > 0 ? (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-800">
+                                        -{setting.siblingDiscount}%
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-400 text-xs font-medium">—</span>
+                                    )}
                                   </div>
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>

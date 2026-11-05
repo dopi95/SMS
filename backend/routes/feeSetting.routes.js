@@ -14,3 +14,4 @@ router.post('/', upsertFeeSetting);
 router.delete('/:id', deleteFeeSetting);
 
 module.exports = router;
+

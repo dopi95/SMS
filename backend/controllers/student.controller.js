@@ -772,4 +772,37 @@ const generateCredentialSingle = async (req, res) => {
   }
 };
 
-module.exports = { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkUpdatePaymentCode, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential, getAllCredentials };
+const getStudentSiblings = async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    const orConditions = [];
+
+    // Match real siblings in DB by parent name (fatherName or motherName), exactly like Students list
+    if (isValidParentName(student.fatherName)) {
+      const escapedFather = student.fatherName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      orConditions.push({ fatherName: { $regex: new RegExp(`^${escapedFather}$`, 'i') } });
+    }
+    if (isValidParentName(student.motherName)) {
+      const escapedMother = student.motherName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      orConditions.push({ motherName: { $regex: new RegExp(`^${escapedMother}$`, 'i') } });
+    }
+
+    if (orConditions.length === 0) {
+      return res.json({ student, siblings: [] });
+    }
+
+    // Find all real siblings in DB (regardless of status or bank link)
+    const siblings = await Student.find({
+      _id: { $ne: student._id },
+      $or: orConditions
+    }).select('firstName middleName lastName studentId class section paymentCode photo fatherName motherName status joinedYear');
+
+    res.json({ student, siblings });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getStudents, getInactiveStudents, getStudent, getStudentSiblings, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkUpdatePaymentCode, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential, getAllCredentials };

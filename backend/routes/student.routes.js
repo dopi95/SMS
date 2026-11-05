@@ -1,5 +1,5 @@
 const express = require('express');
-const { getStudents, getInactiveStudents, getStudent, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkUpdatePaymentCode, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential, getAllCredentials } = require('../controllers/student.controller');
+const { getStudents, getInactiveStudents, getStudent, getStudentSiblings, createStudent, updateStudent, deleteStudent, inactiveStudent, activateStudent, bulkUpdateClass, bulkUpdatePaymentCode, bulkInactive, bulkDelete, bulkImport, bulkAssignSections, generateCredentials, generateCredentialSingle, getCredential, getAllCredentials } = require('../controllers/student.controller');
 const auth = require('../middleware/auth.middleware');
 const upload = require('../middleware/upload.middleware');
 
@@ -18,6 +18,7 @@ router.post('/generate-credentials', auth, generateCredentials);
 router.get('/all-credentials', auth, getAllCredentials);
 router.post('/:id/generate-credential', auth, generateCredentialSingle);
 router.get('/:id/credential', auth, getCredential);
+router.get('/:id/siblings', auth, getStudentSiblings);
 
 router.get('/', auth, getStudents);
 router.get('/inactive', auth, getInactiveStudents);

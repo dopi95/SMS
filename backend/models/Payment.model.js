@@ -32,6 +32,17 @@ const paymentSchema = new mongoose.Schema({
     enum: ['paid', 'pending', 'overdue'],
     default: 'paid'
   },
+  balanceCleared: {
+    type: Boolean,
+    default: false
+  },
+  balanceClearedAt: {
+    type: Date
+  },
+  balanceClearedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

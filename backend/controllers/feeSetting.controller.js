@@ -6,8 +6,28 @@ const VALID_MONTHS = [
   'February', 'March', 'April', 'May', 'June'
 ];
 
+const VALID_PENALTY_TARGETS = ['all', 'regular', 'special', 'none'];
+
+let indexCleaned = false;
+const ensureCleanIndexes = async () => {
+  if (indexCleaned) return;
+  try {
+    const indexes = await FeeSetting.collection.indexes();
+    for (const idx of indexes) {
+      if (idx.name === 'year_1_month_1_applyFor_1') {
+        await FeeSetting.collection.dropIndex(idx.name).catch(() => {});
+        console.log('[FeeSetting] Dropped obsolete index:', idx.name);
+      }
+    }
+    indexCleaned = true;
+  } catch (e) {
+    indexCleaned = true;
+  }
+};
+
 const getFeeSettings = async (req, res) => {
   try {
+    await ensureCleanIndexes();
     const filter = {};
     if (req.query.year) {
       filter.year = Number(req.query.year);
@@ -25,7 +45,9 @@ const upsertFeeSetting = async (req, res) => {
       return res.status(403).json({ message: 'Access denied. Only superadmin can manage fee settings.' });
     }
 
-    const { year, month, monthlyFee, penaltyFee, penaltyDay } = req.body;
+    await ensureCleanIndexes();
+
+    const { id, year, month, penaltyAssignTo, applyFor, monthlyFee, penaltyFee, penaltyDay, siblingDiscount } = req.body;
 
     const numYear = Number(year);
     if (!numYear || numYear < 1900 || numYear > 2200) {
@@ -35,6 +57,13 @@ const upsertFeeSetting = async (req, res) => {
     if (!VALID_MONTHS.includes(month)) {
       return res.status(400).json({ message: `Invalid month. Must be one of: ${VALID_MONTHS.join(', ')}` });
     }
+
+    // Support both penaltyAssignTo and applyFor for seamless compatibility
+    const targetPenaltyAssign = VALID_PENALTY_TARGETS.includes(penaltyAssignTo)
+      ? penaltyAssignTo
+      : VALID_PENALTY_TARGETS.includes(applyFor)
+      ? applyFor
+      : 'all';
 
     const numMonthlyFee = Number(monthlyFee);
     if (isNaN(numMonthlyFee) || numMonthlyFee < 0) {
@@ -51,28 +80,117 @@ const upsertFeeSetting = async (req, res) => {
       return res.status(400).json({ message: 'Penalty day must be between 1 and 30' });
     }
 
-    const updated = await FeeSetting.findOneAndUpdate(
-      { year: numYear, month },
-      {
-        year: numYear,
-        month,
-        monthlyFee: numMonthlyFee,
-        penaltyFee: numPenaltyFee,
-        penaltyDay: numPenaltyDay,
-        createdBy: req.user._id
-      },
-      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
-    );
+    const numSiblingDiscount = Math.max(0, Math.min(100, Number(siblingDiscount) || 0));
+
+    let updated = null;
+
+    if (id) {
+      // 1. Direct update by document _id
+      updated = await FeeSetting.findByIdAndUpdate(
+        id,
+        {
+          year: numYear,
+          month,
+          monthlyFee: numMonthlyFee,
+          penaltyAssignTo: targetPenaltyAssign,
+          penaltyFee: numPenaltyFee,
+          penaltyDay: numPenaltyDay,
+          siblingDiscount: numSiblingDiscount,
+          createdBy: req.user._id
+        },
+        { new: true, runValidators: true }
+      );
+    }
+
+    if (!updated) {
+      // 2. Find or create by year & month
+      updated = await FeeSetting.findOneAndUpdate(
+        { year: numYear, month },
+        {
+          year: numYear,
+          month,
+          monthlyFee: numMonthlyFee,
+          penaltyAssignTo: targetPenaltyAssign,
+          penaltyFee: numPenaltyFee,
+          penaltyDay: numPenaltyDay,
+          siblingDiscount: numSiblingDiscount,
+          createdBy: req.user._id
+        },
+        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+      );
+    }
+
+    const targetLabel = targetPenaltyAssign === 'regular'
+      ? 'Regular Students Only'
+      : targetPenaltyAssign === 'special'
+      ? 'Special Students Only'
+      : targetPenaltyAssign === 'none'
+      ? 'Unassigned / No Penalty'
+      : 'All Students';
 
     await logActivity(
       req.user,
       'Saved Fee Setting',
       'Settings',
-      `Configured fee for ${month} ${numYear}: Base Fee ${numMonthlyFee} ETB, Penalty ${numPenaltyFee} ETB/day after day ${numPenaltyDay}`
+      `Configured fee for ${month} ${numYear}: Base Fee ${numMonthlyFee} ETB (All students), Penalty ${numPenaltyFee} ETB/day assigned to ${targetLabel}, Sibling Discount ${numSiblingDiscount}%`
     );
 
     res.json(updated);
   } catch (error) {
+    if (error.code === 11000) {
+      // Drop any conflicting compound index and retry once safely
+      try {
+        await FeeSetting.collection.dropIndex('year_1_month_1_applyFor_1').catch(() => {});
+        const { id, year, month, penaltyAssignTo, applyFor, monthlyFee, penaltyFee, penaltyDay, siblingDiscount } = req.body;
+        const numYear = Number(year);
+        const targetPenaltyAssign = VALID_PENALTY_TARGETS.includes(penaltyAssignTo)
+          ? penaltyAssignTo
+          : VALID_PENALTY_TARGETS.includes(applyFor)
+          ? applyFor
+          : 'all';
+        const numMonthlyFee = Number(monthlyFee) || 0;
+        const numPenaltyFee = Number(penaltyFee) || 0;
+        const numPenaltyDay = Number(penaltyDay) || 10;
+        const numSiblingDiscount = Number(siblingDiscount) || 0;
+
+        let retryDoc = null;
+        if (id) {
+          retryDoc = await FeeSetting.findByIdAndUpdate(
+            id,
+            {
+              year: numYear,
+              month,
+              monthlyFee: numMonthlyFee,
+              penaltyAssignTo: targetPenaltyAssign,
+              penaltyFee: numPenaltyFee,
+              penaltyDay: numPenaltyDay,
+              siblingDiscount: numSiblingDiscount,
+              createdBy: req.user._id
+            },
+            { new: true, runValidators: true }
+          );
+        }
+        if (!retryDoc) {
+          retryDoc = await FeeSetting.findOneAndUpdate(
+            { year: numYear, month },
+            {
+              year: numYear,
+              month,
+              monthlyFee: numMonthlyFee,
+              penaltyAssignTo: targetPenaltyAssign,
+              penaltyFee: numPenaltyFee,
+              penaltyDay: numPenaltyDay,
+              siblingDiscount: numSiblingDiscount,
+              createdBy: req.user._id
+            },
+            { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+          );
+        }
+        return res.json(retryDoc);
+      } catch (retryErr) {
+        return res.status(500).json({ message: retryErr.message });
+      }
+    }
     res.status(500).json({ message: error.message || 'Failed to save fee setting' });
   }
 };

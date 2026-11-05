@@ -41,6 +41,7 @@ interface Student {
   motherName?: string;
   motherPhone?: string;
   motherPhoto?: string;
+  clearedBalanceMonths?: { year: number; month: string }[];
   createdAt?: string;
 }
 
@@ -53,6 +54,7 @@ interface Payment {
   description: string;
   paymentDate: string;
   status: string;
+  balanceCleared?: boolean;
 }
 
 
@@ -61,8 +63,26 @@ interface FeeSetting {
   year: number;
   month: string;
   monthlyFee: number;
+  penaltyAssignTo?: 'all' | 'regular' | 'special' | 'none';
+  applyFor?: 'all' | 'regular' | 'special' | 'none';
   penaltyFee: number;
   penaltyDay: number;
+  siblingDiscount?: number;
+}
+
+interface SiblingStudent {
+  _id: string;
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  studentId: string;
+  class: string;
+  section?: string;
+  paymentCode?: string;
+  photo?: string;
+  fatherName?: string;
+  motherName?: string;
+  joinedYear?: string;
 }
 
 interface Credential {
@@ -98,7 +118,28 @@ export default function ViewStudentPage() {
 
   useEffect(() => {
     fetchFeeSettings();
+    fetchSiblings();
   }, []);
+  const [siblings, setSiblings] = useState<SiblingStudent[]>([]);
+  const [loadingSiblings, setLoadingSiblings] = useState(false);
+
+  const fetchSiblings = async () => {
+    if (!params.id) return;
+    setLoadingSiblings(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/students/${params.id}/siblings`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSiblings(res.data?.siblings || []);
+    } catch (err) {
+      console.error('Failed to fetch siblings:', err);
+      setSiblings([]);
+    } finally {
+      setLoadingSiblings(false);
+    }
+  };
+
 
   const fetchFeeSettings = async () => {
     try {
@@ -294,6 +335,109 @@ export default function ViewStudentPage() {
       console.error('Failed to fetch payments:', error)
     }
   }
+
+  const [clearingMonth, setClearingMonth] = useState<string | null>(null);
+
+  const handleSetLeftToZero = async (month: string) => {
+    if (role !== 'superadmin') {
+      toast.error(getText('Only superadmin can make the left balance 0.', 'ቀሪውን 0 ማድረግ የሚችለው ሱፐርአድሚን ብቻ ነው።'));
+      return;
+    }
+
+    const monthMeta = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value === month);
+    const displayName = language === 'am' ? (monthMeta?.am || month) : (monthMeta?.en || month);
+
+    const confirmed = window.confirm(
+      getText(
+        `Are you sure you want to set the left balance for ${displayName} ${selectedYear} to 0 ETB? (Original paid amount on payments page will NOT be changed)`,
+        `የ${displayName} ${selectedYear} ቀሪ ሂሳብን ወደ 0 ብር መቀየር እርግጠኛ ነዎት? (በክፍያ ገጽ ላይ የተመዘገበው ክፍያ ሳይቀየር እንዳለ ይቆያል)`
+      )
+    );
+    if (!confirmed) return;
+
+    setClearingMonth(month);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/payments/clear-balance`,
+        {
+          studentId: params.id,
+          month,
+          year: selectedYear
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success(
+        getText(
+          `Left balance for ${displayName} set to 0 ETB!`,
+          `የ${displayName} ቀሪ ሂሳብ ወደ 0 ብር ተቀይሯል!`
+        )
+      );
+
+      await Promise.all([fetchPayments(), fetchStudent()]);
+    } catch (err: any) {
+      console.error('Failed to clear balance:', err);
+      toast.error(
+        err.response?.data?.message ||
+        getText('Failed to set balance to 0.', 'ቀሪውን ወደ 0 መቀየር አልተሳካም።')
+      );
+    } finally {
+      setClearingMonth(null);
+    }
+  };
+
+  
+  const isRegularStudent = Boolean(student?.paymentCode && student.paymentCode.trim() !== '');
+  const studentCategory: 'regular' | 'special' = isRegularStudent ? 'regular' : 'special';
+  const hasSiblings = siblings.length > 0;
+  const totalSiblingsInFamily = hasSiblings ? siblings.length + 1 : 1;
+
+  // Active sibling discount for the year or global
+  const activeSiblingDiscount = (() => {
+    const yearSettingWithDiscount = feeSettings.find(fs => fs.year === selectedYear && fs.siblingDiscount && fs.siblingDiscount > 0);
+    if (yearSettingWithDiscount) return yearSettingWithDiscount.siblingDiscount || 0;
+    const anyWithDiscount = feeSettings.find(fs => fs.siblingDiscount && fs.siblingDiscount > 0);
+    return anyWithDiscount?.siblingDiscount || 0;
+  })();
+
+  const findMatchingFeeSetting = (year: number, month: string): FeeSetting | null => {
+    // 1. Direct match for this specific month & year
+    const exact = feeSettings.find(fs => fs.year === year && fs.month === month);
+    if (exact) return exact;
+
+    // 2. Fallback: If superadmin configured any monthly fee in this year, reuse that base fee
+    const anyInYear = feeSettings.find(fs => fs.year === year);
+    if (anyInYear) {
+      return {
+        _id: 'inherited_' + year + '_' + month,
+        year,
+        month,
+        monthlyFee: anyInYear.monthlyFee,
+        penaltyAssignTo: anyInYear.penaltyAssignTo || anyInYear.applyFor || 'all',
+        penaltyFee: anyInYear.penaltyFee,
+        penaltyDay: anyInYear.penaltyDay,
+        siblingDiscount: anyInYear.siblingDiscount ?? activeSiblingDiscount
+      };
+    }
+
+    // 3. Fallback: If superadmin configured any fee setting overall in settings
+    if (feeSettings.length > 0) {
+      const fallback = feeSettings[0];
+      return {
+        _id: 'default_' + month,
+        year,
+        month,
+        monthlyFee: fallback.monthlyFee,
+        penaltyAssignTo: fallback.penaltyAssignTo || fallback.applyFor || 'all',
+        penaltyFee: fallback.penaltyFee,
+        penaltyDay: fallback.penaltyDay,
+        siblingDiscount: fallback.siblingDiscount ?? activeSiblingDiscount
+      };
+    }
+
+    return null;
+  };
 
   const months = ['September', 'October', 'November', 'December', 'January', 'February', 'March', 'April', 'May', 'June']
 
@@ -575,32 +719,169 @@ export default function ViewStudentPage() {
                     )}
                   </div>
                 </div>
+                {/* Sibling Group Family Card (if student has siblings) */}
+                {hasSiblings && (
+                  <div className="mb-5 p-4 sm:p-5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-gradient-to-r from-indigo-50/90 to-blue-50/70 dark:from-indigo-950/30 dark:to-blue-950/20 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">👨‍👩‍👧‍👦</span>
+                        <div>
+                          <h4 className="font-bold text-gray-900 dark:text-white text-base">
+                            {getText('Sibling Family Group', 'የወንድማማቾች ቤተሰብ ቡድን')}
+                          </h4>
+                          <p className="text-xs text-indigo-700 dark:text-indigo-300">
+                            {totalSiblingsInFamily} {getText('siblings enrolled in academy', 'ወንድማማች ተማሪዎች ተመዝግበዋል')}
+                          </p>
+                        </div>
+                      </div>
+
+                      {activeSiblingDiscount > 0 ? (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 border border-green-300 dark:border-green-700">
+                          🎉 {activeSiblingDiscount}% {getText('Sibling Discount Applied', 'የወንድም/እህት ቅናሽ ተሰልቷል')}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {getText('No sibling discount configured in settings', 'በቅንብሮች ውስጥ የወንድም/እህት ቅናሽ አልተዘጋጀም')}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Sibling members list */}
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <div className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+                        <span>⭐</span>
+                        <span>{student.firstName} {student.middleName} ({student.class}{student.section ? '-' + student.section : ''})</span>
+                        <span className="opacity-80 text-[10px]">({getText('Current', 'የአሁኑ')})</span>
+                      </div>
+                      {siblings.map(sib => (
+                        <a
+                          key={sib._id}
+                          href={`/students/view/${sib._id}`}
+                          className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 text-gray-800 dark:text-gray-200 border border-indigo-200 dark:border-indigo-700 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                        >
+                          <span>👤</span>
+                          <span>{sib.firstName} {sib.middleName} ({sib.class}{sib.section ? '-' + sib.section : ''})</span>
+                          <span className="text-[10px] text-gray-400">({sib.studentId})</span>
+                        </a>
+                      ))}
+                    </div>
+
+                    {/* Family combined fee and discount calculation */}
+                    {(() => {
+                      const sampleSetting = findMatchingFeeSetting(selectedYear, 'September') || feeSettings[0];
+                      if (!sampleSetting) return null;
+                      const baseFee = sampleSetting.monthlyFee;
+                      const combinedBase = baseFee * totalSiblingsInFamily;
+                      const combinedDiscount = (combinedBase * activeSiblingDiscount) / 100;
+                      const combinedNet = combinedBase - combinedDiscount;
+
+                      return (
+                        <div className="mt-3 pt-3 border-t border-indigo-200/80 dark:border-indigo-800/50 text-xs space-y-1.5 text-gray-700 dark:text-gray-300">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <div className="p-2.5 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-indigo-100 dark:border-indigo-900">
+                              <span className="block text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                {getText('Combined Monthly Total', 'የወንድማማቾች ድምር ክፍያ')}
+                              </span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                {combinedBase.toLocaleString()} ETB <span className="text-[11px] font-normal text-gray-500">({totalSiblingsInFamily} × {baseFee.toLocaleString()})</span>
+                              </span>
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-green-200 dark:border-green-800">
+                              <span className="block text-[11px] text-green-700 dark:text-green-400 uppercase tracking-wide">
+                                {getText(`Family Discount (-${activeSiblingDiscount}%)`, `የቤተሰብ ቅናሽ (-${activeSiblingDiscount}%)`)}
+                              </span>
+                              <span className="text-sm font-bold text-green-700 dark:text-green-400">
+                                -{combinedDiscount.toLocaleString()} ETB {getText('off total', 'ከድምሩ')}
+                              </span>
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-indigo-300 dark:border-indigo-700">
+                              <span className="block text-[11px] text-indigo-700 dark:text-indigo-300 uppercase tracking-wide">
+                                {getText('Net Family Monthly Due', 'የቤተሰብ የተጣራ ወርሃዊ')}
+                              </span>
+                              <span className="text-sm font-bold text-indigo-900 dark:text-indigo-100">
+                                {combinedNet.toLocaleString()} ETB / {getText('month', 'ወር')}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-indigo-900/80 dark:text-indigo-300/80 italic pt-1">
+                            💡 {getText(
+                              `The ${activeSiblingDiscount}% sibling discount is subtracted from the siblings total (saving ${combinedDiscount.toLocaleString()} ETB each month). This student's individual share is ${(baseFee - combinedDiscount / totalSiblingsInFamily).toLocaleString()} ETB/month.`,
+                              `የ${activeSiblingDiscount}% የወንድም/እህት ቅናሽ ከወንድማማቾች አጠቃላይ ድምር ላይ ተቀንሷል (በወር ${combinedDiscount.toLocaleString()} ብር ቅናሽ)። የዚህ ተማሪ ድርሻ በወር ${(baseFee - combinedDiscount / totalSiblingsInFamily).toLocaleString()} ብር ነው።`
+                            )}
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 {/* Summary of configured fees & accrued penalties for selectedYear */}
                 {(() => {
-                  const yearFeeSettings = feeSettings.filter(fs => fs.year === selectedYear);
-                  if (yearFeeSettings.length === 0) return null;
+                  const monthlyCalculations = ETHIOPIAN_ACADEMIC_MONTHS.map(m => {
+                    const monthPayment = payments.find(p => p.month === m.value && p.year === selectedYear);
+                    const isMarkedPaidInPaymentPage = Boolean(monthPayment && (monthPayment.status ? monthPayment.status === 'paid' : true));
+                    const paidAmount = monthPayment ? (Number(monthPayment.amount) || 0) : 0;
+                    const isBalanceCleared = Boolean(monthPayment?.balanceCleared || (student?.clearedBalanceMonths || []).some(c => c.year === selectedYear && c.month === m.value));
+                    const setting = findMatchingFeeSetting(selectedYear, m.value);
+                    const baseAmount = setting ? setting.monthlyFee : 0;
+                    const targetPenalty = setting ? (setting.penaltyAssignTo || setting.applyFor || 'all') : 'all';
+                    const isPenaltyAssigned = targetPenalty === 'all' || targetPenalty === studentCategory;
 
-                  const feeDetails = yearFeeSettings.map(setting => {
-                    const isPaid = isMonthPaid(setting.month);
-                    const calc = calculateMonthlyFeePenalty({
+                    const effectiveDiscount = setting?.siblingDiscount ?? activeSiblingDiscount;
+                    const discountPercent = hasSiblings ? Math.max(0, Math.min(100, Number(effectiveDiscount) || 0)) : 0;
+                    const discountAmount = (baseAmount * discountPercent) / 100;
+                    const expectedFee = Math.max(0, baseAmount - discountAmount);
+
+                    const calc = setting ? calculateMonthlyFeePenalty({
                       monthlyFee: setting.monthlyFee,
                       penaltyFee: setting.penaltyFee,
                       penaltyDay: setting.penaltyDay,
+                      penaltyAssignTo: targetPenalty as any,
+                      isPenaltyAssigned,
                       feeYear: selectedYear,
-                      feeMonth: setting.month,
-                      isPaid
-                    });
-                    return { setting, isPaid, calc };
+                      feeMonth: m.value,
+                      isPaid: isMarkedPaidInPaymentPage,
+                      hasSiblings,
+                      siblingDiscountPercent: effectiveDiscount
+                    }) : null;
+
+                    const accruedPenalty = (!isMarkedPaidInPaymentPage && isPenaltyAssigned && calc?.isOverdue) ? (calc.accruedPenalty || 0) : 0;
+                    const totalDueForMonth = isMarkedPaidInPaymentPage ? expectedFee : (expectedFee + accruedPenalty);
+                    const leftAmount = isBalanceCleared ? 0 : Math.max(0, totalDueForMonth - paidAmount);
+                    const isFullyPaid = isMarkedPaidInPaymentPage && (leftAmount === 0 || baseAmount === 0);
+                    const isPartiallyPaid = isMarkedPaidInPaymentPage && leftAmount > 0;
+
+                    return {
+                      month: m,
+                      setting,
+                      baseAmount,
+                      discountAmount,
+                      expectedFee,
+                      paidAmount,
+                      leftAmount,
+                      accruedPenalty,
+                      totalDueForMonth,
+                      isMarkedPaidInPaymentPage,
+                      isFullyPaid,
+                      isPartiallyPaid,
+                      calc,
+                      isPenaltyAssigned,
+                      targetPenalty
+                    };
                   });
 
-                  const unpaidFeeDetails = feeDetails.filter(d => !d.isPaid);
-                  const totalUnpaidBase = unpaidFeeDetails.reduce((sum, d) => sum + d.calc.monthlyFee, 0);
-                  const totalPenalty = unpaidFeeDetails.reduce((sum, d) => sum + d.calc.accruedPenalty, 0);
-                  const totalLeftToPay = totalUnpaidBase + totalPenalty;
+                  const unpaidMonths = monthlyCalculations.filter(d => d.leftAmount > 0 && d.baseAmount > 0);
+                  const totalUnpaidNet = unpaidMonths.reduce((sum, d) => sum + Math.max(0, d.expectedFee - d.paidAmount), 0);
+                  const totalPenalty = monthlyCalculations.filter(d => d.leftAmount > 0).reduce((sum, d) => sum + d.accruedPenalty, 0);
+                  const totalLeftToPay = monthlyCalculations.reduce((sum, d) => sum + d.leftAmount, 0);
+                  const totalPaidAmount = monthlyCalculations.reduce((sum, d) => sum + d.paidAmount, 0);
+
+                  const hasAnySettings = feeSettings.length > 0;
+                  if (!hasAnySettings) return null;
 
                   return (
                     <div className={`p-4 sm:p-5 rounded-xl border mb-5 ${
-                      unpaidFeeDetails.length > 0
+                      unpaidMonths.length > 0
                         ? theme === 'dark'
                           ? 'bg-amber-950/20 border-amber-800/60 text-amber-200'
                           : 'bg-amber-50 border-amber-200 text-amber-900'
@@ -610,28 +891,45 @@ export default function ViewStudentPage() {
                     }`}>
                       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-xl">{unpaidFeeDetails.length > 0 ? '⚠️' : '✅'}</span>
+                          <span className="text-xl">{unpaidMonths.length > 0 ? '⚠️' : '✅'}</span>
                           <h4 className="font-bold text-base">
-                            {getText(`Monthly Fee & Penalty Tracking (${selectedYear} E.C)`, `የወርሃዊ ክፍያ እና የቅጣት መረጃ (${selectedYear} ዓ.ም)`)}
+                            {getText(`Monthly Fee & Balance Summary (${selectedYear} E.C)`, `የወርሃዊ ክፍያ እና የሂሳብ መረጃ (${selectedYear} ዓ.ም)`)}
                           </h4>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
+                            isRegularStudent
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                          }`}>
+                            {isRegularStudent
+                              ? getText('Regular Student', 'መደበኛ ተማሪ')
+                              : getText('Special Student', 'ልዩ ተማሪ')}
+                          </span>
                         </div>
                         <span className="text-xs px-2.5 py-1 rounded-full bg-white/70 dark:bg-black/30 font-medium">
-                          {getText('Informational Tracking', 'መረጃዊ እይታ')}
+                          {getText('Tracking & Calculation Display', 'መረጃዊ የሂሳብ ስሌት')}
                         </span>
                       </div>
 
-                      {unpaidFeeDetails.length > 0 ? (
+                      {unpaidMonths.length > 0 ? (
                         <div className="space-y-3">
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="p-3 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-amber-200/60 dark:border-amber-800/40">
-                              <span className="block text-xs font-semibold uppercase tracking-wide opacity-75">
-                                {getText('Unpaid Base Fees', 'ያልተከፈለ ወርሃዊ ክፍያ')}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="p-3 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-green-200 dark:border-green-800/40">
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-400">
+                                {getText('Total Paid So Far', 'እስካሁን የተከፈለ')}
                               </span>
-                              <span className="text-lg font-bold text-gray-900 dark:text-white">
-                                {totalUnpaidBase.toLocaleString()} ETB
+                              <span className="text-lg font-bold text-green-700 dark:text-green-400">
+                                {totalPaidAmount.toLocaleString()} ETB
                               </span>
                             </div>
                             <div className="p-3 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-amber-200/60 dark:border-amber-800/40">
+                              <span className="block text-xs font-semibold uppercase tracking-wide opacity-75">
+                                {getText('Unpaid Fees Due', 'ያልተከፈለ ወርሃዊ')}
+                              </span>
+                              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                                {totalUnpaidNet.toLocaleString()} ETB
+                              </span>
+                            </div>
+                            <div className="p-3 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-rose-200 dark:border-rose-800/40">
                               <span className="block text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
                                 {getText('Accrued Penalty', 'የተጠራቀመ ቅጣት')}
                               </span>
@@ -648,31 +946,14 @@ export default function ViewStudentPage() {
                               </span>
                             </div>
                           </div>
-
-                          <div className="text-xs space-y-1 pt-1 opacity-95">
-                            <p>
-                              💡 <strong>{getText('Breakdown', 'ዝርዝር')}:</strong>{' '}
-                              {unpaidFeeDetails.map(d => {
-                                const mMeta = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value === d.setting.month);
-                                const mLabel = mMeta ? (language === 'am' ? mMeta.am : mMeta.en) : d.setting.month;
-                                return `${mLabel}: Left ${d.calc.totalDue.toLocaleString()} ETB (${d.setting.monthlyFee.toLocaleString()} base${d.calc.isOverdue ? ` + ${d.calc.accruedPenalty.toLocaleString()} penalty (${d.calc.overdueDays}d overdue @ ${d.setting.penaltyFee} ETB/d)` : ` - penalty starts after day ${d.setting.penaltyDay}`})`;
-                              }).join(' | ')}
-                            </p>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 italic">
-                              * {getText(
-                                'Penalty amount is calculated automatically for student tracking and does not force payment entry to match.',
-                                'የቅጣት ስሌት ለክትትል ብቻ የቀረበ ሲሆን ክፍያ ሲገባ ከቅጣቱ ጋር እኩል እንዲሆን አይገደድም።'
-                              )}
-                            </p>
-                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 text-sm font-medium">
                           <span>🎉</span>
                           <span>
                             {getText(
-                              'All configured monthly fees for this academic year are fully paid! Balance left: 0 ETB.',
-                              'ለዚህ ዓመተ ምህረት የተመዘገቡ ወርሃዊ ክፍያዎች በሙሉ ተከፍለዋል! የሚቀረው ቀሪ፡ 0 ብር።'
+                              'All monthly fees for this academic year are fully paid! Total Paid: ' + totalPaidAmount.toLocaleString() + ' ETB | Left: 0 ETB.',
+                              'ለዚህ ዓመተ ምህረት ወርሃዊ ክፍያዎች በሙሉ ተከፍለዋል! የተከፈለ፡ ' + totalPaidAmount.toLocaleString() + ' ብር | የሚቀረው፡ 0 ብር።'
                             )}
                           </span>
                         </div>
@@ -681,28 +962,49 @@ export default function ViewStudentPage() {
                   );
                 })()}
 
+                {/* 10 Ethiopian Academic Months Grid — showing Paid & Left for EVERY month */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                   {ETHIOPIAN_ACADEMIC_MONTHS.map((m) => {
-                    const isPaid = isMonthPaid(m.value)
-                    const isCurrent = m.value === currentEcMonth && selectedYear === currentEcYear
-                    const setting = feeSettings.find(fs => fs.year === selectedYear && fs.month === m.value)
+                    const monthPayment = payments.find(p => p.month === m.value && p.year === selectedYear);
+                    const isMarkedPaidInPaymentPage = Boolean(monthPayment && (monthPayment.status ? monthPayment.status === 'paid' : true));
+                    const paidAmount = monthPayment ? (Number(monthPayment.amount) || 0) : 0;
+                    const isBalanceCleared = Boolean(monthPayment?.balanceCleared || (student?.clearedBalanceMonths || []).some(c => c.year === selectedYear && c.month === m.value));
+                    const isCurrent = m.value === currentEcMonth && selectedYear === currentEcYear;
+                    const setting = findMatchingFeeSetting(selectedYear, m.value);
+                    const baseAmount = setting ? setting.monthlyFee : 0;
+                    const targetPenalty = setting ? (setting.penaltyAssignTo || setting.applyFor || 'all') : 'all';
+                    const isPenaltyAssigned = targetPenalty === 'all' || targetPenalty === studentCategory;
+
+                    const effectiveDiscount = setting?.siblingDiscount ?? activeSiblingDiscount;
+                    const discountPercent = hasSiblings ? Math.max(0, Math.min(100, Number(effectiveDiscount) || 0)) : 0;
+                    const discountAmount = (baseAmount * discountPercent) / 100;
+                    const expectedFee = Math.max(0, baseAmount - discountAmount);
+
                     const calc = setting ? calculateMonthlyFeePenalty({
                       monthlyFee: setting.monthlyFee,
                       penaltyFee: setting.penaltyFee,
                       penaltyDay: setting.penaltyDay,
+                      penaltyAssignTo: targetPenalty as any,
+                      isPenaltyAssigned,
                       feeYear: selectedYear,
                       feeMonth: m.value,
-                      isPaid
-                    }) : null
+                      isPaid: isMarkedPaidInPaymentPage,
+                      hasSiblings,
+                      siblingDiscountPercent: effectiveDiscount
+                    }) : null;
+
+                    const accruedPenalty = (!isMarkedPaidInPaymentPage && isPenaltyAssigned && calc?.isOverdue) ? (calc.accruedPenalty || 0) : 0;
+                    const totalDueForMonth = isMarkedPaidInPaymentPage ? expectedFee : (expectedFee + accruedPenalty);
+                    const leftAmount = isBalanceCleared ? 0 : Math.max(0, totalDueForMonth - paidAmount);
 
                     return (
                       <div
                         key={m.value}
-                        className={`p-3 rounded-lg border-2 transition-all relative flex flex-col justify-between ${
-                          isPaid
+                        className={`p-3 rounded-lg border-2 transition-all relative flex flex-col justify-between shadow-xs ${
+                          isMarkedPaidInPaymentPage
                             ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                             : calc?.isOverdue
-                            ? 'border-red-400 bg-red-50/40 dark:bg-red-950/20 dark:border-red-800'
+                            ? 'border-red-400 bg-red-50/50 dark:bg-red-950/30 dark:border-red-800'
                             : theme === 'dark'
                             ? 'border-gray-600 bg-gray-700'
                             : 'border-gray-300 bg-gray-50'
@@ -713,11 +1015,12 @@ export default function ViewStudentPage() {
                             {getText('Now', 'አሁን')}
                           </span>
                         )}
+
                         <div>
                           <div className="flex items-center justify-between">
                             <div className="flex flex-col">
                               <span className={`text-sm font-semibold ${
-                                isPaid
+                                isMarkedPaidInPaymentPage
                                   ? 'text-green-700 dark:text-green-400'
                                   : calc?.isOverdue
                                   ? 'text-red-700 dark:text-red-300'
@@ -731,7 +1034,7 @@ export default function ViewStudentPage() {
                                 {language === 'am' ? m.en : m.am}
                               </span>
                             </div>
-                            {isPaid ? (
+                            {isMarkedPaidInPaymentPage ? (
                               <svg className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                               </svg>
@@ -741,59 +1044,76 @@ export default function ViewStudentPage() {
                               </svg>
                             )}
                           </div>
-                          <p className={`text-xs mt-2 font-medium ${
-                            isPaid
+
+                          <p className={`text-xs mt-1.5 font-medium ${
+                            isMarkedPaidInPaymentPage
                               ? 'text-green-600 dark:text-green-400'
                               : 'text-red-600 dark:text-red-400'
                           }`}>
-                            {isPaid ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
+                            {isMarkedPaidInPaymentPage ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
                           </p>
                         </div>
 
-                        {/* Fee and penalty breakdown if configured for this month */}
-                        {setting && (
-                          <div className="mt-2.5 pt-2 border-t border-gray-200/80 dark:border-gray-600/60 text-[11px] space-y-1">
-                            <div className="flex justify-between items-center text-gray-600 dark:text-gray-300">
-                              <span>{getText('Fee', 'ክፍያ')}:</span>
-                              <span className="font-semibold">{setting.monthlyFee.toLocaleString()} ETB</span>
-                            </div>
-
-                            {isPaid ? (
-                              <div className="flex justify-between items-center text-green-600 dark:text-green-400 font-bold">
-                                <span>{getText('Left', 'የሚቀረው')}:</span>
-                                <span>0 ETB</span>
-                              </div>
-                            ) : (
-                              <>
-                                {calc?.isOverdue ? (
-                                  <>
-                                    <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 text-[10px]">
-                                      <span>{getText('Penalty', 'ቅጣት')}:</span>
-                                      <span className="font-semibold">+{calc.accruedPenalty.toLocaleString()} ETB</span>
-                                    </div>
-                                    <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate" title={`${calc.overdueDays} days @ ${setting.penaltyFee} ETB/day`}>
-                                      {calc.overdueDays}d @ {setting.penaltyFee} ETB/d
-                                    </div>
-                                    <div className="flex justify-between items-center text-red-600 dark:text-red-400 font-extrabold pt-1 border-t border-red-200/80 dark:border-red-900/40">
-                                      <span>{getText('Left', 'የሚቀረው')}:</span>
-                                      <span>{calc.totalDue.toLocaleString()} ETB</span>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <>
-                                    <div className="text-[10px] text-gray-500 dark:text-gray-400">
-                                      {getText(`Penalty after day ${setting.penaltyDay}`, `ቅጣት ከቀን ${setting.penaltyDay} በኋላ`)}
-                                    </div>
-                                    <div className="flex justify-between items-center text-amber-700 dark:text-amber-400 font-bold pt-1 border-t border-gray-200/80 dark:border-gray-600/40">
-                                      <span>{getText('Left', 'የሚቀረው')}:</span>
-                                      <span>{setting.monthlyFee.toLocaleString()} ETB</span>
-                                    </div>
-                                  </>
-                                )}
-                              </>
-                            )}
+                        {/* Breakdown: Paid & Left */}
+                        <div className={`mt-2.5 pt-2 border-t text-xs space-y-1 ${
+                          isMarkedPaidInPaymentPage
+                            ? 'border-green-200 dark:border-green-800/60'
+                            : 'border-gray-200 dark:border-gray-700'
+                        }`}>
+                          <div className={`flex justify-between items-center font-semibold ${
+                            paidAmount > 0
+                              ? 'text-green-700 dark:text-green-400'
+                              : isMarkedPaidInPaymentPage
+                              ? 'text-green-600 dark:text-green-500'
+                              : 'text-gray-500 dark:text-gray-400'
+                          }`}>
+                            <span>{getText('Paid', 'የተከፈለ')}:</span>
+                            <span>{paidAmount.toLocaleString()} ETB</span>
                           </div>
-                        )}
+
+                          <div
+                            className={`flex justify-between items-center font-bold pt-0.5 border-t ${
+                              isMarkedPaidInPaymentPage
+                                ? 'border-green-200/60 dark:border-green-800/40'
+                                : 'border-gray-200/80 dark:border-gray-700'
+                            }`}
+                            title={getText(
+                              `Expected: ${expectedFee.toLocaleString()} ETB | Paid: ${paidAmount.toLocaleString()} ETB`,
+                              `የሚጠበቅ፡ ${expectedFee.toLocaleString()} ብር | የተከፈለ፡ ${paidAmount.toLocaleString()} ብር`
+                            )}
+                          >
+                            <span className="text-gray-600 dark:text-gray-300">
+                              {getText('Left', 'የሚቀረው')}:
+                            </span>
+                            <span className={`text-sm ${
+                              leftAmount === 0
+                                ? 'text-green-700 dark:text-green-400 font-extrabold'
+                                : 'text-red-600 dark:text-red-400 font-extrabold'
+                            }`}>
+                              {leftAmount.toLocaleString()} ETB
+                            </span>
+                          </div>
+
+                          {/* Only superadmin can make the left to 0, and only when marked as paid with a left balance */}
+                          {role === 'superadmin' && isMarkedPaidInPaymentPage && leftAmount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetLeftToZero(m.value)}
+                              disabled={clearingMonth === m.value}
+                              className="mt-1.5 w-full py-1.5 px-2 text-[11px] font-semibold rounded-md bg-green-600 hover:bg-green-700 active:scale-95 text-white transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                              title={getText('Superadmin only: Make left to 0 ETB', 'ሱፐርአድሚን ብቻ፡ ቀሪውን ወደ 0 ብር ቀይር')}
+                            >
+                              {clearingMonth === m.value ? (
+                                <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <>
+                                  <span>✓</span>
+                                  <span>{getText('Make Left 0', 'ቀሪውን 0 አድርግ')}</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )
                   })}
