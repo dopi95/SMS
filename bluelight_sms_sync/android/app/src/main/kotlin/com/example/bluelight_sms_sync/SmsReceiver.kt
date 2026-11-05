@@ -12,20 +12,42 @@ class SmsReceiver : BroadcastReceiver() {
 
         fun isBankMessage(body: String, sender: String): Boolean {
             val text = body.lowercase()
-            val from = sender.lowercase()
+            val from = sender.lowercase().trim()
 
-            if (from.contains("cbe") || from.contains("awash") || from.contains("127") || from.contains("telebirr")) {
-                return true
+            // 1. Must be identified as CBE or Awash Bank (by sender address or body text)
+            val isCbeSender = from.contains("cbe")
+            val isCbeBody = text.contains("cbe") ||
+                    text.contains("cbebirr") ||
+                    text.contains("banking with cbe") ||
+                    text.contains("commercial bank of ethiopia")
+            val isCbe = isCbeSender || isCbeBody
+
+            val isAwashSender = from.contains("awash")
+            val isAwashBody = text.contains("awash") ||
+                    text.contains("awash bank") ||
+                    text.contains("awashbank") ||
+                    text.contains("awashpay")
+            val isAwash = isAwashSender || isAwashBody
+
+            // Strictly ONLY CBE or Awash Bank - ignore all other senders/sources
+            if (!isCbe && !isAwash) {
+                return false
             }
 
-            return text.contains("credited with") ||
-                    text.contains("credited") ||
+            // 2. Must contain transaction context
+            val hasTx = text.contains("credited") ||
                     text.contains("etb") ||
                     text.contains("birr") ||
-                    text.contains("received etb") ||
-                    text.contains("banking with cbe") ||
-                    text.contains("awash bank") ||
-                    text.contains("cbebirr")
+                    text.contains("received") ||
+                    text.contains("transferred") ||
+                    text.contains("debited") ||
+                    text.contains("account") ||
+                    text.contains("acc") ||
+                    text.contains("ref") ||
+                    text.contains("paid") ||
+                    text.contains("payment")
+
+            return hasTx
         }
     }
 

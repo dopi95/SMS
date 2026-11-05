@@ -22,15 +22,21 @@ class SyncJobService : JobService() {
         const val JOB_ID = 2001
 
         fun scheduleNetworkSync(context: Context) {
+            scheduleDelayedSync(context, 10000)
+        }
+
+        fun scheduleDelayedSync(context: Context, delayMs: Long = 15000) {
             try {
                 val componentName = ComponentName(context, SyncJobService::class.java)
                 val builder = JobInfo.Builder(JOB_ID, componentName)
                     .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                    .setMinimumLatency(delayMs)
+                    .setOverrideDeadline(delayMs * 2)
                     .setPersisted(true)
 
                 val scheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as? JobScheduler
                 scheduler?.schedule(builder.build())
-                Log.d(TAG, "Scheduled SyncJobService for network availability.")
+                Log.d(TAG, "Scheduled SyncJobService delayed auto-retry in ${delayMs}ms.")
             } catch (e: Exception) {
                 Log.e(TAG, "Error scheduling job: ${e.message}")
             }
@@ -38,10 +44,13 @@ class SyncJobService : JobService() {
     }
 
     override fun onStartJob(params: JobParameters?): Boolean {
-        Log.d(TAG, "SyncJobService: Network connected! Flushing pending SMS queue...")
+        Log.d(TAG, "SyncJobService: Running auto-sync until all SMS are synced...")
         SyncManager.syncPending(applicationContext) { synced, remaining, _ ->
             Log.d(TAG, "SyncJobService finished: synced=$synced, remaining=$remaining")
-            jobFinished(params, remaining > 0)
+            if (remaining > 0) {
+                scheduleDelayedSync(applicationContext, 20000)
+            }
+            jobFinished(params, false)
         }
         return true
     }
@@ -173,7 +182,7 @@ object SyncManager {
                         lastError = e.message ?: e.javaClass.simpleName
                         Log.e(TAG, "Error syncing SMS #${item.id}: $lastError")
                         db.markFailed(item.id, -1, lastError)
-                        SyncJobService.scheduleNetworkSync(context)
+                        SyncJobService.scheduleDelayedSync(context, 15000)
                         break
                     }
                 }

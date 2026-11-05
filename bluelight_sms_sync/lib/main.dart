@@ -70,6 +70,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
   bool hasPermission = false;
   List<Map<String, dynamic>> records = [];
   Timer? refreshTimer;
+  Timer? _autoSyncTimer;
   bool loading = true;
   bool isScanning = false;
   bool isTesting = false;
@@ -81,6 +82,11 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
     WidgetsBinding.instance.addObserver(this);
     checkPermissions();
     fetchData();
+    _autoSyncTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if ((pendingCount > 0 || failedCount > 0) && !isSyncing) {
+        triggerAutoSync();
+      }
+    });
 
     // Auto-refresh stats and records every 3 seconds
     refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
@@ -92,6 +98,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
   void dispose() {
     refreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    _autoSyncTimer?.cancel();
     super.dispose();
   }
 
@@ -691,7 +698,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                 Expanded(
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
-                    onTap: pendingCount > 0 ? triggerSyncManual : null,
+                    onTap: (pendingCount > 0 || failedCount > 0) ? triggerSyncManual : null,
                     child: Card(
                       color: isDark ? const Color(0xFF1E293B) : Colors.white,
                       child: Padding(
@@ -703,7 +710,7 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'Offline Queue',
+                                  'Pending / Failed Queue',
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
@@ -718,14 +725,14 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                                       )
                                     : Icon(
                                         Icons.sync,
-                                        color: pendingCount > 0 ? Colors.amber.shade700 : Colors.grey,
+                                        color: (pendingCount + failedCount) > 0 ? Colors.amber.shade700 : Colors.grey,
                                         size: 18,
                                       ),
                               ],
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '$pendingCount',
+                              '${pendingCount + failedCount}',
                               style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w900,
@@ -733,8 +740,8 @@ class _SyncDashboardScreenState extends State<SyncDashboardScreen> with WidgetsB
                               ),
                             ),
                             Text(
-                              pendingCount > 0
-                                  ? (isSyncing ? 'Syncing now...' : 'Tap to sync now')
+                              (pendingCount + failedCount) > 0
+                                  ? (isSyncing ? 'Auto-syncing now...' : 'Auto-retrying (Tap to sync)')
                                   : 'All up to date',
                               style: TextStyle(
                                 fontSize: 10,

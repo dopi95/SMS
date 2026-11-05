@@ -25,9 +25,27 @@ class MainActivity : FlutterActivity() {
 
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
+    private val autoRetryHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val autoRetryRunnable = object : Runnable {
+        override fun run() {
+            try {
+                val db = SmsDbHelper.getInstance(applicationContext)
+                val unsynced = db.getUnsyncedSms().size
+                if (unsynced > 0) {
+                    Log.d(TAG, "Auto-retry loop: $unsynced unsynced SMS found, retrying automatically...")
+                    SyncManager.syncPending(applicationContext)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in auto-retry loop: ${e.message}")
+            }
+            autoRetryHandler.postDelayed(this, 15000)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         registerNetworkCallback()
+        autoRetryHandler.postDelayed(autoRetryRunnable, 5000)
     }
 
     private fun registerNetworkCallback() {
@@ -53,6 +71,7 @@ class MainActivity : FlutterActivity() {
         try {
             val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             networkCallback?.let { cm?.unregisterNetworkCallback(it) }
+            autoRetryHandler.removeCallbacks(autoRetryRunnable)
         } catch (_: Exception) {}
     }
 

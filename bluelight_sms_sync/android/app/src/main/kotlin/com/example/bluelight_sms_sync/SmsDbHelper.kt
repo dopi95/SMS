@@ -109,14 +109,14 @@ class SmsDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, n
         db.update(TABLE_NAME, cv, "$COL_ID = ?", arrayOf(id.toString()))
     }
 
-    fun getPendingSms(): List<SmsItem> {
+    fun getUnsyncedSms(): List<SmsItem> {
         val list = mutableListOf<SmsItem>()
         val db = readableDatabase
         val cursor = db.query(
             TABLE_NAME,
             null,
-            "$COL_STATUS = ?",
-            arrayOf("PENDING"),
+            "$COL_STATUS != ?",
+            arrayOf("SYNCED"),
             null,
             null,
             "$COL_RECEIVED_AT ASC"
@@ -138,6 +138,10 @@ class SmsDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, n
             }
         }
         return list
+    }
+
+    fun getPendingSms(): List<SmsItem> {
+        return getUnsyncedSms()
     }
 
     fun markSynced(id: Long, responseCode: Int) {
