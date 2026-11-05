@@ -7,6 +7,11 @@ import { useSettings } from '@/contexts/SettingsContext'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { getStudentDisplayName } from '@/utils/studentUtils'
+import {
+  ETHIOPIAN_ACADEMIC_MONTHS,
+  getCurrentEthiopianAcademicMonth,
+  getCurrentEthiopianYear
+} from '@/utils/dateUtils'
 
 interface Student {
   _id: string
@@ -98,9 +103,17 @@ export default function NotificationsPage() {
   const [sectionFilter, setSectionFilter] = useState<string>('all')
   const [studentTypeFilter, setStudentTypeFilter] = useState<'all' | 'regular' | 'special'>('all')
   const [siblingFilter, setSiblingFilter] = useState<'all' | 'siblings' | 'non_siblings'>('all')
-  const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
-  const [filterYear, setFilterYear] = useState<string>('2019')
-  const [filterMonth, setFilterMonth] = useState<string>('')
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid' | 'paid_but_left'>('all')
+  const [paymentFinancials, setPaymentFinancials] = useState<Record<string, { paidAmount: number; expectedFee: number; leftAmount: number }> | null>(null)
+  const currentEcMonth = getCurrentEthiopianAcademicMonth()
+  const currentEcYear = getCurrentEthiopianYear()
+
+  const [filterYear, setFilterYear] = useState<string>(String(currentEcYear))
+  const [filterMonth, setFilterMonth] = useState<string>(currentEcMonth)
+
+  const baseStartYear = 2018
+  const maxYear = Math.max(currentEcYear + 5, 2026)
+  const availableYears = Array.from({ length: maxYear - baseStartYear + 1 }, (_, i) => baseStartYear + i)
   const [paymentFilteredIds, setPaymentFilteredIds] = useState<string[] | null>(null)
   const [paymentFilterLoading, setPaymentFilterLoading] = useState(false)
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
@@ -131,6 +144,9 @@ export default function NotificationsPage() {
     { label: 'Payment Code', value: '{{paymentCode}}', amharic: 'የክፍያ ኮድ' },
     { label: 'Father Name', value: '{{fatherName}}', amharic: 'የአባት ስም' },
     { label: 'Mother Name', value: '{{motherName}}', amharic: 'የእናት ስም' },
+    { label: 'Left Amount', value: '{{leftAmount}}', amharic: 'ቀሪ ሂሳብ' },
+    { label: 'Paid Amount', value: '{{paidAmount}}', amharic: 'የተከፈለ መጠን' },
+    { label: 'Payment Month', value: '{{paymentMonth}}', amharic: 'የክፍያ ወር' },
   ]
 
   const employeeVariables = [
@@ -226,15 +242,20 @@ export default function NotificationsPage() {
   useEffect(() => {
     const savedMonth = localStorage.getItem('notif_filterMonth')
     const savedYear = localStorage.getItem('notif_filterYear')
-    // Map current Gregorian month to the academic month list (July/Aug have no match, fallback to September)
-    const gcToEc: Record<number, string> = {
-      1:'January', 2:'February', 3:'March', 4:'April', 5:'May', 6:'June',
-      9:'September', 10:'October', 11:'November', 12:'December'
-    }
-    const nowMonth = gcToEc[new Date().getMonth() + 1] || 'September'
-    setFilterYear(savedYear || '2019')
-    setFilterMonth(savedMonth || nowMonth)
-  }, [])
+    setFilterYear(savedYear || String(currentEcYear))
+    setFilterMonth(savedMonth || currentEcMonth)
+  }, [currentEcMonth, currentEcYear])
+
+  // Automatically keep month and year aligned when Ethiopian month/year changes
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const nowMonth = getCurrentEthiopianAcademicMonth()
+      const nowYear = getCurrentEthiopianYear()
+      setFilterMonth(prev => prev === currentEcMonth ? nowMonth : prev)
+      setFilterYear(prev => prev === String(currentEcYear) ? String(nowYear) : prev)
+    }, 60000)
+    return () => clearInterval(timer)
+  }, [currentEcMonth, currentEcYear])
 
   useEffect(() => {
     fetchStudents()
@@ -247,6 +268,7 @@ export default function NotificationsPage() {
     localStorage.setItem('notif_filterMonth', filterMonth)
     if (paymentFilter === 'all') {
       setPaymentFilteredIds(null)
+      setPaymentFinancials(null)
       return
     }
     if (!filterMonth || !filterYear) return
@@ -258,7 +280,14 @@ export default function NotificationsPage() {
           headers: { Authorization: `Bearer ${token}` },
           params: { month: filterMonth, year: filterYear }
         })
-        setPaymentFilteredIds(paymentFilter === 'paid' ? res.data.paid : res.data.unpaid)
+        setPaymentFinancials(res.data.financials || null)
+        setPaymentFilteredIds(
+          paymentFilter === 'paid'
+            ? res.data.paid
+            : paymentFilter === 'paid_but_left'
+            ? res.data.paid_but_left
+            : res.data.unpaid
+        )
       } catch {
         toast.error(getText('Failed to fetch payment status', 'የክፍያ ሁኔታ መጫን አልተሳካም'))
       } finally {
@@ -568,6 +597,13 @@ export default function NotificationsPage() {
             .replace(/{{paymentCode}}|{paymentCode}/g, student.paymentCode || 'N/A')
             .replace(/{{fatherName}}|{fatherName}/g, student.fatherName || 'N/A')
             .replace(/{{motherName}}|{motherName}/g, student.motherName || 'N/A')
+          const fin = paymentFinancials?.[student._id]
+          const leftStr = fin && fin.leftAmount > 0 ? `${fin.leftAmount.toLocaleString()} ETB` : '0 ETB'
+          const paidStr = fin ? `${fin.paidAmount.toLocaleString()} ETB` : '0 ETB'
+          personalizedMessage = personalizedMessage
+            .replace(/{{leftAmount}}|{leftAmount}/g, leftStr)
+            .replace(/{{paidAmount}}|{paidAmount}/g, paidStr)
+            .replace(/{{paymentMonth}}|{paymentMonth}/g, filterMonth || '')
           
           contacts.forEach(contact => {
             phoneNumbers.push({
@@ -1014,14 +1050,46 @@ export default function NotificationsPage() {
                     <div className="col-span-2 sm:col-span-1">
                       <select
                         value={paymentFilter}
-                        onChange={(e) => { setPaymentFilter(e.target.value as 'all' | 'paid' | 'unpaid'); setPaymentFilteredIds(null) }}
+                        onChange={(e) => { setPaymentFilter(e.target.value as 'all' | 'paid' | 'unpaid' | 'paid_but_left'); setPaymentFilteredIds(null) }}
                         className={`w-full px-3 py-2.5 sm:px-4 sm:py-3 border rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                       >
                         <option value="all">{getText('All Payment Status', 'ሁሉም የክፍያ ሁኔታ')}</option>
                         <option value="paid">{getText('Paid', 'የከፈሉ')}</option>
                         <option value="unpaid">{getText('Unpaid', 'ያልከፈሉ')}</option>
+                        <option value="paid_but_left">{getText('Paid but Left', 'ተከፍሎ የቀረበት')}</option>
                       </select>
                     </div>
+                    {paymentFilter === 'paid_but_left' && (
+                      <div className="col-span-2 sm:col-span-3 lg:col-span-5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const pblIds = filteredStudents.map(s => s._id)
+                            const allSelected = pblIds.length > 0 && pblIds.every(id => selectedStudents.includes(id))
+                            if (allSelected) {
+                              setSelectedStudents(prev => prev.filter(id => !pblIds.includes(id)))
+                            } else {
+                              setSelectedStudents(prev => Array.from(new Set([...prev, ...pblIds])))
+                            }
+                          }}
+                          className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold transition-all border flex items-center justify-center gap-2 shadow-sm active:scale-98 ${
+                            filteredStudents.length > 0 && filteredStudents.every(s => selectedStudents.includes(s._id))
+                              ? 'bg-amber-600 text-white border-amber-600 shadow-amber-200 dark:shadow-none'
+                              : theme === 'dark' ? 'bg-gray-800 hover:bg-gray-750 text-amber-400 border-gray-600' : 'bg-white hover:bg-amber-50 text-amber-700 border-amber-200'
+                          }`}
+                          title={getText('Select all students with remaining balance', 'ሁሉንም ተከፍሎ የቀረባቸውን ተማሪዎች ምረጥ')}
+                        >
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span>
+                            {filteredStudents.length > 0 && filteredStudents.every(s => selectedStudents.includes(s._id))
+                              ? getText('All Paid but Left Selected', 'ሁሉም ተከፍሎ የቀረባቸው ተመርጠዋል')
+                              : getText('Select All Paid but Left', 'ሁሉንም ተከፍሎ የቀረባቸውን ምረጥ')} ({filteredStudents.length})
+                          </span>
+                        </button>
+                      </div>
+                    )}
                     {siblingFilter === 'siblings' && (
                       <div className="col-span-2 sm:col-span-3 lg:col-span-5">
                         <button
@@ -1060,24 +1128,66 @@ export default function NotificationsPage() {
                         value={filterYear}
                         onChange={(e) => setFilterYear(e.target.value)}
                         className={`w-full px-4 py-3 border rounded-xl font-medium focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                        title={getText('Filter by Ethiopian Year', 'በኢትዮጵያ ዓመት አጣራ')}
                       >
-                        {[2018,2019,2020,2021,2022,2023,2024,2025,2026].map(y => (
-                          <option key={y} value={y}>{y} E.C.</option>
-                        ))}
+                        {availableYears.map(y => {
+                          const isNow = y === currentEcYear
+                          const label = language === 'am'
+                            ? `${y} ዓ.ም${isNow ? ' • አሁን' : ''}`
+                            : `${y} E.C${isNow ? ' • Current' : ''}`
+                          return (
+                            <option key={y} value={String(y)}>
+                              {label}
+                            </option>
+                          )
+                        })}
                       </select>
                       <select
                         value={filterMonth}
                         onChange={(e) => setFilterMonth(e.target.value)}
                         className={`w-full px-4 py-3 border rounded-xl font-medium focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                        title={getText('Filter by Ethiopian Month', 'በኢትዮጵያ ወር አጣራ')}
                       >
-                        {months.map(m => <option key={m} value={m}>{m}</option>)}
+                        {ETHIOPIAN_ACADEMIC_MONTHS.map(m => {
+                          const isNow = m.value === currentEcMonth
+                          const label = language === 'am'
+                            ? `${m.am} (${m.en})${isNow ? ' • አሁን' : ''}`
+                            : `${m.en} (${m.am})${isNow ? ' • Current' : ''}`
+                          return (
+                            <option key={m.value} value={m.value}>
+                              {label}
+                            </option>
+                          )
+                        })}
                       </select>
-                      {paymentFilterLoading && (
-                        <div className="flex items-center gap-2 px-2 py-1 text-sm text-blue-600 dark:text-blue-400">
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                          <span>{getText('Loading payments...', 'ክፍያዎችን በመጫን ላይ...')}</span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {(filterMonth !== currentEcMonth || filterYear !== String(currentEcYear)) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilterMonth(currentEcMonth)
+                              setFilterYear(String(currentEcYear))
+                            }}
+                            className={`px-3 py-2 text-xs font-semibold rounded-xl border transition-colors flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                              theme === 'dark'
+                                ? 'bg-blue-900/40 border-blue-700 text-blue-300 hover:bg-blue-900/60'
+                                : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                            }`}
+                            title={getText('Reset to current Ethiopian month and year', 'ወደ አሁኑ የኢትዮጵያ ወር እና ዓመት መልስ')}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span>{getText('Now', 'አሁን')}</span>
+                          </button>
+                        )}
+                        {paymentFilterLoading && (
+                          <div className="flex items-center gap-2 px-2 py-1 text-sm text-blue-600 dark:text-blue-400">
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                            <span>{getText('Loading payments...', 'ክፍያዎችን በመጫን ላይ...')}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1235,6 +1345,13 @@ export default function NotificationsPage() {
                                           👨‍👩‍👧‍👦 {getText('Sibling', 'ወንድም/እህት')}
                                         </span>
                                       )}
+                                       {paymentFinancials?.[student._id] && paymentFinancials[student._id].leftAmount > 0 && (
+                                         <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-semibold border border-amber-200 dark:border-amber-800">
+                                           <span>⚠️</span>
+                                           <span>{getText('Left', 'ቀሪ')}: {paymentFinancials[student._id].leftAmount.toLocaleString()} ETB</span>
+                                           <span className="text-[10px] opacity-75">({getText('Paid', 'ተከፍሏል')}: {paymentFinancials[student._id].paidAmount.toLocaleString()})</span>
+                                         </span>
+                                       )}
                                     </div>
                                     <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                                       {student.studentId}
@@ -1319,6 +1436,13 @@ export default function NotificationsPage() {
                                           👨‍👩‍👧‍👦 {getText('Sibling', 'ወንድም/እህት')}
                                         </span>
                                       )}
+                                       {paymentFinancials?.[student._id] && paymentFinancials[student._id].leftAmount > 0 && (
+                                         <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-semibold border border-amber-200 dark:border-amber-800">
+                                           <span>⚠️</span>
+                                           <span>{getText('Left', 'ቀሪ')}: {paymentFinancials[student._id].leftAmount.toLocaleString()} ETB</span>
+                                           <span className="text-[10px] opacity-75">({getText('Paid', 'ተከፍሏል')}: {paymentFinancials[student._id].paidAmount.toLocaleString()})</span>
+                                         </span>
+                                       )}
                                     </div>
                                     <div className="flex items-center gap-3 mt-1 text-xs">
                                       <span className={`font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>

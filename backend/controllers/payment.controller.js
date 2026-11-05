@@ -1,5 +1,6 @@
 const Payment = require('../models/Payment.model');
 const Student = require('../models/Student.model');
+const FeeSetting = require('../models/FeeSetting.model');
 const asyncHandler = require('../utils/asyncHandler');
 const logActivity = require('../utils/logActivity');
 
@@ -108,21 +109,154 @@ exports.deletePayment = asyncHandler(async (req, res) => {
   res.json({ message: 'Payment deleted successfully' });
 });
 
-// Get paid/unpaid student IDs for a given month and year
+// Get paid/unpaid/paid_but_left student IDs for a given month and year
 exports.getPaymentStatusByMonthYear = asyncHandler(async (req, res) => {
   const { month, year } = req.query;
   if (!month || !year) {
     return res.status(400).json({ message: 'month and year are required' });
   }
 
-  const allStudents = await Student.find({ status: { $ne: 'inactive' } }).select('_id');
-  const paidPayments = await Payment.find({ month, year: parseInt(year) }).select('studentId');
-  const paidIds = new Set(paidPayments.map(p => p.studentId.toString()));
+  const numericYear = parseInt(year);
 
-  const paid = allStudents.filter(s => paidIds.has(s._id.toString())).map(s => s._id);
-  const unpaid = allStudents.filter(s => !paidIds.has(s._id.toString())).map(s => s._id);
+  // Fetch all active students
+  const allStudents = await Student.find({ status: { $ne: 'inactive' } })
+    .select('_id firstName middleName lastName fatherName motherName clearedBalanceMonths');
 
-  res.json({ paid, unpaid });
+  // Fetch fee setting for this year and month
+  const feeSettings = await FeeSetting.find({ year: numericYear });
+  const exactSetting = feeSettings.find(fs => fs.month === month);
+  const fallbackSetting = exactSetting || feeSettings.find(fs => fs.year === numericYear) || (feeSettings.length > 0 ? feeSettings[0] : null);
+  const baseFee = fallbackSetting ? fallbackSetting.monthlyFee : 0;
+  const siblingDiscount = fallbackSetting ? (fallbackSetting.siblingDiscount || 0) : 0;
+
+  const isValidParentName = (name) => {
+    if (!name) return false;
+    const trimmed = name.trim().toLowerCase();
+    if (trimmed.length < 2) return false;
+    if (
+      trimmed === '-' ||
+      trimmed === '--' ||
+      trimmed === '---' ||
+      trimmed === 'n/a' ||
+      trimmed === 'none' ||
+      trimmed === 'null' ||
+      trimmed === 'unknown'
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  // Identify sibling students using fatherName and motherName
+  const n = allStudents.length;
+  const parent = Array.from({ length: n }, (_, i) => i);
+  const find = (i) => {
+    if (parent[i] === i) return i;
+    parent[i] = find(parent[i]);
+    return parent[i];
+  };
+  const union = (i, j) => {
+    const rootI = find(i);
+    const rootJ = find(j);
+    if (rootI !== rootJ) parent[rootI] = rootJ;
+  };
+
+  const fatherMap = new Map();
+  const motherMap = new Map();
+
+  allStudents.forEach((s, idx) => {
+    if (isValidParentName(s.fatherName)) {
+      const fn = s.fatherName.trim().toLowerCase();
+      const list = fatherMap.get(fn) || [];
+      list.push(idx);
+      fatherMap.set(fn, list);
+    }
+    if (isValidParentName(s.motherName)) {
+      const mn = s.motherName.trim().toLowerCase();
+      const list = motherMap.get(mn) || [];
+      list.push(idx);
+      motherMap.set(mn, list);
+    }
+  });
+
+  fatherMap.forEach(indices => {
+    for (let i = 1; i < indices.length; i++) union(indices[0], indices[i]);
+  });
+  motherMap.forEach(indices => {
+    for (let i = 1; i < indices.length; i++) union(indices[0], indices[i]);
+  });
+
+  const componentSizes = new Map();
+  for (let i = 0; i < n; i++) {
+    const root = find(i);
+    componentSizes.set(root, (componentSizes.get(root) || 0) + 1);
+  }
+
+  const siblingIdsSet = new Set();
+  for (let i = 0; i < n; i++) {
+    const root = find(i);
+    if ((componentSizes.get(root) || 0) > 1) {
+      siblingIdsSet.add(allStudents[i]._id.toString());
+    }
+  }
+
+  // Fetch payments for this month and year
+  const payments = await Payment.find({ month, year: numericYear })
+    .select('studentId amount status balanceCleared');
+  const paymentMap = new Map();
+  payments.forEach(p => {
+    if (p.studentId) {
+      paymentMap.set(p.studentId.toString(), p);
+    }
+  });
+
+  const paid = [];
+  const unpaid = [];
+  const paid_but_left = [];
+  const financials = {};
+
+  allStudents.forEach(s => {
+    const sId = s._id.toString();
+    const payment = paymentMap.get(sId);
+    const isMarkedPaid = Boolean(payment && (payment.status ? payment.status === 'paid' : true));
+
+    const hasSiblings = siblingIdsSet.has(sId);
+    const discountPercent = hasSiblings ? Math.max(0, Math.min(100, Number(siblingDiscount) || 0)) : 0;
+    const expectedFee = Math.max(0, baseFee - (baseFee * discountPercent / 100));
+
+    const isBalanceCleared = Boolean(
+      (payment && payment.balanceCleared) ||
+      (s.clearedBalanceMonths || []).some(c => c.year === numericYear && c.month === month)
+    );
+    const paidAmount = payment ? (Number(payment.amount) || 0) : 0;
+    const leftAmount = isBalanceCleared ? 0 : (isMarkedPaid ? Math.max(0, expectedFee - paidAmount) : expectedFee);
+
+    financials[sId] = {
+      isPaid: isMarkedPaid,
+      paidAmount,
+      expectedFee,
+      leftAmount,
+      isBalanceCleared,
+      hasSiblings,
+      discountPercent
+    };
+
+    if (isMarkedPaid) {
+      paid.push(s._id);
+      if (!isBalanceCleared && leftAmount > 0) {
+        paid_but_left.push(s._id);
+      }
+    } else {
+      unpaid.push(s._id);
+    }
+  });
+
+  res.json({
+    paid,
+    unpaid,
+    paid_but_left,
+    financials
+  });
 });
 
 // Get payments by student
