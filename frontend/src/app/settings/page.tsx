@@ -64,7 +64,29 @@ export default function SettingsPage() {
   const [savingFee, setSavingFee] = useState(false)
 
   const [formYear, setFormYear] = useState<number>(currentEcYear)
-  const [formMonth, setFormMonth] = useState<string>(currentEcMonth)
+  const [formMonths, setFormMonths] = useState<string[]>([currentEcMonth])
+
+  const toggleMonth = (m: string) => {
+    setFormMonths(prev => {
+      if (prev.includes(m)) {
+        if (prev.length === 1) {
+          toast.error(getText('Please keep at least one month selected', 'እባክዎ ቢያንስ አንድ ወር ይምረጡ'))
+          return prev
+        }
+        return prev.filter(item => item !== m)
+      } else {
+        return [...prev, m]
+      }
+    })
+  }
+
+  const selectAllAcademicMonths = () => {
+    setFormMonths(ETHIOPIAN_ACADEMIC_MONTHS.map(m => m.value))
+  }
+
+  const clearMonthsSelection = () => {
+    setFormMonths([currentEcMonth])
+  }
   const [formPenaltyAssignTo, setFormPenaltyAssignTo] = useState<'all' | 'regular' | 'special' | 'none'>('all')
   const [formMonthlyFee, setFormMonthlyFee] = useState<string>('4000')
   const [formPenaltyFee, setFormPenaltyFee] = useState<string>('20')
@@ -150,6 +172,11 @@ export default function SettingsPage() {
     const penaltyDayNum = Number(formPenaltyDay)
     const discountNum = Math.max(0, Math.min(100, Number(formSiblingDiscount) || 0))
 
+    if (formMonths.length === 0) {
+      toast.error(getText('Please select at least one month', 'እባክዎ ቢያንስ አንድ ወር ይምረጡ'))
+      return
+    }
+
     if (isNaN(monthly) || monthly < 0) {
       toast.error(getText('Please enter a valid monthly fee', 'እባክዎ ትክክለኛ ወርሃዊ ክፍያ ያስገቡ'))
       return
@@ -171,7 +198,8 @@ export default function SettingsPage() {
         {
           id: editingId || undefined,
           year: Number(formYear),
-          month: formMonth,
+          months: formMonths,
+          month: formMonths[0],
           penaltyAssignTo: formPenaltyAssignTo,
           applyFor: formPenaltyAssignTo,
           monthlyFee: monthly,
@@ -184,8 +212,8 @@ export default function SettingsPage() {
 
       toast.success(
         getText(
-          'Monthly fee setting saved successfully!',
-          'የወርሃዊ ክፍያ ቅንብር በተሳካ ሁኔታ ተቀምጧል!'
+          `Monthly fee setting successfully applied to ${formMonths.length} month(s)!`,
+          `የወርሃዊ ክፍያ ቅንብር ለ${formMonths.length} ወራት በተሳካ ሁኔታ ተቀምጧል!`
         )
       )
       setEditingId(null)
@@ -230,7 +258,7 @@ export default function SettingsPage() {
   const handleStartEdit = (setting: FeeSetting) => {
     setEditingId(setting._id)
     setFormYear(setting.year)
-    setFormMonth(setting.month)
+    setFormMonths([setting.month])
     setFormPenaltyAssignTo(setting.penaltyAssignTo || (setting.applyFor as any) || 'all')
     setFormMonthlyFee(String(setting.monthlyFee))
     setFormPenaltyFee(String(setting.penaltyFee))
@@ -250,6 +278,7 @@ export default function SettingsPage() {
 
   const handleCancelEdit = () => {
     setEditingId(null)
+    setFormMonths([currentEcMonth])
   }
 
   const handleLanguageChange = (newLanguage: string) => {
@@ -561,146 +590,216 @@ export default function SettingsPage() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-4">
-                    {/* Ethiopian Year */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
-                        {getText('Year', 'ዓመተ ምህረት')}
-                      </label>
-                      <select
-                        value={formYear}
-                        onChange={(e) => setFormYear(Number(e.target.value))}
-                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-medium"
-                      >
-                        {availableYears.map(y => (
-                          <option key={y} value={y}>
-                            {y} {language === 'am' ? 'ዓ.ም' : 'E.C'} {y === currentEcYear ? '• Now' : ''}
+                  <div className="space-y-4">
+                    {/* Top Row: Core configuration fields */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+                      {/* Ethiopian Year */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
+                          {getText('Academic Year', 'ዓመተ ምህረት')}
+                        </label>
+                        <select
+                          value={formYear}
+                          onChange={(e) => setFormYear(Number(e.target.value))}
+                          className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-medium"
+                        >
+                          {availableYears.map(y => (
+                            <option key={y} value={y}>
+                              {y} {language === 'am' ? 'ዓ.ም' : 'E.C'} {y === currentEcYear ? '• Now' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Monthly Base Fee */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
+                          {getText('Monthly Fee (ETB)', 'ወርሃዊ ክፍያ (ብር)')}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          required
+                          value={formMonthlyFee}
+                          onChange={(e) => setFormMonthlyFee(e.target.value)}
+                          placeholder="e.g. 4000"
+                          className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
+                        />
+                      </div>
+
+                      {/* Assign Penalty To */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
+                          {getText('Penalty Assigned To', 'ቅጣት ተፈጻሚ የሚሆንበት')}
+                        </label>
+                        <select
+                          value={formPenaltyAssignTo}
+                          onChange={(e) => setFormPenaltyAssignTo(e.target.value as 'all' | 'regular' | 'special' | 'none')}
+                          className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-medium"
+                        >
+                          <option value="all">
+                            {language === 'am' ? 'ሁሉም ተማሪዎች (All Students)' : 'All Students (ለሁሉም)'}
                           </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Ethiopian Month */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
-                        {getText('Month', 'የኢትዮጵያ ወር')}
-                      </label>
-                      <select
-                        value={formMonth}
-                        onChange={(e) => setFormMonth(e.target.value)}
-                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-medium"
-                      >
-                        {ETHIOPIAN_ACADEMIC_MONTHS.map(m => (
-                          <option key={m.value} value={m.value}>
-                            {language === 'am' ? `${m.am} (${m.en})` : `${m.en} (${m.am})`}
+                          <option value="regular">
+                            {language === 'am' ? 'መደበኛ ተማሪዎች ብቻ (Regular Only)' : 'Regular Only (ለመደበኛ ብቻ)'}
                           </option>
-                        ))}
-                      </select>
+                          <option value="special">
+                            {language === 'am' ? 'ልዩ ተማሪዎች ብቻ (Special Only)' : 'Special Only (ለልዩ ብቻ)'}
+                          </option>
+                          <option value="none">
+                            {language === 'am' ? 'አይተገበርም - ቅጣት የለም (Unassigned)' : 'Unassigned / No Penalty (ቅጣት የለም)'}
+                          </option>
+                        </select>
+                      </div>
+
+                      {/* Apply After Day */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
+                          {getText('Penalty After Day', 'ቅጣት ከስንት ቀን በኋላ')}
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="30"
+                          required
+                          value={formPenaltyDay}
+                          onChange={(e) => setFormPenaltyDay(e.target.value)}
+                          placeholder="e.g. 10"
+                          className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
+                        />
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                          {getText('Accrues after this day', 'ከዚህ ቀን በኋላ')}
+                        </p>
+                      </div>
+
+                      {/* Daily Penalty Fee */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
+                          {getText('Penalty (ETB/day)', 'የቀን ቅጣት (ብር/ቀን)')}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          required
+                          value={formPenaltyFee}
+                          onChange={(e) => setFormPenaltyFee(e.target.value)}
+                          placeholder="e.g. 20"
+                          className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
+                        />
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                          {getText('Added every single day', 'በየቀኑ የሚጨመር')}
+                        </p>
+                      </div>
+
+                      {/* Sibling Discount % */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
+                          {getText('Sibling Discount (%)', 'የወንድም/እህት ቅናሽ (%)')}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={formSiblingDiscount}
+                          onChange={(e) => setFormSiblingDiscount(e.target.value)}
+                          placeholder="e.g. 10"
+                          className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
+                        />
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                          {getText('Decreased from siblings total', 'ከወንድማማቾች ድምር')}
+                        </p>
+                      </div>
                     </div>
 
-                    {/* Assign Penalty To */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
-                        {getText('Assign Penalty To', 'ቅጣት ተፈጻሚ የሚሆንበት')}
-                      </label>
-                      <select
-                        value={formPenaltyAssignTo}
-                        onChange={(e) => setFormPenaltyAssignTo(e.target.value as 'all' | 'regular' | 'special' | 'none')}
-                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-medium"
-                      >
-                        <option value="all">
-                          {language === 'am' ? 'ሁሉም ተማሪዎች (All Students)' : 'All Students (ለሁሉም)'}
-                        </option>
-                        <option value="regular">
-                          {language === 'am' ? 'መደበኛ ተማሪዎች ብቻ (Regular Only)' : 'Regular Only (ለመደበኛ ብቻ)'}
-                        </option>
-                        <option value="special">
-                          {language === 'am' ? 'ልዩ ተማሪዎች ብቻ (Special Only)' : 'Special Only (ለልዩ ብቻ)'}
-                        </option>
-                        <option value="none">
-                          {language === 'am' ? 'አይተገበርም - ቅጣት የለም (Unassigned)' : 'Unassigned / No Penalty (ቅጣት የለም)'}
-                        </option>
-                      </select>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                        {getText('Penalty targets this group', 'ቅጣቱ የሚመለከተው')}
-                      </p>
-                    </div>
+                    {/* Multi-Month Selector Section */}
+                    <div className="pt-2 border-t border-emerald-200 dark:border-emerald-800/60">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wide">
+                            📅 {getText('Select Months to Apply (Multi-Select as you want)', 'የሚተገበርባቸው ወራት (እንደፈለጉ ከአንድ በላይ ይምረጡ)')}
+                          </label>
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+                            {formMonths.length} / 10 {getText('Selected', 'ተመርጧል')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={selectAllAcademicMonths}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all active:scale-95"
+                          >
+                            ✓ {getText('Select All 10 Months', 'ሁሉንም 10 ወራት ምረጥ')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={clearMonthsSelection}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-all active:scale-95"
+                          >
+                            {getText('Reset to Current', 'ወደ አሁኑ መልስ')}
+                          </button>
+                        </div>
+                      </div>
 
-                    {/* Monthly Base Fee */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
-                        {getText('Monthly Fee (ETB)', 'ወርሃዊ ክፍያ (ብር)')}
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        required
-                        value={formMonthlyFee}
-                        onChange={(e) => setFormMonthlyFee(e.target.value)}
-                        placeholder="e.g. 4000"
-                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
-                      />
-                    </div>
+                      {/* 10 Academic Months Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                        {ETHIOPIAN_ACADEMIC_MONTHS.map(m => {
+                          const isSelected = formMonths.includes(m.value)
+                          const existingSetting = feeSettings.find(fs => fs.year === formYear && fs.month === m.value)
+                          return (
+                            <button
+                              type="button"
+                              key={m.value}
+                              onClick={() => toggleMonth(m.value)}
+                              className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between gap-1 shadow-xs active:scale-98 ${
+                                isSelected
+                                  ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30 shadow-emerald-200 dark:shadow-none'
+                                  : theme === 'dark'
+                                  ? 'bg-gray-800 text-gray-200 border-gray-700 hover:bg-gray-750'
+                                  : 'bg-white text-gray-800 border-gray-200 hover:bg-emerald-50/60'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between w-full">
+                                <span className="font-bold text-xs sm:text-sm">
+                                  {language === 'am' ? m.am : m.en}
+                                </span>
+                                <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                  isSelected ? 'bg-white text-emerald-700' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'
+                                }`}>
+                                  {isSelected ? '✓' : '+'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-[11px] opacity-80">
+                                <span>{language === 'am' ? m.en : m.am}</span>
+                                {existingSetting && (
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                    isSelected
+                                      ? 'bg-emerald-700 text-emerald-100'
+                                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                  }`}>
+                                    {existingSetting.monthlyFee.toLocaleString()} ETB
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
 
-                    {/* Apply After Day */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
-                        {getText('Penalty After Day', 'ቅጣት ከስንት ቀን በኋላ')}
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="30"
-                        required
-                        value={formPenaltyDay}
-                        onChange={(e) => setFormPenaltyDay(e.target.value)}
-                        placeholder="e.g. 10"
-                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
-                      />
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                        {getText('Accrues after this day', 'ከዚህ ቀን በኋላ')}
-                      </p>
-                    </div>
-
-                    {/* Daily Penalty Fee */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
-                        {getText('Penalty (ETB/day)', 'የቀን ቅጣት (ብር/ቀን)')}
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        required
-                        value={formPenaltyFee}
-                        onChange={(e) => setFormPenaltyFee(e.target.value)}
-                        placeholder="e.g. 20"
-                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
-                      />
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                        {getText('Added every single day', 'በየቀኑ የሚጨመር')}
-                      </p>
-                    </div>
-
-                    {/* Sibling Discount % */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">
-                        {getText('Sibling Discount (%)', 'የወንድም/እህት ቅናሽ (%)')}
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="1"
-                        value={formSiblingDiscount}
-                        onChange={(e) => setFormSiblingDiscount(e.target.value)}
-                        placeholder="e.g. 10"
-                        className="w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
-                      />
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                        {getText('Decreased from siblings total', 'ከወንድማማቾች ድምር')}
-                      </p>
+                      {/* Selected Months summary pill */}
+                      <div className="mt-2 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold">{getText('Applying to:', 'የሚተገበርባቸው፡')}</span>
+                        {formMonths.map(m => {
+                          const meta = ETHIOPIAN_ACADEMIC_MONTHS.find(x => x.value === m)
+                          return (
+                            <span key={m} className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 font-medium text-[11px]">
+                              {language === 'am' ? meta?.am : meta?.en}
+                            </span>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
 
@@ -710,7 +809,7 @@ export default function SettingsPage() {
                       <p>
                         💡 <strong>{getText('Rule Preview', 'የደንብ ቅድመ እይታ')}:</strong>{' '}
                         {getText(
-                          `Base fee ${Number(formMonthlyFee) || 0} ETB applies to all students. Penalty (+${Number(formPenaltyFee) || 0} ETB/day after day ${Number(formPenaltyDay) || 10}) is assigned to: ${
+                          `Base fee ${Number(formMonthlyFee) || 0} ETB applies for ${formMonths.length} selected month(s). Penalty (+${Number(formPenaltyFee) || 0} ETB/day after day ${Number(formPenaltyDay) || 10}) counts accurately for each month after its seated date, assigned to: ${
                             formPenaltyAssignTo === 'regular'
                               ? 'Regular Students Only'
                               : formPenaltyAssignTo === 'special'
@@ -752,8 +851,8 @@ export default function SettingsPage() {
                       ) : (
                         <span>
                           {editingId
-                            ? getText('Update Fee Setting', 'ቅንብሩን አድስ')
-                            : getText('Save Fee Setting', 'ቅንብሩን መዝግብ')}
+                            ? getText(`Update Fee Setting (${formMonths.length} Month${formMonths.length > 1 ? 's' : ''})`, `የ${formMonths.length} ወራት ቅንብር አድስ`)
+                            : getText(`Save Fee Setting for ${formMonths.length} Month${formMonths.length > 1 ? 's' : ''}`, `ቅንብሩን ለ${formMonths.length} ወራት መዝግብ`)}
                         </span>
                       )}
                     </button>

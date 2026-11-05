@@ -47,15 +47,25 @@ const upsertFeeSetting = async (req, res) => {
 
     await ensureCleanIndexes();
 
-    const { id, year, month, penaltyAssignTo, applyFor, monthlyFee, penaltyFee, penaltyDay, siblingDiscount } = req.body;
+    const { id, year, month, months, penaltyAssignTo, applyFor, monthlyFee, penaltyFee, penaltyDay, siblingDiscount } = req.body;
 
     const numYear = Number(year);
     if (!numYear || numYear < 1900 || numYear > 2200) {
       return res.status(400).json({ message: 'Invalid academic year' });
     }
 
-    if (!VALID_MONTHS.includes(month)) {
-      return res.status(400).json({ message: `Invalid month. Must be one of: ${VALID_MONTHS.join(', ')}` });
+    // Determine target months list - support both array of months or single month
+    let targetMonths = [];
+    if (Array.isArray(months) && months.length > 0) {
+      targetMonths = months.filter(m => VALID_MONTHS.includes(m));
+    } else if (typeof months === 'string' && months.trim()) {
+      targetMonths = months.split(',').map(m => m.trim()).filter(m => VALID_MONTHS.includes(m));
+    } else if (month && VALID_MONTHS.includes(month)) {
+      targetMonths = [month];
+    }
+
+    if (targetMonths.length === 0) {
+      return res.status(400).json({ message: `Please select at least one valid month from: ${VALID_MONTHS.join(', ')}` });
     }
 
     // Support both penaltyAssignTo and applyFor for seamless compatibility
@@ -82,15 +92,15 @@ const upsertFeeSetting = async (req, res) => {
 
     const numSiblingDiscount = Math.max(0, Math.min(100, Number(siblingDiscount) || 0));
 
-    let updated = null;
+    const results = [];
 
-    if (id) {
-      // 1. Direct update by document _id
-      updated = await FeeSetting.findByIdAndUpdate(
+    // If an existing document ID was passed and targetMonths has exactly 1 month, update that document
+    if (id && targetMonths.length === 1) {
+      const updated = await FeeSetting.findByIdAndUpdate(
         id,
         {
           year: numYear,
-          month,
+          month: targetMonths[0],
           monthlyFee: numMonthlyFee,
           penaltyAssignTo: targetPenaltyAssign,
           penaltyFee: numPenaltyFee,
@@ -100,15 +110,20 @@ const upsertFeeSetting = async (req, res) => {
         },
         { new: true, runValidators: true }
       );
+      if (updated) {
+        results.push(updated);
+      }
     }
 
-    if (!updated) {
-      // 2. Find or create by year & month
-      updated = await FeeSetting.findOneAndUpdate(
-        { year: numYear, month },
+    // For all selected months (or when id is omitted / multiple months selected):
+    for (const m of targetMonths) {
+      if (results.some(r => r.month === m)) continue;
+
+      const doc = await FeeSetting.findOneAndUpdate(
+        { year: numYear, month: m },
         {
           year: numYear,
-          month,
+          month: m,
           monthlyFee: numMonthlyFee,
           penaltyAssignTo: targetPenaltyAssign,
           penaltyFee: numPenaltyFee,
@@ -118,6 +133,7 @@ const upsertFeeSetting = async (req, res) => {
         },
         { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
       );
+      results.push(doc);
     }
 
     const targetLabel = targetPenaltyAssign === 'regular'
@@ -132,65 +148,11 @@ const upsertFeeSetting = async (req, res) => {
       req.user,
       'Saved Fee Setting',
       'Settings',
-      `Configured fee for ${month} ${numYear}: Base Fee ${numMonthlyFee} ETB (All students), Penalty ${numPenaltyFee} ETB/day assigned to ${targetLabel}, Sibling Discount ${numSiblingDiscount}%`
+      `Configured fee for ${targetMonths.join(', ')} ${numYear}: Base Fee ${numMonthlyFee} ETB (All students), Penalty ${numPenaltyFee} ETB/day after day ${numPenaltyDay} assigned to ${targetLabel}, Sibling Discount ${numSiblingDiscount}%`
     );
 
-    res.json(updated);
+    res.json(results.length === 1 ? results[0] : results);
   } catch (error) {
-    if (error.code === 11000) {
-      // Drop any conflicting compound index and retry once safely
-      try {
-        await FeeSetting.collection.dropIndex('year_1_month_1_applyFor_1').catch(() => {});
-        const { id, year, month, penaltyAssignTo, applyFor, monthlyFee, penaltyFee, penaltyDay, siblingDiscount } = req.body;
-        const numYear = Number(year);
-        const targetPenaltyAssign = VALID_PENALTY_TARGETS.includes(penaltyAssignTo)
-          ? penaltyAssignTo
-          : VALID_PENALTY_TARGETS.includes(applyFor)
-          ? applyFor
-          : 'all';
-        const numMonthlyFee = Number(monthlyFee) || 0;
-        const numPenaltyFee = Number(penaltyFee) || 0;
-        const numPenaltyDay = Number(penaltyDay) || 10;
-        const numSiblingDiscount = Number(siblingDiscount) || 0;
-
-        let retryDoc = null;
-        if (id) {
-          retryDoc = await FeeSetting.findByIdAndUpdate(
-            id,
-            {
-              year: numYear,
-              month,
-              monthlyFee: numMonthlyFee,
-              penaltyAssignTo: targetPenaltyAssign,
-              penaltyFee: numPenaltyFee,
-              penaltyDay: numPenaltyDay,
-              siblingDiscount: numSiblingDiscount,
-              createdBy: req.user._id
-            },
-            { new: true, runValidators: true }
-          );
-        }
-        if (!retryDoc) {
-          retryDoc = await FeeSetting.findOneAndUpdate(
-            { year: numYear, month },
-            {
-              year: numYear,
-              month,
-              monthlyFee: numMonthlyFee,
-              penaltyAssignTo: targetPenaltyAssign,
-              penaltyFee: numPenaltyFee,
-              penaltyDay: numPenaltyDay,
-              siblingDiscount: numSiblingDiscount,
-              createdBy: req.user._id
-            },
-            { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
-          );
-        }
-        return res.json(retryDoc);
-      } catch (retryErr) {
-        return res.status(500).json({ message: retryErr.message });
-      }
-    }
     res.status(500).json({ message: error.message || 'Failed to save fee setting' });
   }
 };
