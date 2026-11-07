@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema({
   permissions: [permissionSchema],
   profilePhoto: { type: String, default: '' },
   phone: { type: String, default: '' },
+  mustChangePassword: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import NotificationBell from './NotificationBell'
+import ForceChangePasswordModal from './ForceChangePasswordModal'
 import Image from 'next/image'
 import { useSettings } from '@/contexts/SettingsContext'
 import { usePermissions } from '@/contexts/PermissionsContext'
@@ -13,7 +14,6 @@ import {
   UserGroupIcon,
   CreditCardIcon,
   BanknotesIcon,
-  UserMinusIcon,
   BellIcon,
   ShieldCheckIcon,
   ClipboardDocumentListIcon,
@@ -21,15 +21,44 @@ import {
   ArrowRightOnRectangleIcon,
   Bars3Icon,
   XMarkIcon,
-  CogIcon
+  CogIcon,
+  BriefcaseIcon,
+  ReceiptPercentIcon,
+  ChatBubbleLeftRightIcon,
+  MegaphoneIcon,
+  AdjustmentsHorizontalIcon,
+  BuildingLibraryIcon,
+  ClockIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline'
 import { Cog6ToothIcon } from '@heroicons/react/24/solid'
 
-interface NavItem {
+interface NavSingleLink {
+  type: 'link'
+  id: string
   name: string
   icon: any
   href: string
+  page: string
 }
+
+interface NavChildItem {
+  id: string
+  name: string
+  icon: any
+  href: string
+  page: string
+}
+
+interface NavGroup {
+  type: 'group'
+  id: string
+  name: string
+  icon: any
+  children: NavChildItem[]
+}
+
+type NavItem = NavSingleLink | NavGroup
 
 export default function DashboardLayout({
   children,
@@ -45,19 +74,241 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+  const isSuperAdmin = role === 'superadmin'
 
-  const getNavigationItems = () => [
-    { name: getText('Dashboard', 'ዳሽቦርድ'), icon: HomeIcon, href: '/dashboard', page: 'dashboard' },
-    { name: getText('Students', 'ተማሪዎች'), icon: AcademicCapIcon, href: '/students', page: 'students' },
-    { name: getText('Employees', 'ሰራተኞች'), icon: UserGroupIcon, href: '/employees', page: 'employees' },
-    { name: getText('Payments', 'ክፍያዎች'), icon: CreditCardIcon, href: '/payments', page: 'payments' },
-    { name: getText('Transaction Reports', 'የግብይት ሪፖርት'), icon: BanknotesIcon, href: '/bank-reports', page: 'bank-reports' },
-    { name: getText('Send Notifications', 'ማሳወቂያ ላክ'), icon: BellIcon, href: '/notifications', page: 'notifications' },
-    { name: getText('Send Notice to Portal', 'ማስታወቂያ ወደ ፖርታል'), icon: ClipboardDocumentListIcon, href: '/notice', page: 'notice' },
-    { name: getText('Admins', 'አስተዳዳሪዎች'), icon: ShieldCheckIcon, href: '/admins', page: 'admins' },
-    { name: getText('Activity Logs', 'የእንቅስቃሴ ምዝገባ'), icon: ClipboardDocumentListIcon, href: '/activity-logs', page: 'activity-logs' },
-    { name: getText('My Profile', 'የእኔ መገለጫ'), icon: UserCircleIcon, href: '/profile', page: 'profile' },
-  ].filter(item => canAccess(item.page))
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups(prev => (prev[groupId] ? {} : { [groupId]: true }))
+  }
+
+  const isHrefActive = (href: string) => {
+    if (href.includes('?settings=true')) {
+      if (typeof window !== 'undefined') {
+        return pathname === '/bank-reports' && window.location.search.includes('settings=true')
+      }
+      return false
+    }
+    if (href === '/bank-reports') {
+      if (typeof window !== 'undefined' && window.location.search.includes('settings=true')) {
+        return false
+      }
+      return pathname.startsWith('/bank-reports')
+    }
+    if (href === '/dashboard') {
+      return pathname === '/dashboard'
+    }
+    if (href === '/payments') {
+      return pathname === '/payments'
+    }
+    if (href === '/payments/custom') {
+      return pathname.startsWith('/payments/custom')
+    }
+    if (href === '/students') {
+      return pathname.startsWith('/students') || pathname === '/pending-students' || pathname === '/inactive-students'
+    }
+    if (href === '/employees') {
+      return pathname.startsWith('/employees') || pathname === '/pending-employees' || pathname === '/employeesform'
+    }
+    if (href === '/admins') {
+      return pathname.startsWith('/admins')
+    }
+    if (href === '/notifications') {
+      return pathname.startsWith('/notifications')
+    }
+    if (href === '/notice') {
+      return pathname.startsWith('/notice')
+    }
+    if (href === '/settings') {
+      return pathname.startsWith('/settings')
+    }
+    if (href === '/activity-logs') {
+      return pathname.startsWith('/activity-logs')
+    }
+    if (href === '/profile') {
+      return pathname.startsWith('/profile')
+    }
+    return pathname === href
+  }
+
+  const isChildPermitted = (child: NavChildItem) => {
+    if (isSuperAdmin) return true
+    if (child.id === 'system-settings') {
+      return canAccess('settings')
+    }
+    if (child.id === 'bank-settings') {
+      return canAccess('bank-settings')
+    }
+    if (child.id === 'custom-payments') {
+      return canAccess('custom-payment') || canAccess('payments')
+    }
+    if (child.id === 'portal-notifications') {
+      return canAccess('notice') || canAccess('notifications')
+    }
+    return canAccess(child.page)
+  }
+
+  const isLinkPermitted = (item: NavSingleLink) => {
+    if (isSuperAdmin) return true
+    if (item.id === 'profile') return true
+    return canAccess(item.page)
+  }
+
+  // 1. Dashboard
+  // 2. Users (Students, Employees, Admins)
+  // 3. Payments (Monthly Payments, Custom Payments, Transaction Reports)
+  // 4. Notifications (SMS Notifications, Portal Notifications)
+  // 5. Settings (System Settings, Bank Settings)
+  // 6. Activity Log
+  // 7. My Profile
+  const rawNavItems: NavItem[] = [
+    {
+      type: 'link',
+      id: 'dashboard',
+      name: getText('Dashboard', 'ዳሽቦርድ'),
+      icon: HomeIcon,
+      href: '/dashboard',
+      page: 'dashboard',
+    },
+    {
+      type: 'group',
+      id: 'users',
+      name: getText('Users', 'ተጠቃሚዎች'),
+      icon: UserGroupIcon,
+      children: [
+        {
+          id: 'students',
+          name: getText('Students', 'ተማሪዎች'),
+          icon: AcademicCapIcon,
+          href: '/students',
+          page: 'students',
+        },
+        {
+          id: 'employees',
+          name: getText('Employees', 'ሰራተኞች'),
+          icon: BriefcaseIcon,
+          href: '/employees',
+          page: 'employees',
+        },
+        {
+          id: 'admins',
+          name: getText('Admins', 'አስተዳዳሪዎች'),
+          icon: ShieldCheckIcon,
+          href: '/admins',
+          page: 'admins',
+        },
+      ],
+    },
+    {
+      type: 'group',
+      id: 'payments',
+      name: getText('Payments', 'ክፍያዎች'),
+      icon: CreditCardIcon,
+      children: [
+        {
+          id: 'monthly-payments',
+          name: getText('Monthly Payments', 'ወርሃዊ ክፍያዎች'),
+          icon: CreditCardIcon,
+          href: '/payments',
+          page: 'payments',
+        },
+        {
+          id: 'custom-payments',
+          name: getText('Custom Payments', 'ልዩ ክፍያዎች'),
+          icon: ReceiptPercentIcon,
+          href: '/payments/custom',
+          page: 'payments',
+        },
+        {
+          id: 'transaction-reports',
+          name: getText('Transaction Reports', 'የግብይት ሪፖርት'),
+          icon: BanknotesIcon,
+          href: '/bank-reports',
+          page: 'bank-reports',
+        },
+      ],
+    },
+    {
+      type: 'group',
+      id: 'notifications',
+      name: getText('Notifications', 'ማሳወቂያዎች'),
+      icon: BellIcon,
+      children: [
+        {
+          id: 'sms-notifications',
+          name: getText('SMS Notifications', 'የኤስኤምኤስ ማሳወቂያዎች'),
+          icon: ChatBubbleLeftRightIcon,
+          href: '/notifications',
+          page: 'notifications',
+        },
+        {
+          id: 'portal-notifications',
+          name: getText('Portal Notifications', 'የፖርታል ማስታወቂያዎች'),
+          icon: MegaphoneIcon,
+          href: '/notice',
+          page: 'notice',
+        },
+      ],
+    },
+    {
+      type: 'group',
+      id: 'settings',
+      name: getText('Settings', 'ቅንብሮች'),
+      icon: Cog6ToothIcon,
+      children: [
+        {
+          id: 'system-settings',
+          name: getText('System Settings', 'የስርዓት ቅንብሮች'),
+          icon: AdjustmentsHorizontalIcon,
+          href: '/settings',
+          page: 'settings',
+        },
+        {
+          id: 'bank-settings',
+          name: getText('Bank Settings', 'የባንክ ቅንብሮች'),
+          icon: BuildingLibraryIcon,
+          href: '/bank-reports?settings=true',
+          page: 'bank-reports',
+        },
+      ],
+    },
+    {
+      type: 'link',
+      id: 'activity-logs',
+      name: getText('Activity Logs', 'የእንቅስቃሴ ምዝገባ'),
+      icon: ClockIcon,
+      href: '/activity-logs',
+      page: 'activity-logs',
+    },
+    {
+      type: 'link',
+      id: 'profile',
+      name: getText('My Profile', 'የእኔ መገለጫ'),
+      icon: UserCircleIcon,
+      href: '/profile',
+      page: 'profile',
+    },
+  ]
+
+  // Filter based on user permissions
+  const navItems: NavItem[] = rawNavItems
+    .map(item => {
+      if (item.type === 'group') {
+        const permittedChildren = item.children.filter(isChildPermitted)
+        if (permittedChildren.length === 0) return null
+        return {
+          ...item,
+          children: permittedChildren,
+        }
+      }
+      return isLinkPermitted(item) ? item : null
+    })
+    .filter((item): item is NavItem => item !== null)
+
+  // Automatically close all groups by default and whenever navigating from page to page
+  useEffect(() => {
+    setOpenGroups({})
+  }, [pathname])
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -151,44 +402,148 @@ export default function DashboardLayout({
                   </span>
                 </div>
               )}
-              <div className="ml-3">
-                <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{user?.name}</p>
-                <p className={`text-xs capitalize ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+              <div className="ml-3 min-w-0 flex-1">
+                <p className={`text-sm font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{user?.name}</p>
+                <p className={`text-xs capitalize truncate ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                   {user?.role === 'superadmin' ? getText('Super Admin', 'ዋና አስተዳዳሪ') : getText(user?.role, user?.role)}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-            {getNavigationItems().map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
-                  pathname === item.href
-                    ? theme === 'dark' ? 'bg-gray-700 text-blue-400 border-r-2 border-blue-400' : 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                    : theme === 'dark' ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <item.icon
-                  className={`mr-3 h-5 w-5 flex-shrink-0 ${
-                    pathname === item.href 
-                      ? theme === 'dark' ? 'text-blue-400' : 'text-blue-500' 
-                      : theme === 'dark' ? 'text-gray-400 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-500'
-                  }`}
-                />
-                {item.name}
-              </Link>
-            ))}
+          {/* Navigation with Dropdown Groups */}
+          <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {navItems.map((item) => {
+              if (item.type === 'link') {
+                const active = isHrefActive(item.href)
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    onClick={() => {
+                      setSidebarOpen(false)
+                      setOpenGroups({})
+                    }}
+                    className={`group flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      active
+                        ? theme === 'dark'
+                          ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                          : 'bg-blue-600 text-white font-semibold shadow-sm'
+                        : theme === 'dark'
+                          ? 'text-gray-300 hover:bg-gray-700/70 hover:text-white'
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
+                  >
+                    <item.icon
+                      className={`h-5 w-5 mr-3 flex-shrink-0 transition-colors ${
+                        active
+                          ? 'text-white'
+                          : theme === 'dark'
+                            ? 'text-gray-400 group-hover:text-gray-200'
+                            : 'text-gray-500 group-hover:text-gray-700'
+                      }`}
+                    />
+                    <span className="truncate">{item.name}</span>
+                  </Link>
+                )
+              }
+
+              // Group Item with Dropdown
+              const isOpen = Boolean(openGroups[item.id])
+              const hasActiveChild = item.children.some(child => isHrefActive(child.href))
+
+              return (
+                <div key={item.id} className="pt-0.5">
+                  {/* Group Header Button */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(item.id)}
+                    className={`w-full group flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors select-none ${
+                      hasActiveChild
+                        ? theme === 'dark'
+                          ? 'text-blue-400 bg-blue-950/30'
+                          : 'text-blue-700 bg-blue-50/70'
+                        : theme === 'dark'
+                          ? 'text-gray-300 hover:text-white hover:bg-gray-700/70'
+                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center min-w-0 flex-1">
+                      <item.icon
+                        className={`h-5 w-5 mr-3 flex-shrink-0 transition-colors ${
+                          hasActiveChild
+                            ? theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                            : theme === 'dark' ? 'text-gray-400 group-hover:text-gray-200' : 'text-gray-500 group-hover:text-gray-700'
+                        }`}
+                      />
+                      <span className="truncate">{item.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                      {hasActiveChild && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400" />
+                      )}
+                      <ChevronDownIcon
+                        className={`h-4 w-4 transition-transform duration-200 ${
+                          isOpen ? 'transform rotate-0' : 'transform -rotate-90'
+                        } ${
+                          hasActiveChild
+                            ? theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                            : theme === 'dark' ? 'text-gray-400 group-hover:text-gray-200' : 'text-gray-400 group-hover:text-gray-600'
+                        }`}
+                      />
+                    </div>
+                  </button>
+
+                  {/* Dropdown Children */}
+                  {isOpen && (
+                    <div className="mt-1 ml-4 pl-3.5 border-l-2 border-gray-200 dark:border-gray-700 space-y-1">
+                      {item.children.map(child => {
+                        const childActive = isHrefActive(child.href)
+                        return (
+                          <Link
+                            key={child.id}
+                            href={child.href}
+                            onClick={() => {
+                              setSidebarOpen(false)
+                              setOpenGroups({})
+                            }}
+                            className={`group flex items-center px-2.5 py-1.5 text-xs sm:text-[13px] font-medium rounded-lg transition-colors ${
+                              childActive
+                                ? theme === 'dark'
+                                  ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                                  : 'bg-blue-600 text-white font-semibold shadow-sm'
+                                : theme === 'dark'
+                                  ? 'text-gray-300 hover:bg-gray-700/70 hover:text-white'
+                                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                            }`}
+                          >
+                            <child.icon
+                              className={`h-4 w-4 mr-2.5 flex-shrink-0 transition-colors ${
+                                childActive
+                                  ? 'text-white'
+                                  : theme === 'dark'
+                                    ? 'text-gray-400 group-hover:text-gray-200'
+                                    : 'text-gray-400 group-hover:text-gray-600'
+                              }`}
+                            />
+                            <span className="truncate">{child.name}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </nav>
 
           {/* Logout button */}
           <div className={`p-4 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
             <button
               onClick={handleLogout}
-              className={`w-full flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${theme === 'dark' ? 'text-red-400 hover:bg-gray-700' : 'text-red-600 hover:bg-red-50'}`}
+              className={`w-full flex items-center px-3 py-2.5 text-xs sm:text-sm font-medium rounded-xl transition-colors ${
+                theme === 'dark' ? 'text-red-400 hover:bg-gray-700/80' : 'text-red-600 hover:bg-red-50'
+              }`}
             >
               <ArrowRightOnRectangleIcon className="mr-3 h-5 w-5" />
               {getText('Logout', 'ውጭ')}
@@ -199,7 +554,7 @@ export default function DashboardLayout({
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 w-full max-w-full overflow-x-hidden lg:ml-64">
-        {/* Top bar */}
+        {/* Top bar for mobile */}
         <div className={`fixed top-0 left-0 right-0 shadow-sm border-b lg:hidden z-40 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center justify-between h-16 px-4">
             <button
@@ -216,6 +571,7 @@ export default function DashboardLayout({
         {/* Page content */}
         <main className="flex-1 pt-16 lg:pt-0 min-w-0 w-full max-w-full overflow-x-hidden">
           {!hideBell && <NotificationBell />}
+          {user?.mustChangePassword && <ForceChangePasswordModal user={user} />}
           {children}
         </main>
       </div>

@@ -328,7 +328,10 @@ function isGenericOrUnknownPayer(name?: string | null): boolean {
 
 export default function BankReportsPage() {
   const { theme, getText, language } = useSettings()
-  const { canAccess, canDo, loading: permLoading } = usePermissions()
+  const { canAccess, canDo, loading: permLoading, role } = usePermissions()
+  const isSuperAdmin = role === 'superadmin'
+  const hasReportsAccess = canAccess('bank-reports')
+  const hasSettingsAccess = canAccess('bank-settings')
 
   // Transactions State
   const [transactions, setTransactions] = useState<BankTransaction[]>([])
@@ -443,6 +446,10 @@ export default function BankReportsPage() {
 
   // Fetch Transactions
   const fetchTransactions = useCallback(async () => {
+    if (!hasReportsAccess) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const token = localStorage.getItem('token')
@@ -473,6 +480,7 @@ export default function BankReportsPage() {
 
   // Fetch Stats dynamically based on active filters
   const fetchStats = useCallback(async () => {
+    if (!hasReportsAccess) return
     try {
       const token = localStorage.getItem('token')
       const effStart = dateFilterMode === 'single' ? specificDate : dateFilterMode === 'range' ? startDate : ''
@@ -494,6 +502,7 @@ export default function BankReportsPage() {
 
   // Fetch Settings
   const fetchSettings = useCallback(async () => {
+    if (!hasSettingsAccess) return
     try {
       const token = localStorage.getItem('token')
       const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/bank-transactions/settings`, {
@@ -535,16 +544,47 @@ export default function BankReportsPage() {
   }
 
   useEffect(() => {
-    fetchTransactions()
-  }, [fetchTransactions])
+    if (!permLoading && hasReportsAccess) {
+      fetchTransactions()
+    }
+  }, [fetchTransactions, permLoading, hasReportsAccess])
 
   useEffect(() => {
-    fetchStats()
-  }, [fetchStats])
+    if (!permLoading && hasReportsAccess) {
+      fetchStats()
+    }
+  }, [fetchStats, permLoading, hasReportsAccess])
 
   useEffect(() => {
-    fetchSettings()
-  }, [fetchSettings])
+    if (!permLoading && hasSettingsAccess) {
+      fetchSettings()
+    }
+  }, [fetchSettings, permLoading, hasSettingsAccess])
+
+  useEffect(() => {
+    if (!permLoading && !hasReportsAccess && hasSettingsAccess) {
+      setShowSettingsModal(true)
+    }
+  }, [permLoading, hasReportsAccess, hasSettingsAccess])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !permLoading) {
+      const checkParams = () => {
+        const urlParams = new URLSearchParams(window.location.search)
+        if (urlParams.get('settings') === 'true') {
+          if (hasSettingsAccess) {
+            setShowSettingsModal(true)
+          } else {
+            toast.error(getText('Access denied: You do not have permission for Bank Settings', 'መዳረሻ ተከልክሏል፡ ለባንክ ቅንብሮች ፈቃድ የለዎትም'))
+            window.history.replaceState({}, '', window.location.pathname)
+          }
+        }
+      }
+      checkParams()
+      window.addEventListener('popstate', checkParams)
+      return () => window.removeEventListener('popstate', checkParams)
+    }
+  }, [permLoading, hasSettingsAccess, getText])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -560,12 +600,19 @@ export default function BankReportsPage() {
       })
       setSettings(res.data)
       toast.success(getText('Bank settings saved successfully', 'የባንክ ቅንብሮች በተሳካ ሁኔታ ተቀምጠዋል'))
-      setShowSettingsModal(false)
+      closeSettingsModal()
       fetchStats()
     } catch (err: any) {
       toast.error(err.response?.data?.message || getText('Failed to save settings', 'ቅንብሮችን ማስቀመጥ አልተሳካም'))
     } finally {
       setSavingSettings(false)
+    }
+  }
+
+  const closeSettingsModal = () => {
+    setShowSettingsModal(false)
+    if (typeof window !== 'undefined' && window.location.search.includes('settings=true')) {
+      window.history.replaceState({}, '', window.location.pathname)
     }
   }
 
@@ -1045,42 +1092,48 @@ export default function BankReportsPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowImportModal(true)}
-                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition shadow flex items-center gap-2"
-                >
-                  <PlusCircleIcon className="w-5 h-5" />
-                  <span>{getText('Quick SMS Import', 'ኤስኤምኤስ አስገባ')}</span>
-                </button>
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setShowImportModal(true)}
+                    className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition shadow flex items-center gap-2"
+                  >
+                    <PlusCircleIcon className="w-5 h-5" />
+                    <span>{getText('Quick SMS Import', 'ኤስኤምኤስ አስገባ')}</span>
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => setShowSettingsModal(true)}
-                  className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition border shadow-sm flex items-center gap-2 ${
-                    theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  <Cog6ToothIcon className="w-5 h-5" />
-                  <span>{getText('Bank Settings', 'የባንክ ቅንብሮች')}</span>
-                </button>
+                {hasSettingsAccess && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSettingsModal(true)}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition border shadow-sm flex items-center gap-2 ${
+                      theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    <Cog6ToothIcon className="w-5 h-5" />
+                    <span>{getText('Bank Settings', 'የባንክ ቅንብሮች')}</span>
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => { fetchTransactions(); fetchStats(); }}
-                  className={`p-2.5 rounded-xl transition border shadow-sm ${
-                    theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-700'
-                  }`}
-                  title={getText('Refresh', 'አድስ')}
-                >
-                  <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin text-blue-500' : ''}`} />
-                </button>
+                {hasReportsAccess && (
+                  <button
+                    type="button"
+                    onClick={() => { fetchTransactions(); fetchStats(); }}
+                    className={`p-2.5 rounded-xl transition border shadow-sm ${
+                      theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-700'
+                    }`}
+                    title={getText('Refresh', 'አድስ')}
+                  >
+                    <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin text-blue-500' : ''}`} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
           {/* Quick Config Alert if accounts not configured */}
-          {(!settings.cbeAccount && !settings.awashAccount) && (
+          {hasSettingsAccess && (!settings.cbeAccount && !settings.awashAccount) && (
             <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${
               theme === 'dark' ? 'bg-amber-950/40 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'
             }`}>
@@ -1103,7 +1156,32 @@ export default function BankReportsPage() {
             </div>
           )}
 
-          {/* Stats KPI Cards */}
+          {/* If user only has permission for bank settings and not transaction reports */}
+          {!hasReportsAccess && hasSettingsAccess && (
+            <div className={`p-8 rounded-2xl border text-center my-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                <Cog6ToothIcon className="w-8 h-8" />
+              </div>
+              <h2 className="text-xl font-bold mb-2">{getText('Bank Settings Access', 'የባንክ ቅንብሮች መዳረሻ')}</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-5">
+                {getText(
+                  'You have permission to manage Bank Settings. Transaction Reports and records are restricted.',
+                  'የባንክ ቅንብሮችን ለማስተዳደር ፈቃድ አልዎት። የግብይት ሪፖርቶች ተገድበዋል።'
+                )}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(true)}
+                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md transition"
+              >
+                {getText('Open Bank Settings', 'የባንክ ቅንብሮችን ክፈት')}
+              </button>
+            </div>
+          )}
+
+          {/* Stats KPI Cards & Transactions Table */}
+          {hasReportsAccess && (
+            <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Overview */}
             <div
@@ -1560,13 +1638,15 @@ export default function BankReportsPage() {
                 <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
                   {getText('Import SMS messages manually or configure the Android webhook forwarder.', 'ኤስኤምኤስ በእጅ ያስገቡ ወይም የአንድሮይድ አስተላላፊውን ያዘጋጁ።')}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setShowImportModal(true)}
-                  className="mt-4 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition"
-                >
-                  {getText('Import Sample or Real SMS', 'ኤስኤምኤስ አስገባ')}
-                </button>
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setShowImportModal(true)}
+                    className="mt-4 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition"
+                  >
+                    {getText('Import Sample or Real SMS', 'ኤስኤምኤስ አስገባ')}
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -2016,6 +2096,8 @@ export default function BankReportsPage() {
               </>
             )}
           </div>
+          </>
+          )}
         </div>
       </div>
 
@@ -2034,7 +2116,7 @@ export default function BankReportsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setShowSettingsModal(false)}
+                onClick={closeSettingsModal}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 flex-shrink-0"
               >
                 ✕
@@ -2240,7 +2322,7 @@ export default function BankReportsPage() {
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
               <button
                 type="button"
-                onClick={() => setShowSettingsModal(false)}
+                onClick={closeSettingsModal}
                 className={`w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold text-center ${
                   theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
                 }`}
@@ -2261,7 +2343,7 @@ export default function BankReportsPage() {
       )}
 
       {/* MODAL 2: Quick SMS Paste / Import */}
-      {showImportModal && (
+      {showImportModal && isSuperAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className={`w-full max-w-2xl rounded-2xl shadow-2xl border p-3.5 sm:p-6 max-h-[94vh] sm:max-h-[90vh] overflow-y-auto ${
             theme === 'dark' ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'

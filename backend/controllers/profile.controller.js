@@ -129,6 +129,7 @@ const changePassword = async (req, res) => {
 
     user.password = newPassword;
     user.plainPassword = newPassword;
+    user.mustChangePassword = false;
     await user.save();
     await logActivity(req.user, 'Password Changed', 'Profile', `${user.name} changed their password`);
     res.json({ message: 'Password changed successfully' });

@@ -1,5 +1,5 @@
 const express = require('express');
-const { register, login, getMe, forgotPassword, verifyOTP, resetPassword } = require('../controllers/auth.controller');
+const { register, login, getMe, forgotPassword, verifyOTP, resetPassword, forceChangePassword } = require('../controllers/auth.controller');
 const auth = require('../middleware/auth.middleware');
 const Student = require('../models/Student.model');
 const Teacher = require('../models/Teacher.model');
@@ -189,5 +189,6 @@ router.get('/me', auth, getMe);
 router.post('/forgot-password', forgotPassword);
 router.post('/verify-otp', verifyOTP);
 router.post('/reset-password', resetPassword);
+router.post('/force-change-password', auth, forceChangePassword);
 
 module.exports = router;

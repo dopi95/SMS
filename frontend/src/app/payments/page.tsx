@@ -1,7 +1,8 @@
 
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/DashboardLayout'
 import { useSettings } from '@/contexts/SettingsContext'
 import { usePermissions } from '@/contexts/PermissionsContext'
@@ -130,6 +131,23 @@ export default function PaymentsPage() {
   const { theme, getText, language } = useSettings()
   const { role, canDo } = usePermissions()
   const canManagePayments = canDo('payments', 'add') || canDo('payments', 'delete')
+  const router = useRouter()
+  const [showActionsDropdown, setShowActionsDropdown] = useState(false)
+  const actionsDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionsDropdownRef.current && !actionsDropdownRef.current.contains(e.target as Node)) {
+        setShowActionsDropdown(false)
+      }
+    }
+    if (showActionsDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showActionsDropdown])
   const [students, setStudents] = useState<Student[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [allPayments, setAllPayments] = useState<Payment[]>([])
@@ -1818,362 +1836,312 @@ export default function PaymentsPage() {
                     {getText('Manage student monthly payments', 'የተማሪዎች ወርሃዊ ክፍያዎችን ያስተዳድሩ')}
                   </p>
                 </div>
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
                   {canManagePayments && selectedMonth !== 'all' && selectedStudents.length > 0 && (
                     <button
                       onClick={() => setShowBulkPaymentModal(true)}
-                      className="w-full md:w-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
+                      className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 text-sm"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <span>{getText(`Mark ${selectedStudents.length} as Paid`, `${selectedStudents.length} እንደ ተከፍሏል ምልክት አድርግ`)}</span>
+                      <span>{getText(`Mark ${selectedStudents.length} as Paid`, `${selectedStudents.length} እንደ ተከፍሏል`)}</span>
                     </button>
                   )}
                   {canManagePayments && selectedMonth !== 'all' && selectedPaidStudents.length > 0 && (
                     <button
                       onClick={handleBulkUnpaid}
-                      className="w-full md:w-auto bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
+                      className="w-full sm:w-auto bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 text-sm"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
-                      <span>{getText(`Mark ${selectedPaidStudents.length} as Unpaid`, `${selectedPaidStudents.length} እንደ ያልተከፈለ ምልክት አድርግ`)}</span>
+                      <span>{getText(`Mark ${selectedPaidStudents.length} as Unpaid`, `${selectedPaidStudents.length} እንደ ያልተከፈለ`)}</span>
                     </button>
                   )}
-                  <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-3 w-full md:w-auto">
+
+                  {/* Actions Dropdown Button */}
+                  <div className="relative" ref={actionsDropdownRef}>
                     <button
-                      onClick={generateAnnualPaymentReportPDF}
-                      disabled={generatingReport}
-                      className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap disabled:opacity-60"
-                      title={getText('Generate Annual Payment Report (10 Months Table)', 'ዓመታዊ የክፍያ ሪፖርት አውጣ (የ10 ወራት ሠንጠረዥ)')}
+                      type="button"
+                      onClick={() => setShowActionsDropdown(prev => !prev)}
+                      className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 select-none"
                     >
-                      {generatingReport ? (
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      )}
-                      <span className="text-sm md:text-base font-semibold">{getText('Generate Payment Report', 'የክፍያ ሪፖርት አውጣ')}</span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                      <span>{getText('Actions', 'ተግባራት')}</span>
+                      <svg className={`w-4 h-4 transition-transform duration-200 ${showActionsDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
                     </button>
 
-                    {canManagePayments && (
-                      <button
-                        onClick={() => setShowImportModal(true)}
-                        className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
-                        title={getText('Import Payments from Excel or PDF', 'ክፍያዎችን ከ Excel ወይም PDF አስገባ')}
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        </svg>
-                        <span className="text-sm md:text-base font-semibold">{getText('Import Payments', 'ክፍያዎችን አስገባ')}</span>
-                      </button>
-                    )}
+                    {/* Actions Dropdown Menu */}
+                    {showActionsDropdown && (
+                      <div className={`absolute left-0 sm:left-auto sm:right-0 mt-2 w-60 max-w-[calc(100vw-2rem)] rounded-xl shadow-2xl border py-1.5 z-30 animate-in fade-in slide-in-from-top-2 duration-150 divide-y divide-gray-100 dark:divide-gray-700/60 ${
+                        theme === 'dark' ? 'bg-gray-800 border-gray-700 text-gray-200' : 'bg-white border-gray-200 text-gray-800'
+                      }`}>
+                        <div className="py-1">
+                          {/* 1. Custom Payment */}
+                          {canDo('custom-payment', 'view') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowActionsDropdown(false)
+                                router.push('/payments/custom')
+                              }}
+                              className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 flex items-center gap-2.5 text-purple-600 dark:text-purple-400 transition-colors"
+                            >
+                              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span>{getText('Custom Payment', 'ልዩ ክፍያ')}</span>
+                            </button>
+                          )}
 
-                    <div className="relative w-full sm:w-auto">
-                      <button
-                        onClick={() => setShowExportMenu(!showExportMenu)}
-                        className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span className="text-sm md:text-base">{getText('Export', 'ወደ ውጭ አውጣ')}</span>
-                        <svg className={`w-4 h-4 ml-0.5 transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
+                          {/* 2. Generate Annual Payment Report */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowActionsDropdown(false)
+                              generateAnnualPaymentReportPDF()
+                            }}
+                            disabled={generatingReport}
+                            className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-emerald-50 dark:hover:bg-emerald-900/30 flex items-center gap-2.5 text-emerald-600 dark:text-emerald-400 transition-colors disabled:opacity-50"
+                          >
+                            {generatingReport ? (
+                              <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin shrink-0"></div>
+                            ) : (
+                              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            )}
+                            <span>{getText('Payment Report (PDF)', 'የክፍያ ሪፖርት (PDF)')}</span>
+                          </button>
 
-                      {showExportMenu && (
-                        <>
-                          {/* Desktop click-away backdrop */}
-                          <div
-                            className="hidden md:block fixed inset-0 z-40"
-                            onClick={() => setShowExportMenu(false)}
-                          />
+                          {/* 3. Export Reports */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowActionsDropdown(false)
+                              setShowExportMenu(true)
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/30 flex items-center gap-2.5 text-green-600 dark:text-green-400 transition-colors"
+                          >
+                            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>{getText('Export Reports', 'ሪፖርቶችን አውጣ')}</span>
+                          </button>
 
-                          {/* Desktop Dropdown */}
-                          <div className={`hidden md:block absolute right-0 mt-2 w-72 rounded-xl shadow-2xl z-50 overflow-hidden border ${theme === 'dark' ? 'bg-gray-800 border-gray-700 divide-y divide-gray-700' : 'bg-white border-gray-200 divide-y divide-gray-100'}`}>
-                            {/* PDF Options */}
-                            <div className="p-2">
-                              <p className={`px-3 py-1 text-xs font-semibold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {getText('PDF Reports', 'የፒዲኤፍ ሪፖርቶች')}
-                              </p>
-                              <button
-                                onClick={() => exportToPDF('paid')}
-                                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-green-50 text-gray-700'}`}
-                              >
-                                <div className="w-2.5 h-2.5 bg-green-500 rounded-full flex-shrink-0"></div>
-                                <span className="font-medium truncate">{getText('Export Paid Students (PDF)', 'የተከፈለ ተማሪዎች (PDF)')}</span>
-                              </button>
-                              <button
-                                onClick={() => exportToPDF('unpaid')}
-                                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-red-50 text-gray-700'}`}
-                              >
-                                <div className="w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0"></div>
-                                <span className="font-medium truncate">{getText('Export Unpaid Students (PDF)', 'ያልተከፈለ ተማሪዎች (PDF)')}</span>
-                              </button>
-                              <button
-                                onClick={() => exportToPDF('paid_but_left')}
-                                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-amber-50 text-gray-700'}`}
-                              >
-                                <div className="w-2.5 h-2.5 bg-amber-500 rounded-full flex-shrink-0"></div>
-                                <span className="font-medium truncate">{getText('Export Paid but Left (PDF)', 'ተከፍሎ የቀረበት (PDF)')}</span>
-                              </button>
-                              <button
-                                onClick={() => exportToPDF('all')}
-                                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-blue-50 text-gray-700'}`}
-                              >
-                                <div className="w-2.5 h-2.5 bg-blue-500 rounded-full flex-shrink-0"></div>
-                                <span className="font-medium truncate">{getText('Export All Students (PDF)', 'ሁሉንም ተማሪዎች (PDF)')}</span>
-                              </button>
-                            </div>
-
-                            {/* Excel / CSV Options */}
-                            <div className="p-2">
-                              <p className={`px-3 py-1 text-xs font-semibold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {getText('Excel (CSV) Export', 'ኤክሴል (CSV) አውጣ')}
-                              </p>
-                              <button
-                                onClick={() => exportToExcel('paid')}
-                                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-green-50 text-gray-700'}`}
-                              >
-                                <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full flex-shrink-0"></div>
-                                <span className="font-medium truncate">{getText('Export Paid (Excel)', 'የተከፈለ (Excel)')}</span>
-                              </button>
-                              <button
-                                onClick={() => exportToExcel('unpaid')}
-                                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-red-50 text-gray-700'}`}
-                              >
-                                <div className="w-2.5 h-2.5 bg-rose-600 rounded-full flex-shrink-0"></div>
-                                <span className="font-medium truncate">{getText('Export Unpaid (Excel)', 'ያልተከፈለ (Excel)')}</span>
-                              </button>
-                              <button
-                                onClick={() => exportToExcel('paid_but_left')}
-                                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-amber-50 text-gray-700'}`}
-                              >
-                                <div className="w-2.5 h-2.5 bg-amber-600 rounded-full flex-shrink-0"></div>
-                                <span className="font-medium truncate">{getText('Export Paid but Left (Excel)', 'ተከፍሎ የቀረበት (Excel)')}</span>
-                              </button>
-                              <button
-                                onClick={() => exportToExcel('all')}
-                                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 transition-colors text-sm ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-blue-50 text-gray-700'}`}
-                              >
-                                <div className="w-2.5 h-2.5 bg-sky-600 rounded-full flex-shrink-0"></div>
-                                <span className="font-medium truncate">{getText('Export All (Excel)', 'ሁሉንም (Excel)')}</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Mobile Bottom Sheet Modal */}
-                          <div className="md:hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-                            {/* Backdrop */}
-                            <div
-                              className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
-                              onClick={() => setShowExportMenu(false)}
-                            />
-
-                            {/* Bottom Sheet Card */}
-                            <div className={`relative w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl z-10 max-h-[85vh] overflow-y-auto border-t sm:border p-4 pb-6 sm:p-6 transition-all ${
-                              theme === 'dark' ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
-                            }`}>
-                              {/* Grab bar */}
-                              <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-3 sm:hidden" />
-
-                              {/* Header */}
-                              <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-200 dark:border-gray-700">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                  </div>
-                                  <div>
-                                    <h3 className="font-bold text-base">{getText('Export Options', 'የሪፖርት አማራጮች')}</h3>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">{getText('Select format and student status', 'ቅርጸት እና የተማሪ ሁኔታ ይምረጡ')}</p>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => setShowExportMenu(false)}
-                                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                  aria-label="Close"
-                                >
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              </div>
-
-                              {/* PDF Options */}
-                              <div className="mb-4">
-                                <p className="px-1 py-1 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mb-2">
-                                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                                  {getText('PDF Reports', 'የፒዲኤፍ ሪፖርቶች')}
-                                </p>
-                                <div className="space-y-2">
-                                  <button
-                                    onClick={() => exportToPDF('paid')}
-                                    className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
-                                      theme === 'dark'
-                                        ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
-                                        : 'bg-green-50/60 hover:bg-green-50 border-green-200/80 text-gray-800 active:bg-green-100'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
-                                      <span className="font-medium text-sm break-words">{getText('Export Paid Students (PDF)', 'የተከፈለ ተማሪዎች (PDF)')}</span>
-                                    </div>
-                                    <span className="text-xs px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300 font-bold flex-shrink-0 ml-2">PDF</span>
-                                  </button>
-
-                                  <button
-                                    onClick={() => exportToPDF('unpaid')}
-                                    className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
-                                      theme === 'dark'
-                                        ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
-                                        : 'bg-red-50/60 hover:bg-red-50 border-red-200/80 text-gray-800 active:bg-red-100'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-3 h-3 bg-red-500 rounded-full flex-shrink-0"></div>
-                                      <span className="font-medium text-sm break-words">{getText('Export Unpaid Students (PDF)', 'ያልተከፈለ ተማሪዎች (PDF)')}</span>
-                                    </div>
-                                    <span className="text-xs px-2 py-0.5 rounded-md bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 font-bold flex-shrink-0 ml-2">PDF</span>
-                                  </button>
-
-                                  <button
-                                    onClick={() => exportToPDF('paid_but_left')}
-                                    className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
-                                      theme === 'dark'
-                                        ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
-                                        : 'bg-amber-50/60 hover:bg-amber-50 border-amber-200/80 text-gray-800 active:bg-amber-100'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-3 h-3 bg-amber-500 rounded-full flex-shrink-0"></div>
-                                      <span className="font-medium text-sm break-words">{getText('Export Paid but Left (PDF)', 'ተከፍሎ የቀረበት (PDF)')}</span>
-                                    </div>
-                                    <span className="text-xs px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold flex-shrink-0 ml-2">PDF</span>
-                                  </button>
-
-                                  <button
-                                    onClick={() => exportToPDF('all')}
-                                    className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
-                                      theme === 'dark'
-                                        ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
-                                        : 'bg-blue-50/60 hover:bg-blue-50 border-blue-200/80 text-gray-800 active:bg-blue-100'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></div>
-                                      <span className="font-medium text-sm break-words">{getText('Export All Students (PDF)', 'ሁሉንም ተማሪዎች (PDF)')}</span>
-                                    </div>
-                                    <span className="text-xs px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold flex-shrink-0 ml-2">PDF</span>
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Excel / CSV Options */}
-                              <div className="mb-4">
-                                <p className="px-1 py-1 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mb-2">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                  {getText('Excel (CSV) Export', 'ኤክሴል (CSV) አውጣ')}
-                                </p>
-                                <div className="space-y-2">
-                                  <button
-                                    onClick={() => exportToExcel('paid')}
-                                    className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
-                                      theme === 'dark'
-                                        ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
-                                        : 'bg-emerald-50/60 hover:bg-emerald-50 border-emerald-200/80 text-gray-800 active:bg-emerald-100'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-3 h-3 bg-emerald-600 rounded-full flex-shrink-0"></div>
-                                      <span className="font-medium text-sm break-words">{getText('Export Paid (Excel)', 'የተከፈለ (Excel)')}</span>
-                                    </div>
-                                    <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold flex-shrink-0 ml-2">CSV</span>
-                                  </button>
-
-                                  <button
-                                    onClick={() => exportToExcel('unpaid')}
-                                    className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
-                                      theme === 'dark'
-                                        ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
-                                        : 'bg-rose-50/60 hover:bg-rose-50 border-rose-200/80 text-gray-800 active:bg-rose-100'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-3 h-3 bg-rose-600 rounded-full flex-shrink-0"></div>
-                                      <span className="font-medium text-sm break-words">{getText('Export Unpaid (Excel)', 'ያልተከፈለ (Excel)')}</span>
-                                    </div>
-                                    <span className="text-xs px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-bold flex-shrink-0 ml-2">CSV</span>
-                                  </button>
-
-                                  <button
-                                    onClick={() => exportToExcel('paid_but_left')}
-                                    className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
-                                      theme === 'dark'
-                                        ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
-                                        : 'bg-amber-50/60 hover:bg-amber-50 border-amber-200/80 text-gray-800 active:bg-amber-100'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-3 h-3 bg-amber-600 rounded-full flex-shrink-0"></div>
-                                      <span className="font-medium text-sm break-words">{getText('Export Paid but Left (Excel)', 'ተከፍሎ የቀረበት (Excel)')}</span>
-                                    </div>
-                                    <span className="text-xs px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold flex-shrink-0 ml-2">CSV</span>
-                                  </button>
-
-                                  <button
-                                    onClick={() => exportToExcel('all')}
-                                    className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
-                                      theme === 'dark'
-                                        ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
-                                        : 'bg-sky-50/60 hover:bg-sky-50 border-sky-200/80 text-gray-800 active:bg-sky-100'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-3 h-3 bg-sky-600 rounded-full flex-shrink-0"></div>
-                                      <span className="font-medium text-sm break-words">{getText('Export All (Excel)', 'ሁሉንም (Excel)')}</span>
-                                    </div>
-                                    <span className="text-xs px-2 py-0.5 rounded-md bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-bold flex-shrink-0 ml-2">CSV</span>
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Cancel Button */}
-                              <button
-                                onClick={() => setShowExportMenu(false)}
-                                className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors border text-center ${
-                                  theme === 'dark'
-                                    ? 'bg-gray-700 hover:bg-gray-600 border-gray-600 text-gray-200'
-                                    : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700'
-                                }`}
-                              >
-                                {getText('Cancel', 'ይቅር')}
-                              </button>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    {canDo('custom-payment', 'view') && (
-                    <a
-                      href="/payments/custom"
-                      className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 whitespace-nowrap"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span className="text-sm md:text-base">{getText('Custom Payment', 'ልዩ ክፍያ')}</span>
-                    </a>
+                          {/* 4. Import Payments */}
+                          {canManagePayments && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowActionsDropdown(false)
+                                setShowImportModal(true)
+                              }}
+                              className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/30 flex items-center gap-2.5 text-indigo-600 dark:text-indigo-400 transition-colors"
+                            >
+                              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                              </svg>
+                              <span>{getText('Import Payments', 'ክፍያዎችን አስገባ')}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Export Reports Modal */}
+            {showExportMenu && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div
+                  className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+                  onClick={() => setShowExportMenu(false)}
+                />
+                <div className={`relative w-full max-w-lg rounded-2xl shadow-2xl z-10 max-h-[85vh] overflow-y-auto border p-5 sm:p-6 transition-all ${
+                  theme === 'dark' ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
+                }`}>
+                  <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-base">{getText('Export Options', 'የሪፖርት አማራጮች')}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{getText('Select format and student status', 'ቅርጸት እና የተማሪ ሁኔታ ይምረጡ')}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowExportMenu(false)}
+                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      aria-label="Close"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* PDF Options */}
+                  <div className="mb-4">
+                    <p className="px-1 py-1 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mb-2">
+                      <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                      {getText('PDF Reports', 'የፒዲኤፍ ሪፖርቶች')}
+                    </p>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => { setShowExportMenu(false); exportToPDF('paid'); }}
+                        className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
+                          theme === 'dark'
+                            ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
+                            : 'bg-green-50/60 hover:bg-green-50 border-green-200/80 text-gray-800 active:bg-green-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
+                          <span className="font-medium text-sm break-words">{getText('Export Paid Students (PDF)', 'የተከፈለ ተማሪዎች (PDF)')}</span>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300 font-bold flex-shrink-0 ml-2">PDF</span>
+                      </button>
+
+                      <button
+                        onClick={() => { setShowExportMenu(false); exportToPDF('unpaid'); }}
+                        className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
+                          theme === 'dark'
+                            ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
+                            : 'bg-red-50/60 hover:bg-red-50 border-red-200/80 text-gray-800 active:bg-red-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-3 h-3 bg-red-500 rounded-full flex-shrink-0"></div>
+                          <span className="font-medium text-sm break-words">{getText('Export Unpaid Students (PDF)', 'ያልተከፈለ ተማሪዎች (PDF)')}</span>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 font-bold flex-shrink-0 ml-2">PDF</span>
+                      </button>
+
+                      <button
+                        onClick={() => { setShowExportMenu(false); exportToPDF('paid_but_left'); }}
+                        className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
+                          theme === 'dark'
+                            ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
+                            : 'bg-amber-50/60 hover:bg-amber-50 border-amber-200/80 text-gray-800 active:bg-amber-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-3 h-3 bg-amber-500 rounded-full flex-shrink-0"></div>
+                          <span className="font-medium text-sm break-words">{getText('Export Paid but Left (PDF)', 'ተከፍሎ የቀረበት (PDF)')}</span>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold flex-shrink-0 ml-2">PDF</span>
+                      </button>
+
+                      <button
+                        onClick={() => { setShowExportMenu(false); exportToPDF('all'); }}
+                        className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
+                          theme === 'dark'
+                            ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
+                            : 'bg-blue-50/60 hover:bg-blue-50 border-blue-200/80 text-gray-800 active:bg-blue-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></div>
+                          <span className="font-medium text-sm break-words">{getText('Export All Students (PDF)', 'ሁሉንም ተማሪዎች (PDF)')}</span>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold flex-shrink-0 ml-2">PDF</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Excel / CSV Options */}
+                  <div className="mb-4">
+                    <p className="px-1 py-1 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mb-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      {getText('Excel (CSV) Export', 'ኤክሴል (CSV) አውጣ')}
+                    </p>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => { setShowExportMenu(false); exportToExcel('paid'); }}
+                        className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
+                          theme === 'dark'
+                            ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
+                            : 'bg-emerald-50/60 hover:bg-emerald-50 border-emerald-200/80 text-gray-800 active:bg-emerald-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-3 h-3 bg-emerald-600 rounded-full flex-shrink-0"></div>
+                          <span className="font-medium text-sm break-words">{getText('Export Paid (Excel)', 'የተከፈለ (Excel)')}</span>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold flex-shrink-0 ml-2">CSV</span>
+                      </button>
+
+                      <button
+                        onClick={() => { setShowExportMenu(false); exportToExcel('unpaid'); }}
+                        className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
+                          theme === 'dark'
+                            ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
+                            : 'bg-rose-50/60 hover:bg-rose-50 border-rose-200/80 text-gray-800 active:bg-rose-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-3 h-3 bg-rose-600 rounded-full flex-shrink-0"></div>
+                          <span className="font-medium text-sm break-words">{getText('Export Unpaid (Excel)', 'ያልተከፈለ (Excel)')}</span>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-bold flex-shrink-0 ml-2">CSV</span>
+                      </button>
+
+                      <button
+                        onClick={() => { setShowExportMenu(false); exportToExcel('paid_but_left'); }}
+                        className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
+                          theme === 'dark'
+                            ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
+                            : 'bg-amber-50/60 hover:bg-amber-50 border-amber-200/80 text-gray-800 active:bg-amber-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-3 h-3 bg-amber-600 rounded-full flex-shrink-0"></div>
+                          <span className="font-medium text-sm break-words">{getText('Export Paid but Left (Excel)', 'ተከፍሎ የቀረበት (Excel)')}</span>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold flex-shrink-0 ml-2">CSV</span>
+                      </button>
+
+                      <button
+                        onClick={() => { setShowExportMenu(false); exportToExcel('all'); }}
+                        className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center justify-between transition-colors border ${
+                          theme === 'dark'
+                            ? 'bg-gray-700/50 hover:bg-gray-700 border-gray-700 text-gray-100 active:bg-gray-600'
+                            : 'bg-sky-50/60 hover:bg-sky-50 border-sky-200/80 text-gray-800 active:bg-sky-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-3 h-3 bg-sky-600 rounded-full flex-shrink-0"></div>
+                          <span className="font-medium text-sm break-words">{getText('Export All (Excel)', 'ሁሉንም (Excel)')}</span>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-bold flex-shrink-0 ml-2">CSV</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowExportMenu(false)}
+                    className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-colors border text-center ${
+                      theme === 'dark'
+                        ? 'bg-gray-700 hover:bg-gray-600 border-gray-600 text-gray-200'
+                        : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700'
+                    }`}
+                  >
+                    {getText('Close', 'ዝጋ')}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className={`px-6 py-4 border-b ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
               <div className="flex flex-col gap-4">

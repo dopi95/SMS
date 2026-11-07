@@ -27,7 +27,8 @@ const register = async (req, res) => {
         role: user.role,
         permissions: user.permissions || [],
         profilePhoto: user.profilePhoto,
-        phone: user.phone
+        phone: user.phone,
+        mustChangePassword: !!user.mustChangePassword
       }
     });
   } catch (error) {
@@ -55,7 +56,8 @@ const login = async (req, res) => {
         role: user.role,
         permissions: user.permissions || [],
         profilePhoto: user.profilePhoto,
-        phone: user.phone
+        phone: user.phone,
+        mustChangePassword: !!user.mustChangePassword
       }
     });
   } catch (error) {
@@ -72,7 +74,8 @@ const getMe = (req, res) => {
       role: req.user.role,
       permissions: req.user.permissions || [],
       profilePhoto: req.user.profilePhoto,
-      phone: req.user.phone
+      phone: req.user.phone,
+      mustChangePassword: !!req.user.mustChangePassword
     }
   });
 };
@@ -219,4 +222,40 @@ const resetPassword = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe, forgotPassword, verifyOTP, resetPassword };
+const forceChangePassword = async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.password = newPassword;
+    user.plainPassword = newPassword;
+    user.mustChangePassword = false;
+    await user.save();
+
+    res.json({
+      message: 'Password changed successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        permissions: user.permissions || [],
+        profilePhoto: user.profilePhoto,
+        phone: user.phone,
+        mustChangePassword: false
+      }
+    });
+  } catch (error) {
+    console.error('[forceChangePassword]', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+};
+
+module.exports = { register, login, getMe, forgotPassword, verifyOTP, resetPassword, forceChangePassword };

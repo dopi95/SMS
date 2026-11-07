@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -46,6 +46,22 @@ export default function EmployeesPage() {
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [showCredModal, setShowCredModal] = useState(false);
+  const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+  const actionsDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionsDropdownRef.current && !actionsDropdownRef.current.contains(e.target as Node)) {
+        setShowActionsDropdown(false);
+      }
+    };
+    if (showActionsDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showActionsDropdown]);
   const [credResults, setCredResults] = useState<{teacherId:string;name:string;role:string;username:string;password:string}[]>([]);
   const [generatingCreds, setGeneratingCreds] = useState(false);
   const [singleCredResult, setSingleCredResult] = useState<{teacherId:string;name:string;role:string;username:string;password:string}|null>(null);
@@ -383,53 +399,116 @@ export default function EmployeesPage() {
           <div className={`rounded-xl shadow-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             {/* Header */}
             <div className={`px-6 py-5 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{getText('Employees', 'ሰራተኞች')}</h1>
                   <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{getText('Manage employee information', 'የሰራተኞች መረጃ አስተዳድር')}</p>
                 </div>
-                <div className="flex flex-col gap-3">
-                  {/* Add Employee — full width on mobile, auto on sm+ */}
-                  {canDo('employees', 'add') && (
-                    <button onClick={() => router.push('/employees/add')}
-                      className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-md">
+                <div className="flex items-center gap-2.5">
+                  {/* Actions Dropdown */}
+                  <div className="relative" ref={actionsDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowActionsDropdown(prev => !prev)}
+                      className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 select-none"
+                    >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>{getText('Add Employee', 'ሰራተኛ መዝግብ')}</button>
-                  )}
-                  {/* Salary List button */}
-                  <button onClick={() => router.push('/employees/salary-list')}
-                    className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-md">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>{getText('Employee Salary List', 'የሰራተኞች ደመወዝ ዝርዝር')}</button>
-                  {/* Action buttons — 2-col grid on mobile, flex-wrap on sm+ */}
-                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
-                    {canDo('employees', 'add') && (
-                      <button onClick={() => setShowImportModal(true)}
-                        className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm">
-                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>{getText('Import', 'አስገባ')}</button>
-                    )}
-                    <button onClick={exportToPDF}
-                      className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm">
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>{getText('Export PDF', 'ፒዲኤፍ አውርድ')}</button>
-                    {userRole === 'superadmin' && (
-                      <button onClick={handleGenerateAllCredentials} disabled={generatingCreds}
-                        className="bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm">
-                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                        </svg>{getText('Gen. Creds', 'ምስክርነት ፍጠር')}</button>
-                    )}
-                    {userRole === 'superadmin' && (
-                      <button onClick={handleDownloadCredentialsPDF}
-                        className="bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm">
-                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>{getText('Cred. PDF', 'የምስክርነት ፒዲኤፍ')}</button>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                      <span>{getText('Actions', 'ተግባራት')}</span>
+                      <svg className={`w-4 h-4 transition-transform duration-200 ${showActionsDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {showActionsDropdown && (
+                      <div className={`absolute left-0 sm:left-auto sm:right-0 mt-2 w-56 sm:w-60 max-w-[calc(100vw-2rem)] rounded-xl shadow-2xl border py-1.5 z-30 animate-in fade-in slide-in-from-top-2 duration-150 divide-y divide-gray-100 dark:divide-gray-700/60 ${
+                        theme === 'dark' ? 'bg-gray-800 border-gray-700 text-gray-200' : 'bg-white border-gray-200 text-gray-800'
+                      }`}>
+                        <div className="py-1">
+                          {/* 1. Add Employee */}
+                          {canDo('employees', 'add') && (
+                            <button
+                              type="button"
+                              onClick={() => { setShowActionsDropdown(false); router.push('/employees/add'); }}
+                              className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2.5 text-blue-600 dark:text-blue-400 transition-colors"
+                            >
+                              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                              <span>{getText('Add Employee', 'ሰራተኛ መዝግብ')}</span>
+                            </button>
+                          )}
+
+                          {/* 2. Employee Salary List */}
+                          <button
+                            type="button"
+                            onClick={() => { setShowActionsDropdown(false); router.push('/employees/salary-list'); }}
+                            className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 flex items-center gap-2.5 text-purple-600 dark:text-purple-400 transition-colors"
+                          >
+                            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>{getText('Employee Salary List', 'የሰራተኞች ደመወዝ ዝርዝር')}</span>
+                          </button>
+
+                          {/* 3. Export PDF */}
+                          <button
+                            type="button"
+                            onClick={() => { setShowActionsDropdown(false); exportToPDF(); }}
+                            className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/30 flex items-center gap-2.5 text-green-600 dark:text-green-400 transition-colors"
+                          >
+                            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>{getText('Export PDF', 'ፒዲኤፍ አውርድ')}</span>
+                          </button>
+
+                          {/* 4. Import */}
+                          {canDo('employees', 'add') && (
+                            <button
+                              type="button"
+                              onClick={() => { setShowActionsDropdown(false); setShowImportModal(true); }}
+                              className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/30 flex items-center gap-2.5 text-indigo-600 dark:text-indigo-400 transition-colors"
+                            >
+                              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                              </svg>
+                              <span>{getText('Import', 'አስገባ')}</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Superadmin Actions */}
+                        {userRole === 'superadmin' && (
+                          <div className="py-1">
+                            {/* 5. Gen. Credentials */}
+                            <button
+                              type="button"
+                              onClick={() => { setShowActionsDropdown(false); handleGenerateAllCredentials(); }}
+                              disabled={generatingCreds}
+                              className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/30 flex items-center gap-2.5 text-rose-600 dark:text-rose-400 transition-colors disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                              </svg>
+                              <span>{getText('Gen. Creds', 'ምስክርነት ፍጠር')}</span>
+                            </button>
+
+                            {/* 6. Cred. PDF */}
+                            <button
+                              type="button"
+                              onClick={() => { setShowActionsDropdown(false); handleDownloadCredentialsPDF(); }}
+                              className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700/60 flex items-center gap-2.5 text-gray-700 dark:text-gray-300 transition-colors"
+                            >
+                              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span>{getText('Cred. PDF', 'የምስክርነት ፒዲኤፍ')}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
