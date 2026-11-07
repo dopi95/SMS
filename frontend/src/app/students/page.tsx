@@ -1956,7 +1956,8 @@ export default function StudentsPage() {
                           onChange={(e) => setBulkSection(e.target.value)}
                           className={`flex-1 px-3 py-2 text-sm border rounded-md ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
                         >
-                          <option value="">{getText('Select Section', 'ክፍል ይምረጡ')}</option>
+                          <option value="">{getText('Select Section', 'ሴክሽን ይምረጡ')}</option>
+                          <option value="none">{getText('No Section (Reset)', 'ምንም ሴክሽን የለም (አጥፋ)')}</option>
                           <option value="A">{getText('Section A', 'ክፍል አ')}</option>
                           <option value="B">{getText('Section B', 'ክፍል ለ')}</option>
                           <option value="C">{getText('Section C', 'ክፍል ሐ')}</option>

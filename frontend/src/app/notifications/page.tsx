@@ -77,6 +77,8 @@ interface FailedRecipient {
   error?: string
 }
 
+type PhoneFilter = 'all_unique' | 'all' | 'mothers' | 'fathers'
+
 interface NotificationHistory {
   _id: string
   title: string
@@ -104,6 +106,7 @@ export default function NotificationsPage() {
   const [studentTypeFilter, setStudentTypeFilter] = useState<'all' | 'regular' | 'special'>('all')
   const [siblingFilter, setSiblingFilter] = useState<'all' | 'siblings' | 'non_siblings'>('all')
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid' | 'paid_but_left'>('all')
+  const [phoneFilter, setPhoneFilter] = useState<PhoneFilter>('all_unique')
   const [paymentFinancials, setPaymentFinancials] = useState<Record<string, { paidAmount: number; expectedFee: number; leftAmount: number }> | null>(null)
   const currentEcMonth = getCurrentEthiopianAcademicMonth()
   const currentEcYear = getCurrentEthiopianYear()
@@ -144,6 +147,7 @@ export default function NotificationsPage() {
     { label: 'Payment Code', value: '{{paymentCode}}', amharic: 'የክፍያ ኮድ' },
     { label: 'Father Name', value: '{{fatherName}}', amharic: 'የአባት ስም' },
     { label: 'Mother Name', value: '{{motherName}}', amharic: 'የእናት ስም' },
+    { label: 'Parent Name', value: '{{parentName}}', amharic: 'የወላጅ ስም' },
     { label: 'Left Amount', value: '{{leftAmount}}', amharic: 'ቀሪ ሂሳብ' },
     { label: 'Paid Amount', value: '{{paidAmount}}', amharic: 'የተከፈለ መጠን' },
     { label: 'Payment Month', value: '{{paymentMonth}}', amharic: 'የክፍያ ወር' },
@@ -377,25 +381,100 @@ export default function NotificationsPage() {
     }
   }
 
-  const getPhoneContacts = (student: Student): PhoneContact[] => {
+  const normalizePhoneNumber = (phone?: string | null): string => {
+    if (!phone) return ''
+    let cleaned = phone.trim().replace(/[\s\-\(\)\.]/g, '')
+    if (cleaned.startsWith('+251')) {
+      cleaned = '0' + cleaned.slice(4)
+    } else if (cleaned.startsWith('251')) {
+      cleaned = '0' + cleaned.slice(3)
+    } else if (cleaned.length === 9 && (cleaned.startsWith('9') || cleaned.startsWith('7'))) {
+      cleaned = '0' + cleaned
+    }
+    return cleaned
+  }
+
+  const getPhoneContacts = (student: Student, filter: PhoneFilter = phoneFilter): PhoneContact[] => {
     const contacts: PhoneContact[] = []
     
-    if (student.fatherPhone && student.fatherPhone.trim() !== '') {
+    const rawFatherPhone = student.fatherPhone?.trim() || ''
+    const rawMotherPhone = student.motherPhone?.trim() || ''
+    const hasFather = Boolean(rawFatherPhone !== '')
+    const hasMother = Boolean(rawMotherPhone !== '')
+
+    if (!hasFather && !hasMother) return contacts
+
+    const normFather = normalizePhoneNumber(rawFatherPhone)
+    const normMother = normalizePhoneNumber(rawMotherPhone)
+    const isSamePhone = hasFather && hasMother && normFather !== '' && normFather === normMother
+
+    if (filter === 'mothers') {
+      if (hasMother) {
+        contacts.push({
+          name: student.motherName || 'Mother',
+          phone: rawMotherPhone,
+          relation: 'Mother'
+        })
+      }
+      return contacts
+    }
+
+    if (filter === 'fathers') {
+      if (hasFather) {
+        contacts.push({
+          name: student.fatherName || 'Father',
+          phone: rawFatherPhone,
+          relation: 'Father'
+        })
+      }
+      return contacts
+    }
+
+    if (filter === 'all_unique') {
+      if (isSamePhone) {
+        const parentName = student.fatherName && student.motherName
+          ? `${student.fatherName} / ${student.motherName}`
+          : (student.fatherName || student.motherName || 'Parents')
+        contacts.push({
+          name: parentName,
+          phone: rawFatherPhone || rawMotherPhone,
+          relation: 'Both Parents'
+        })
+        return contacts
+      }
+
+      if (hasFather) {
+        contacts.push({
+          name: student.fatherName || 'Father',
+          phone: rawFatherPhone,
+          relation: 'Father'
+        })
+      }
+      if (hasMother) {
+        contacts.push({
+          name: student.motherName || 'Mother',
+          phone: rawMotherPhone,
+          relation: 'Mother'
+        })
+      }
+      return contacts
+    }
+
+    // filter === 'all'
+    if (hasFather) {
       contacts.push({
         name: student.fatherName || 'Father',
-        phone: student.fatherPhone,
+        phone: rawFatherPhone,
         relation: 'Father'
       })
     }
-    
-    if (student.motherPhone && student.motherPhone.trim() !== '') {
+    if (hasMother) {
       contacts.push({
         name: student.motherName || 'Mother',
-        phone: student.motherPhone,
+        phone: rawMotherPhone,
         relation: 'Mother'
       })
     }
-    
     return contacts
   }
 
@@ -606,11 +685,13 @@ export default function NotificationsPage() {
             .replace(/{{paymentMonth}}|{paymentMonth}/g, filterMonth || '')
           
           contacts.forEach(contact => {
+            const contactMessage = personalizedMessage
+              .replace(/{{parentName}}|{parentName}/g, contact.name || 'N/A')
             phoneNumbers.push({
               phone: contact.phone,
               studentName: getStudentDisplayName(student, language),
               parentName: contact.name,
-              message: personalizedMessage
+              message: contactMessage
             })
           })
         })
@@ -1005,7 +1086,7 @@ export default function NotificationsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
                     <select
                       value={classFilter}
                       onChange={(e) => setClassFilter(e.target.value)}
@@ -1059,8 +1140,21 @@ export default function NotificationsPage() {
                         <option value="paid_but_left">{getText('Paid but Left', 'ተከፍሎ የቀረበት')}</option>
                       </select>
                     </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <select
+                        value={phoneFilter}
+                        onChange={(e) => setPhoneFilter(e.target.value as PhoneFilter)}
+                        className={`w-full px-3 py-2.5 sm:px-4 sm:py-3 border rounded-xl text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                        title={getText('Phone Filter', 'የስልክ ቁጥር ማጣሪያ')}
+                      >
+                        <option value="all_unique">{getText('All (No Duplicates) • Default', 'ሁሉም (ያልተደገሙ ብቻ) • ነባሪ')}</option>
+                        <option value="all">{getText('All Phones (Both Parents)', 'ሁሉም ስልኮች (ሁለቱም ወላጆች)')}</option>
+                        <option value="mothers">{getText('Only Mothers', 'የእናቶች ስልክ ብቻ')}</option>
+                        <option value="fathers">{getText('Only Fathers', 'የአባቶች ስልክ ብቻ')}</option>
+                      </select>
+                    </div>
                     {paymentFilter === 'paid_but_left' && (
-                      <div className="col-span-2 sm:col-span-3 lg:col-span-5">
+                      <div className="col-span-2 sm:col-span-3 lg:col-span-6">
                         <button
                           type="button"
                           onClick={() => {
@@ -1365,8 +1459,18 @@ export default function NotificationsPage() {
                                       <div className="space-y-1">
                                         {contacts.map((contact, index) => (
                                           <div key={index} className="flex items-center gap-2">
-                                            <span className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                                              {contact.relation}
+                                            <span className={`text-xs px-2 py-1 rounded font-medium ${
+                                              contact.relation === 'Both Parents'
+                                                ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                                                : theme === 'dark' ? 'bg-gray-600 text-gray-200' : 'bg-gray-200 text-gray-800'
+                                            }`}>
+                                              {contact.relation === 'Both Parents'
+                                                ? getText('Both Parents', 'ሁለቱም ወላጆች')
+                                                : contact.relation === 'Mother'
+                                                  ? getText('Mother', 'እናት')
+                                                  : contact.relation === 'Father'
+                                                    ? getText('Father', 'አባት')
+                                                    : contact.relation}
                                             </span>
                                             <span className="font-medium">{contact.name}</span>
                                             <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
@@ -1476,9 +1580,17 @@ export default function NotificationsPage() {
                                         >
                                           <div className="min-w-0 flex items-center gap-2 flex-1 w-full sm:w-auto">
                                             <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md flex-shrink-0 ${
-                                              theme === 'dark' ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-700 border border-gray-200'
+                                              contact.relation === 'Both Parents'
+                                                ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                                                : theme === 'dark' ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-700 border border-gray-200'
                                             }`}>
-                                              {contact.relation}
+                                              {contact.relation === 'Both Parents'
+                                                ? getText('Both Parents', 'ሁለቱም ወላጆች')
+                                                : contact.relation === 'Mother'
+                                                  ? getText('Mother', 'እናት')
+                                                  : contact.relation === 'Father'
+                                                    ? getText('Father', 'አባት')
+                                                    : contact.relation}
                                             </span>
                                             <span className={`font-semibold text-xs sm:text-sm truncate ${theme === 'dark' ? 'text-gray-200' : 'text-gray-900'}`}>
                                               {contact.name}

@@ -143,6 +143,27 @@ export default function Dashboard() {
     return name
   }
 
+  const getClassOrder = (cls: string): number => {
+    const normalized = (cls || '').trim().toLowerCase()
+    if (normalized.includes('nursery')) return 1
+    if (normalized === 'lkg' || normalized.includes('lkg')) return 2
+    if (normalized === 'ukg' || normalized.includes('ukg')) return 3
+    const match = cls.match(/\d+/)
+    if (match) return 10 + parseInt(match[0], 10)
+    return 100
+  }
+
+  const sortClasses = (a: string, b: string) => {
+    const orderA = getClassOrder(a)
+    const orderB = getClassOrder(b)
+    if (orderA !== orderB) return orderA - orderB
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+  }
+
+  const sortSections = (a: string, b: string) => {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+  }
+
   const cardCls = `rounded-lg shadow-sm border p-6 transition-all duration-200 ${
     dk ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
   }`
@@ -327,7 +348,9 @@ export default function Dashboard() {
                       const total = Object.values(stats.classCounts).reduce((a, b) => a + b, 0);
                       let currentAngle = 0;
                       
-                      return Object.entries(stats.classCounts).map(([className, count], index) => {
+                      return Object.entries(stats.classCounts)
+                        .sort(([a], [b]) => sortClasses(a, b))
+                        .map(([className, count], index) => {
                         const percentage = (count / total) * 100;
                         const angle = (count / total) * 360;
                         const startAngle = currentAngle;
@@ -386,7 +409,9 @@ export default function Dashboard() {
                 
                 {/* Legend */}
                 <div className="grid grid-cols-2 gap-3 w-full">
-                  {Object.entries(stats.classCounts).map(([className, count], index) => {
+                  {Object.entries(stats.classCounts)
+                    .sort(([a], [b]) => sortClasses(a, b))
+                    .map(([className, count], index) => {
                     const colors = [
                       'bg-purple-600', 'bg-green-500', 'bg-yellow-500', 'bg-red-500',
                       'bg-indigo-500', 'bg-orange-500', 'bg-teal-500', 'bg-cyan-500',
@@ -453,7 +478,9 @@ export default function Dashboard() {
               {getText('All Active Students Class Statistics', 'የሁሉም ንቁ ተማሪዎች የክፍል ስታቲስቲክስ')}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Object.entries(stats.classDetails).map(([className, details]) => (
+              {Object.entries(stats.classDetails)
+                .sort(([a], [b]) => sortClasses(a, b))
+                .map(([className, details]) => (
                 <div key={className} className={`border rounded-lg p-4 ${dk ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-white'}`}>
                   <h3 className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-3">{formatClassName(className)}</h3>
                   
@@ -484,7 +511,9 @@ export default function Dashboard() {
                         {getText('Sections:', 'ሴክሽኖች፡')}
                       </h4>
                       <div className="space-y-3">
-                        {Object.entries(details.sections).map(([sectionName, sectionData]: [string, any]) => (
+                        {Object.entries(details.sections)
+                          .sort(([a], [b]) => sortSections(a, b))
+                          .map(([sectionName, sectionData]: [string, any]) => (
                           <div key={sectionName} className={`rounded p-3 ${dk ? 'bg-gray-800' : 'bg-gray-50'}`}>
                             <h5 className={`font-semibold mb-2 ${dk ? 'text-gray-200' : 'text-gray-800'}`}>
                               {getText('Section', 'ሴክሽን')} {sectionName}:

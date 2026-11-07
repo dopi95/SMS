@@ -13,7 +13,8 @@ import {
   ETHIOPIAN_ACADEMIC_MONTHS,
   getCurrentEthiopianAcademicMonth,
   getCurrentEthiopianYear,
-  calculateMonthlyFeePenalty
+  calculateMonthlyFeePenalty,
+  formatDateWithBothCalendars
 } from '@/utils/dateUtils';
 
 interface Student {
@@ -393,50 +394,15 @@ export default function ViewStudentPage() {
   const hasSiblings = siblings.length > 0;
   const totalSiblingsInFamily = hasSiblings ? siblings.length + 1 : 1;
 
-  // Active sibling discount for the year or global
+  // Active sibling discount for the selected year only
   const activeSiblingDiscount = (() => {
     const yearSettingWithDiscount = feeSettings.find(fs => fs.year === selectedYear && fs.siblingDiscount && fs.siblingDiscount > 0);
-    if (yearSettingWithDiscount) return yearSettingWithDiscount.siblingDiscount || 0;
-    const anyWithDiscount = feeSettings.find(fs => fs.siblingDiscount && fs.siblingDiscount > 0);
-    return anyWithDiscount?.siblingDiscount || 0;
+    return yearSettingWithDiscount?.siblingDiscount || 0;
   })();
 
   const findMatchingFeeSetting = (year: number, month: string): FeeSetting | null => {
-    // 1. Direct match for this specific month & year
-    const exact = feeSettings.find(fs => fs.year === year && fs.month === month);
-    if (exact) return exact;
-
-    // 2. Fallback: If superadmin configured any monthly fee in this year, reuse that base fee
-    const anyInYear = feeSettings.find(fs => fs.year === year);
-    if (anyInYear) {
-      return {
-        _id: 'inherited_' + year + '_' + month,
-        year,
-        month,
-        monthlyFee: anyInYear.monthlyFee,
-        penaltyAssignTo: anyInYear.penaltyAssignTo || anyInYear.applyFor || 'all',
-        penaltyFee: anyInYear.penaltyFee,
-        penaltyDay: anyInYear.penaltyDay,
-        siblingDiscount: anyInYear.siblingDiscount ?? activeSiblingDiscount
-      };
-    }
-
-    // 3. Fallback: If superadmin configured any fee setting overall in settings
-    if (feeSettings.length > 0) {
-      const fallback = feeSettings[0];
-      return {
-        _id: 'default_' + month,
-        year,
-        month,
-        monthlyFee: fallback.monthlyFee,
-        penaltyAssignTo: fallback.penaltyAssignTo || fallback.applyFor || 'all',
-        penaltyFee: fallback.penaltyFee,
-        penaltyDay: fallback.penaltyDay,
-        siblingDiscount: fallback.siblingDiscount ?? activeSiblingDiscount
-      };
-    }
-
-    return null;
+    // Only apply if explicitly configured for this exact month and year
+    return feeSettings.find(fs => fs.year === year && fs.month === month) || null;
   };
 
   const months = ['September', 'October', 'November', 'December', 'January', 'February', 'March', 'April', 'May', 'June']
@@ -768,11 +734,14 @@ export default function ViewStudentPage() {
 
                     {/* Family combined fee and discount calculation */}
                     {(() => {
-                      const sampleSetting = findMatchingFeeSetting(selectedYear, 'September') || feeSettings[0];
+                      const sampleSetting = feeSettings.find(fs => fs.year === selectedYear && fs.siblingDiscount && fs.siblingDiscount > 0)
+                        || feeSettings.find(fs => fs.year === selectedYear);
                       if (!sampleSetting) return null;
+                      const sampleDiscount = sampleSetting.siblingDiscount || 0;
+                      if (sampleDiscount <= 0) return null;
                       const baseFee = sampleSetting.monthlyFee;
                       const combinedBase = baseFee * totalSiblingsInFamily;
-                      const combinedDiscount = (combinedBase * activeSiblingDiscount) / 100;
+                      const combinedDiscount = (combinedBase * sampleDiscount) / 100;
                       const combinedNet = combinedBase - combinedDiscount;
 
                       return (
@@ -788,7 +757,7 @@ export default function ViewStudentPage() {
                             </div>
                             <div className="p-2.5 rounded-lg bg-white/80 dark:bg-gray-800/80 border border-green-200 dark:border-green-800">
                               <span className="block text-[11px] text-green-700 dark:text-green-400 uppercase tracking-wide">
-                                {getText(`Family Discount (-${activeSiblingDiscount}%)`, `የቤተሰብ ቅናሽ (-${activeSiblingDiscount}%)`)}
+                                {getText(`Family Discount (-${sampleDiscount}%)`, `የቤተሰብ ቅናሽ (-${sampleDiscount}%)`)}
                               </span>
                               <span className="text-sm font-bold text-green-700 dark:text-green-400">
                                 -{combinedDiscount.toLocaleString()} ETB {getText('off total', 'ከድምሩ')}
@@ -805,8 +774,8 @@ export default function ViewStudentPage() {
                           </div>
                           <p className="text-[11px] text-indigo-900/80 dark:text-indigo-300/80 italic pt-1">
                             💡 {getText(
-                              `The ${activeSiblingDiscount}% sibling discount is subtracted from the siblings total (saving ${combinedDiscount.toLocaleString()} ETB each month). This student's individual share is ${(baseFee - combinedDiscount / totalSiblingsInFamily).toLocaleString()} ETB/month.`,
-                              `የ${activeSiblingDiscount}% የወንድም/እህት ቅናሽ ከወንድማማቾች አጠቃላይ ድምር ላይ ተቀንሷል (በወር ${combinedDiscount.toLocaleString()} ብር ቅናሽ)። የዚህ ተማሪ ድርሻ በወር ${(baseFee - combinedDiscount / totalSiblingsInFamily).toLocaleString()} ብር ነው።`
+                              `The ${sampleDiscount}% sibling discount is subtracted from the siblings total (saving ${combinedDiscount.toLocaleString()} ETB each month). This student's individual share is ${(baseFee - combinedDiscount / totalSiblingsInFamily).toLocaleString()} ETB/month.`,
+                              `የ${sampleDiscount}% የወንድም/እህት ቅናሽ ከወንድማማቾች አጠቃላይ ድምር ላይ ተቀንሷል (በወር ${combinedDiscount.toLocaleString()} ብር ቅናሽ)። የዚህ ተማሪ ድርሻ በወር ${(baseFee - combinedDiscount / totalSiblingsInFamily).toLocaleString()} ብር ነው።`
                             )}
                           </p>
                         </div>
@@ -824,11 +793,11 @@ export default function ViewStudentPage() {
                     const isBalanceCleared = Boolean(monthPayment?.balanceCleared || (student?.clearedBalanceMonths || []).some(c => c.year === selectedYear && c.month === m.value));
                     const setting = findMatchingFeeSetting(selectedYear, m.value);
                     const baseAmount = setting ? setting.monthlyFee : 0;
-                    const targetPenalty = setting ? (setting.penaltyAssignTo || setting.applyFor || 'all') : 'all';
-                    const isPenaltyAssigned = targetPenalty === 'all' || targetPenalty === studentCategory;
+                    const targetPenalty = setting ? (setting.penaltyAssignTo || setting.applyFor || 'all') : 'none';
+                    const isPenaltyAssigned = setting ? (targetPenalty === 'all' || targetPenalty === studentCategory) : false;
 
-                    const effectiveDiscount = setting?.siblingDiscount ?? activeSiblingDiscount;
-                    const discountPercent = hasSiblings ? Math.max(0, Math.min(100, Number(effectiveDiscount) || 0)) : 0;
+                    const effectiveDiscount = setting ? (setting.siblingDiscount || 0) : 0;
+                    const discountPercent = (hasSiblings && setting) ? Math.max(0, Math.min(100, Number(effectiveDiscount) || 0)) : 0;
                     const discountAmount = (baseAmount * discountPercent) / 100;
                     const expectedFee = Math.max(0, baseAmount - discountAmount);
 
@@ -876,8 +845,8 @@ export default function ViewStudentPage() {
                   const totalLeftToPay = monthlyCalculations.reduce((sum, d) => sum + d.leftAmount, 0);
                   const totalPaidAmount = monthlyCalculations.reduce((sum, d) => sum + d.paidAmount, 0);
 
-                  const hasAnySettings = feeSettings.length > 0;
-                  if (!hasAnySettings) return null;
+                  const hasAnySettingsInYear = feeSettings.some(fs => fs.year === selectedYear);
+                  if (!hasAnySettingsInYear) return null;
 
                   return (
                     <div className={`p-4 sm:p-5 rounded-xl border mb-5 ${
@@ -972,11 +941,11 @@ export default function ViewStudentPage() {
                     const isCurrent = m.value === currentEcMonth && selectedYear === currentEcYear;
                     const setting = findMatchingFeeSetting(selectedYear, m.value);
                     const baseAmount = setting ? setting.monthlyFee : 0;
-                    const targetPenalty = setting ? (setting.penaltyAssignTo || setting.applyFor || 'all') : 'all';
-                    const isPenaltyAssigned = targetPenalty === 'all' || targetPenalty === studentCategory;
+                    const targetPenalty = setting ? (setting.penaltyAssignTo || setting.applyFor || 'all') : 'none';
+                    const isPenaltyAssigned = setting ? (targetPenalty === 'all' || targetPenalty === studentCategory) : false;
 
-                    const effectiveDiscount = setting?.siblingDiscount ?? activeSiblingDiscount;
-                    const discountPercent = hasSiblings ? Math.max(0, Math.min(100, Number(effectiveDiscount) || 0)) : 0;
+                    const effectiveDiscount = setting ? (setting.siblingDiscount || 0) : 0;
+                    const discountPercent = (hasSiblings && setting) ? Math.max(0, Math.min(100, Number(effectiveDiscount) || 0)) : 0;
                     const discountAmount = (baseAmount * discountPercent) / 100;
                     const expectedFee = Math.max(0, baseAmount - discountAmount);
 
@@ -1003,6 +972,10 @@ export default function ViewStudentPage() {
                         className={`p-3 rounded-lg border-2 transition-all relative flex flex-col justify-between shadow-xs ${
                           isMarkedPaidInPaymentPage
                             ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                            : !setting
+                            ? theme === 'dark'
+                              ? 'border-gray-700 bg-gray-800/50 opacity-75'
+                              : 'border-gray-200 bg-gray-50/80 opacity-75'
                             : calc?.isOverdue
                             ? 'border-red-400 bg-red-50/50 dark:bg-red-950/30 dark:border-red-800'
                             : theme === 'dark'
@@ -1038,6 +1011,10 @@ export default function ViewStudentPage() {
                               <svg className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                               </svg>
+                            ) : !setting ? (
+                              <span className="w-5 h-5 flex items-center justify-center text-xs font-semibold text-gray-400 dark:text-gray-500 flex-shrink-0">
+                                —
+                              </span>
                             ) : (
                               <svg className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -1048,9 +1025,15 @@ export default function ViewStudentPage() {
                           <p className={`text-xs mt-1.5 font-medium ${
                             isMarkedPaidInPaymentPage
                               ? 'text-green-600 dark:text-green-400'
+                              : !setting
+                              ? 'text-gray-400 dark:text-gray-500'
                               : 'text-red-600 dark:text-red-400'
                           }`}>
-                            {isMarkedPaidInPaymentPage ? getText('Paid', 'ተከፍሏል') : getText('Unpaid', 'አልተከፈለም')}
+                            {isMarkedPaidInPaymentPage
+                              ? getText('Paid', 'ተከፍሏል')
+                              : !setting
+                              ? getText('Not Configured', 'አልተዋቀረም')
+                              : getText('Unpaid', 'አልተከፈለም')}
                           </p>
                         </div>
 
@@ -1087,12 +1070,31 @@ export default function ViewStudentPage() {
                             </span>
                             <span className={`text-sm ${
                               leftAmount === 0
-                                ? 'text-green-700 dark:text-green-400 font-extrabold'
+                                ? isMarkedPaidInPaymentPage
+                                  ? 'text-green-700 dark:text-green-400 font-extrabold'
+                                  : 'text-gray-400 dark:text-gray-500 font-bold'
                                 : 'text-red-600 dark:text-red-400 font-extrabold'
                             }`}>
                               {leftAmount.toLocaleString()} ETB
                             </span>
                           </div>
+
+                          {/* Payment Description / Note in Month Card */}
+                          {monthPayment?.description && (
+                            <div
+                              className={`pt-1.5 mt-1.5 border-t text-[11px] leading-snug flex items-start gap-1 ${
+                                theme === 'dark' ? 'border-gray-700/60 text-gray-300' : 'border-gray-200/80 text-gray-700'
+                              }`}
+                              title={monthPayment.description}
+                            >
+                              <span className="font-semibold text-blue-600 dark:text-blue-400 shrink-0">
+                                📝 {getText('Note', 'መግለጫ')}:
+                              </span>
+                              <span className="break-words line-clamp-2">
+                                {monthPayment.description}
+                              </span>
+                            </div>
+                          )}
 
                           {/* Only superadmin can make the left to 0, and only when marked as paid with a left balance */}
                           {role === 'superadmin' && isMarkedPaidInPaymentPage && leftAmount > 0 && (
@@ -1119,6 +1121,140 @@ export default function ViewStudentPage() {
                   })}
                 </div>
               </div>
+
+              {/* Payment History & Description Section */}
+              {payments.length > 0 && (
+                <div className={`p-5 rounded-xl border ${theme === 'dark' ? 'bg-gray-800/70 border-gray-700' : 'bg-white border-gray-200'} shadow-xs`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className={`text-lg font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      <span>💳</span>
+                      <span>{getText('Payment History & Descriptions', 'የክፍያ ታሪክ እና መግለጫዎች')}</span>
+                    </h3>
+                    <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                      {payments.length} {getText('Payment(s)', 'ክፍያዎች')}
+                    </span>
+                  </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                      <thead className={theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}>
+                        <tr>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                            {getText('Period', 'ጊዜ')}
+                          </th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                            {getText('Payment Date', 'የተከፈለበት ቀን')}
+                          </th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                            {getText('Amount', 'መጠን')}
+                          </th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                            {getText('Status', 'ሁኔታ')}
+                          </th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
+                            {getText('Payment Description', 'የክፍያ መግለጫ')}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y divide-gray-200 dark:divide-gray-700 ${theme === 'dark' ? 'bg-gray-800/40' : 'bg-white'}`}>
+                        {payments.map(p => {
+                          const monthMeta = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value.toLowerCase() === p.month?.toLowerCase());
+                          const monthLabel = monthMeta
+                            ? (language === 'am' ? `${monthMeta.am} (${monthMeta.en})` : `${monthMeta.en} (${monthMeta.am})`)
+                            : p.month;
+                          const formattedDate = p.paymentDate ? formatDateWithBothCalendars(p.paymentDate) : '-';
+
+                          return (
+                            <tr key={p._id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                              <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white whitespace-nowrap">
+                                {monthLabel} {p.year} {getText('E.C', 'ዓ.ም')}
+                              </td>
+                              <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                                {formattedDate}
+                              </td>
+                              <td className="px-4 py-3 font-bold text-green-600 dark:text-green-400 whitespace-nowrap">
+                                {Number(p.amount || 0).toLocaleString()} ETB
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                  p.status === 'paid'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                }`}>
+                                  {p.status ? (p.status === 'paid' ? getText('Paid', 'ተከፍሏል') : p.status) : getText('Paid', 'ተከፍሏል')}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-700 dark:text-gray-200">
+                                {p.description && p.description.trim() ? (
+                                  <div className="flex items-start gap-1.5 max-w-lg">
+                                    <span className="text-blue-500">📝</span>
+                                    <span className="break-words font-medium">{p.description}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400 dark:text-gray-500 italic text-xs">
+                                    {getText('No description provided', 'ምንም መግለጫ አልተሰጠም')}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards View */}
+                  <div className="md:hidden space-y-3">
+                    {payments.map(p => {
+                      const monthMeta = ETHIOPIAN_ACADEMIC_MONTHS.find(m => m.value.toLowerCase() === p.month?.toLowerCase());
+                      const monthLabel = monthMeta
+                        ? (language === 'am' ? monthMeta.am : monthMeta.en)
+                        : p.month;
+                      const formattedDate = p.paymentDate ? formatDateWithBothCalendars(p.paymentDate) : '-';
+
+                      return (
+                        <div
+                          key={p._id}
+                          className={`p-3.5 rounded-xl border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'} space-y-2`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm text-gray-900 dark:text-white">
+                              {monthLabel} {p.year} {getText('E.C', 'ዓ.ም')}
+                            </span>
+                            <span className="font-bold text-sm text-green-600 dark:text-green-400">
+                              {Number(p.amount || 0).toLocaleString()} ETB
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                            <span>{formattedDate}</span>
+                            <span className={`px-2 py-0.5 rounded-full font-semibold text-[11px] ${
+                              p.status === 'paid'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                            }`}>
+                              {p.status ? (p.status === 'paid' ? getText('Paid', 'ተከፍሏል') : p.status) : getText('Paid', 'ተከፍሏል')}
+                            </span>
+                          </div>
+
+                          {p.description && p.description.trim() && (
+                            <div className={`mt-2 pt-2 border-t text-xs flex items-start gap-1.5 ${
+                              theme === 'dark' ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'
+                            }`}>
+                              <span className="text-blue-500 shrink-0">📝</span>
+                              <div className="break-words">
+                                <span className="font-semibold text-gray-500 dark:text-gray-400">{getText('Description', 'መግለጫ')}: </span>
+                                <span>{p.description}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Portal Credentials — superadmin only */}
               {role === 'superadmin' && (

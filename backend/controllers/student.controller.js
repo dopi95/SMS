@@ -180,8 +180,16 @@ const updateStudent = async (req, res) => {
     delete updateData.removePhoto;
     delete updateData.removeFatherPhoto;
     delete updateData.removeMotherPhoto;
-    // Remove empty enum fields to avoid validation errors
-    if (updateData.section === '') delete updateData.section;
+
+    // Handle clearing/resetting section when empty, 'none', or 'REMOVE'
+    let shouldUnsetSection = false;
+    if (req.body.section !== undefined && (req.body.section === '' || req.body.section === 'none' || req.body.section === 'REMOVE' || req.body.section === null)) {
+      delete updateData.section;
+      shouldUnsetSection = true;
+    } else if (updateData.section === '') {
+      delete updateData.section;
+    }
+
     if (updateData.gender === '') delete updateData.gender;
     if (updateData.class === '') delete updateData.class;
     if (updateData.dateOfBirth === 'Invalid Date') delete updateData.dateOfBirth;
@@ -241,7 +249,12 @@ const updateStudent = async (req, res) => {
     if (motherPhotoUrl) updateData.motherPhoto = motherPhotoUrl;
     else if (req.body.removeMotherPhoto) updateData.motherPhoto = '';
 
-    const student = await Student.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
+    const updateOps = { $set: updateData };
+    if (shouldUnsetSection) {
+      updateOps.$unset = { section: 1 };
+    }
+
+    const student = await Student.findByIdAndUpdate(req.params.id, updateOps, { new: true, runValidators: true });
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
     // Sync changes back to the linked approved pending record
@@ -337,14 +350,27 @@ const bulkUpdateClass = async (req, res) => {
       return res.status(400).json({ message: 'Student IDs are required' });
     }
     
-    const updateData = {};
-    if (classValue) updateData.class = classValue;
-    if (section) updateData.section = section;
+    const updateOps = {};
+    const setOps = {};
+    if (classValue) setOps.class = classValue;
+
+    const isResetSection = section === 'none' || section === 'reset' || section === 'REMOVE' || section === '__REMOVE__' || section === 'clear';
+    if (section && !isResetSection) {
+      setOps.section = section;
+    }
+    if (Object.keys(setOps).length > 0) {
+      updateOps.$set = setOps;
+    }
+    if (isResetSection) {
+      updateOps.$unset = { section: 1 };
+    }
     
-    await Student.updateMany(
-      { _id: { $in: studentIds } },
-      { $set: updateData }
-    );
+    if (Object.keys(updateOps).length > 0) {
+      await Student.updateMany(
+        { _id: { $in: studentIds } },
+        updateOps
+      );
+    }
     
     res.json({ message: `${studentIds.length} students updated successfully` });
   } catch (error) {

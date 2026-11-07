@@ -122,12 +122,10 @@ exports.getPaymentStatusByMonthYear = asyncHandler(async (req, res) => {
   const allStudents = await Student.find({ status: { $ne: 'inactive' } })
     .select('_id firstName middleName lastName fatherName motherName clearedBalanceMonths');
 
-  // Fetch fee setting for this year and month
-  const feeSettings = await FeeSetting.find({ year: numericYear });
-  const exactSetting = feeSettings.find(fs => fs.month === month);
-  const fallbackSetting = exactSetting || feeSettings.find(fs => fs.year === numericYear) || (feeSettings.length > 0 ? feeSettings[0] : null);
-  const baseFee = fallbackSetting ? fallbackSetting.monthlyFee : 0;
-  const siblingDiscount = fallbackSetting ? (fallbackSetting.siblingDiscount || 0) : 0;
+  // Fetch fee setting for this exact year and month only (only applies if explicitly configured for this month & year)
+  const exactSetting = await FeeSetting.findOne({ year: numericYear, month });
+  const baseFee = exactSetting ? exactSetting.monthlyFee : 0;
+  const siblingDiscount = exactSetting ? (exactSetting.siblingDiscount || 0) : 0;
 
   const isValidParentName = (name) => {
     if (!name) return false;

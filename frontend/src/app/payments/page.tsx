@@ -434,12 +434,9 @@ export default function PaymentsPage() {
     const isBalanceCleared = Boolean(payment?.balanceCleared || (student.clearedBalanceMonths || []).some(c => c.year === numericYear && c.month === monthName))
 
     const exactSetting = feeSettings.find(fs => fs.year === numericYear && fs.month === monthName)
-    const anyInYear = feeSettings.find(fs => fs.year === numericYear)
-    const fallbackSetting = exactSetting || anyInYear || (feeSettings.length > 0 ? feeSettings[0] : null)
-
-    const baseFee = fallbackSetting ? fallbackSetting.monthlyFee : 0
+    const baseFee = exactSetting ? exactSetting.monthlyFee : 0
     const hasSiblings = Boolean(siblingMap[student._id])
-    const discountPercent = hasSiblings ? Math.max(0, Math.min(100, Number(fallbackSetting?.siblingDiscount) || 0)) : 0
+    const discountPercent = (hasSiblings && exactSetting) ? Math.max(0, Math.min(100, Number(exactSetting.siblingDiscount) || 0)) : 0
     const expectedFee = Math.max(0, baseFee - (baseFee * discountPercent / 100))
 
     let leftAmount = 0
@@ -484,12 +481,9 @@ export default function PaymentsPage() {
       const isBalanceCleared = Boolean(payment?.balanceCleared || (student.clearedBalanceMonths || []).some(c => c.year === numericYear && c.month === m.value))
 
       const exactSetting = feeSettings.find(fs => fs.year === numericYear && fs.month === m.value)
-      const anyInYear = feeSettings.find(fs => fs.year === numericYear)
-      const fallbackSetting = exactSetting || anyInYear || (feeSettings.length > 0 ? feeSettings[0] : null)
-
-      const baseFee = fallbackSetting ? fallbackSetting.monthlyFee : 0
+      const baseFee = exactSetting ? exactSetting.monthlyFee : 0
       const hasSiblings = Boolean(siblingMap[student._id])
-      const discountPercent = hasSiblings ? Math.max(0, Math.min(100, Number(fallbackSetting?.siblingDiscount) || 0)) : 0
+      const discountPercent = (hasSiblings && exactSetting) ? Math.max(0, Math.min(100, Number(exactSetting.siblingDiscount) || 0)) : 0
       const expectedFee = Math.max(0, baseFee - (baseFee * discountPercent / 100))
 
       let left = 0
